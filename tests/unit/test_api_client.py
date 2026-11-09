@@ -2,7 +2,7 @@
 from http.client import IncompleteRead
 import importlib.util
 import io
-from contextlib import redirect_stdout
+from contextlib import redirect_stdout,redirect_stderr
 from pathlib import Path
 import unittest
 from urllib.error import HTTPError
@@ -52,6 +52,14 @@ class APIClientTests(unittest.TestCase):
         with patch.dict(client_module.os.environ, {'GPU_PLATFORM_PASSWORD': 'test-only'}), \
              patch.object(client_module.Client, 'request', return_value={'data': {'expires_in': 0}}) as request, \
              redirect_stdout(io.StringIO()):
-            self.assertEqual(client_module.main(['login', '--username', 'alice', '--expires-in', '0']), 0)
+            self.assertEqual(client_module.main(['--url','http://example.test','login', '--username', 'alice', '--expires-in', '0']), 0)
         self.assertEqual(request.call_args.args, ('POST', '/api/v1/auth/token',
             {'username': 'alice', 'password': 'test-only', 'expires_in': 0, 'name': ''}))
+
+    def test_missing_site_address_does_not_send_a_request(self):
+        output=io.StringIO()
+        with patch.dict(client_module.os.environ,{},clear=True), \
+             patch.object(client_module.Client,'request') as request,redirect_stderr(output):
+            self.assertEqual(client_module.main(['request','GET','/api/v1/me']),1)
+        request.assert_not_called()
+        self.assertIn('url_missing',output.getvalue())

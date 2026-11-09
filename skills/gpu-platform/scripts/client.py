@@ -26,9 +26,11 @@ class ClientError(Exception):
 
 class Client:
     def __init__(self, base, token=None):
+        if not base:
+            raise ClientError({'error': 'url_missing', 'message': 'Set GPU_PLATFORM_URL or pass --url with the platform site root.'})
         parts = urlsplit(base)
         if parts.scheme not in {'http', 'https'} or not parts.netloc or parts.username or parts.password or parts.path.rstrip('/') or parts.query or parts.fragment:
-            raise ClientError({'error': 'invalid_url', 'message': 'GPU_PLATFORM_URL must be a site root such as http://121.48.164.220'})
+            raise ClientError({'error': 'invalid_url', 'message': 'GPU_PLATFORM_URL must be a site root such as https://gpu.example.edu'})
         self.base, self.token = base.rstrip('/'), token
         self.opener = build_opener(NoRedirect())
 
@@ -86,7 +88,7 @@ class Client:
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--url', default=os.environ.get('GPU_PLATFORM_URL', 'http://121.48.164.220'))
+    parser.add_argument('--url', default=os.environ.get('GPU_PLATFORM_URL'))
     commands = parser.add_subparsers(dest='command', required=True)
     request = commands.add_parser('request')
     request.add_argument('method', choices=['GET', 'POST', 'PATCH', 'DELETE'])

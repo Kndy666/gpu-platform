@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Live CPU environment -> saved files -> GPU command handoff; no framework downloads."""
 import json,re,secrets,shlex,subprocess,sys,tempfile,time,uuid
+import yaml
 from datetime import datetime,timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -13,6 +14,7 @@ def shell(code,payload=None):
     return raw.strip().splitlines()[-1]
 
 def main():
+    platform=yaml.safe_load((ROOT/'config.yaml').read_text())['platform']
     user='workflow-check-'+uuid.uuid4().hex[:8];password=secrets.token_urlsafe(24)
     with tempfile.TemporaryDirectory(prefix='gpu-platform-workflow-') as directory:
         key=Path(directory)/'identity';subprocess.run(['ssh-keygen','-q','-t','ed25519','-N','','-f',str(key)],check=True)
@@ -25,7 +27,7 @@ i=ImageArtifact.objects.get(shared=True,reference__contains='/platform-ubuntu-ss
 print(json.dumps({'user_id':u.pk,'image':str(i.pk)}))'''
         info=json.loads(shell(code,{'user':user,'password':password}))
         print('ACCOUNT',json.dumps({'username':user,**info}),flush=True)
-        browser=Browser('http://121.48.164.220',user,password)
+        browser=Browser(platform['https_origin'],user,password)
         browser.post('/keys/',{'name':'workflow-check','public_key':key.with_suffix('.pub').read_text()}).raise_for_status()
         now=datetime.now(ZoneInfo('Asia/Shanghai'))
         response=browser.post('/environments/new/',{'image':info['image'],'purpose':'无 GPU 环境验收','gpu':0,'cpu':1,'memory_gib':1,'workspace_gib':1,'starts_at':(now-timedelta(minutes=1)).strftime('%Y-%m-%dT%H:%M'),'ends_at':(now+timedelta(minutes=30)).strftime('%Y-%m-%dT%H:%M'),'working_dir':'/workspace'},redirect=False)
@@ -43,7 +45,7 @@ print(json.dumps({'user_id':u.pk,'image':str(i.pk)}))'''
                 time.sleep(2)
             raise RuntimeError('Timed out: '+str(last))
         s=wait(source,{'running'})
-        ssh=['ssh','-i',str(key),'-p',str(s['ssh_port']),'-o','BatchMode=yes','-o','StrictHostKeyChecking=accept-new','-o','UserKnownHostsFile='+str(Path(directory)/'known_hosts'),'-o','HostKeyAlias=task-'+source,s['login_name']+'@121.48.164.220']
+        ssh=['ssh','-i',str(key),'-p',str(s['ssh_port']),'-o','BatchMode=yes','-o','StrictHostKeyChecking=accept-new','-o','UserKnownHostsFile='+str(Path(directory)/'known_hosts'),'-o','HostKeyAlias=task-'+source,s['login_name']+'@'+platform['public_host']]
         script='''set -eu
 ! command -v python3
 ! command -v pip

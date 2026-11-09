@@ -53,7 +53,7 @@ NCCL 验收覆盖通信层，未重复下载多 GB 的 PyTorch 框架。常规 C
 `tests/e2e/docker_workspace.py` 验证学生 SSH、Rootless Docker build、Compose、联网、端口发布、只读仓库身份，以及无 GPU 开发环境保存后转 GPU 程序的流程。`workspace_tools.py` 覆盖用户名、sudo、网络与编译工具、bubblewrap、Bash 高亮和 htop 资源视图。默认环境使用 Ubuntu 官方 APT 源，保留唯一默认镜像 Ubuntu 22.04。
 
 ```bash
-curl --fail http://121.48.164.220/api/v1/health
+curl --fail "${GPU_PLATFORM_URL}/api/v1/health"
 sudo k3s kubectl -n gpu-platform get pods
 sudo k3s kubectl -n gpu-workloads get pods,jobs,svc,pvc
 sudo systemctl status gpu-platform-node gpu-platform-mps
