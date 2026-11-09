@@ -8,4 +8,4 @@
 - https://archive.ubuntu.com/ubuntu/pool/universe/l/lxcfs/lxcfs_5.0.0-0ubuntu2.debian.tar.xz
 - https://ports.ubuntu.com/ubuntu-ports/pool/universe/l/lxcfs/lxcfs_5.0.0-0ubuntu2_arm64.deb
 
-完整部署直接使用仓库中的修补包，无需先生成旧工作镜像或从旧服务器复制 `dist` 目录。
+安装器直接使用本目录中的修补包。

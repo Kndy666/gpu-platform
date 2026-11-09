@@ -17,7 +17,7 @@ python3 scripts/client.py request GET /api/v1/resources
 python3 scripts/client.py request GET /api/v1/images --query available=true
 ```
 
-需要确认路径、HTTP 方法、参数或权限时，执行 `python3 scripts/client.py request GET /api/v1/openapi.json` 读取站点当前的 OpenAPI 文档，文档无需令牌。需要管理、存储或镜像示例时读取 [references/api.md](references/api.md)。相对脚本路径以本 skill 所在目录为基准。
+需要确认路径、HTTP 方法、参数或权限时，执行 `python3 scripts/client.py request GET /api/v1/openapi.json` 读取站点当前的 OpenAPI 文档。OpenAPI 公开可读。需要管理、存储或镜像示例时读取 [references/api.md](references/api.md)。相对脚本路径以本 skill 所在目录为基准。
 
 申请开发环境时，先确认账号额度、可用镜像和已启用的 SSH 公钥。缺少公钥时向用户取得公钥，或按用户授权生成密钥后提交公钥。`mode=interactive` 表示按日期时段使用；默认无 GPU，申请中写明 CPU、内存和工作卷大小。时间使用带时区的 ISO 8601；用户口述日期以站点返回的 `timezone` 为准，当前为北京时间。
 

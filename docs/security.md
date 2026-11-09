@@ -1,29 +1,53 @@
-# 安全边界
+# 权限与运行配置
 
-学生无宿主机账号和 Kubernetes 凭证。用户 Pod 挂载个人卷、工作卷和只读数据集；SSH 以 UID 1000 登录，支持容器内免密 sudo，继承常规 Docker 默认 capabilities。工作容器使用专用 seccomp 与 AppArmor 策略，允许 bubblewrap 创建内部命名空间；宿主机目录、管理 socket 和 API token 保持隔离。数据集通过管理员创建的只读 Local PV 提供。个人镜像及构建记录按当前登录用户过滤；任务详情及停止接口对他人返回 404。
+## 账号与 SSH
 
-SSH 仅允许公钥、禁用 root 和密码认证，允许 VS Code 所需的 TCP forwarding，sftp 使用 internal-sftp。公钥由只读任务 Secret 提供，OpenSSH 通过 root 所有的 `/usr/bin/cat` AuthorizedKeysCommand 读取，StrictModes 保持启用。每个任务使用独立 HostKeyAlias，端口复用时仍分别验证主机密钥。私钥保留在用户设备。
+普通用户操作本人的任务、私有镜像、数据卷、公钥和令牌。管理员可管理全部任务、镜像和数据卷，成员与用户组管理使用账号角色权限。不限额用户组控制资源额度，`is_staff` 控制管理权限。
 
-容器接受所属用户的启用公钥，以及所有启用中管理员账号的启用公钥。管理员使用目标容器的登录名进入，随后可在容器内 sudo。权限取自账号 `is_staff`，资源不限额用户组只影响额度。同步进程在处理运行容器时重算公钥，仅更新 Secret 的 `authorized_keys`，保留 GPU 租约和环境配置；公钥更新记入审计。公钥停用、账号停用和管理员降级会同步到运行容器，影响更新后的新 SSH 连接。Secret 挂载更新有传播延迟，已有 SSH 会话继续运行。[Kubernetes 更新说明](https://kubernetes.io/docs/concepts/configuration/secret/#using-secrets-as-files-from-a-pod)
+SSH 使用公钥认证，登录账号与任务创建时的网站用户名一致。容器内 UID/GID 为 1000，支持免密 sudo。每份任务使用独立的 HostKeyAlias 和 SSH 端口，支持 SFTP、TCP forwarding 与 VS Code Remote-SSH。
 
-当前用户允许门户暂用 HTTP，安全 Cookie 通过 `PLATFORM_HTTPS` 控制。Django DEBUG 在生产保持关闭。未来启用 HTTPS 时设置域名、TLS Secret、https origin、`network.https: true`。
+容器接受所属用户及启用中管理员账号的启用公钥。公钥通过任务 Secret 提供，OpenSSH 在新连接时读取。账号、公钥和角色变更经同步进程更新到运行容器；Secret 挂载传播完成后影响新连接，已有会话继续运行。[Kubernetes Secret 更新机制](https://kubernetes.io/docs/concepts/configuration/secret/#using-secrets-as-files-from-a-pod)
 
-公网接口限制 TCP 6443、10250 和 UDP 8472。防火墙添加带平台标识的 DROP 规则，K3s 启动前恢复规则。UDP 8472 的公网限制已获用户明确授权；本机容器接口保留通信。数据库和 containerd 用于内部访问，学生 Pod 使用独立卷挂载。
+## 网络
 
-Traefik 使用 HTTP 80 入口，关闭 LoadBalancer Service 的额外 NodePort 分配。任务 SSH 按需使用 30022–30121，共 100 个端口。本机 UFW 已启用；K3s 的服务转发经过 NAT 与 FORWARD 规则，实际放行状态需要同时检查 K3s 和 UFW 的规则。
+| 入口 | 默认端口 | 配置 |
+| --- | --- | --- |
+| 网页与 API | TCP 80 | Traefik HTTP |
+| HTTPS | TCP 443 | `network.https`、域名与 TLS Secret |
+| 容器 SSH | TCP 30022–30121 | `platform.ssh_ports`，按任务分配 |
+| Kubernetes API | TCP 6443 | 集群内部使用 |
+| kubelet | TCP 10250 | 集群内部使用 |
+| Flannel VXLAN | UDP 8472 | 节点网络通信 |
 
-构建任务属于独立信任边界。rootless BuildKit 官方配置可能需要 Unconfined seccomp/AppArmor 及 no-process-sandbox，应单独命名空间部署、无宿主机 socket、无学生卷、仅注入本人的仓库推送凭证，并通过实测验证。GPU 工作容器使用相同的专用工作容器策略。
+安装器在公网接口过滤 6443、10250 和 8472，规则随主机启动恢复。K3s 的 Service 转发同时经过 NAT 与 FORWARD 链，排查连通性时检查平台规则和 UFW。
 
-环境保存由本机 systemd 工作进程执行。网页仅提交带源任务 UUID 的类型化请求；本机进程校验源 Pod、所属用户及容器 ID，再将镜像发布至该用户仓库。常见凭据路径检查覆盖容器可写层，独立挂载中的个人卷、工作卷与 SSH 运行文件不进入镜像。保存操作不提供任意宿主机命令入口。
+`platform.https_origin` 设置网页地址，`network.https` 控制 HTTPS。生产环境关闭 Django DEBUG；Cookie 的 Secure 属性由 `PLATFORM_HTTPS` 控制。
 
-工作容器策略基于 Moby 官方默认策略，保留受限系统调用及 proc/sysfs 保护，并放行内部命名空间所需的调用。源 seccomp 文件 SHA256 为 `6416b47770785a41ac59073cdc77d9fe98517df2799dc83ef207e622de3053f6`，许可证保存在 `deploy/profiles/LICENSE.moby`。当前交付策略面向 ARM64。
+## 工作容器与 Docker
 
-工作环境使用专用 CPU/NVIDIA RuntimeClass。OCI 配置补充本任务 PID/网络命名空间的原生 proc 和只读 sysfs 挂载，以及字符设备 TUN（10:200），供 RootlessKit 创建内部网络；原有设备拒绝规则和 capabilities 保持生效。AppArmor 同时保护原路径与补充路径的全局内核、密钥及 sysfs 接口，允许内部 IPv4/IPv6 网络设置。配置由 `deploy/workspace-runtime.py` 安装。
+工作容器继承常规 Docker 默认 capabilities，使用仓库中的 seccomp 和 AppArmor 策略。策略支持 bubblewrap、内部命名空间与 Rootless Docker，配置源和许可证位于 `deploy/profiles/`。
 
-内层 Docker 以 UID 1000 运行，通过用户命名空间映射内部身份。UID/GID 辅助程序分别使用 `CAP_SETUID`、`CAP_SETGID` 文件能力；容器继续以非 root 身份启动。GPU 由外层 NVIDIA 运行时分配，内层通过启动时生成的 CDI 定义注入设备。平台不挂载宿主机运行时 socket，工作容器不获取 Kubernetes 凭据。个人仓库的独立只读凭据仅挂载给所属用户，复制到临时运行目录；环境保存排除这些挂载。
+CPU 与 GPU 环境分别使用 `workspace-runc` 和 `workspace-nvidia` RuntimeClass。运行时为内部命名空间提供 proc、只读 sysfs 和 TUN 设备；配置由 `deploy/workspace-runtime.py` 安装。
 
-GPU 份额由主机 MPS v3 在服务端将 namespace 绑定到独立静态 SM 分区；客户端进程数量增加仍共用同一分区。每卡显存硬上限由 NVIDIA 驱动绑定到外层容器 cgroup，包含内层 Rootless Docker 的用量。用户仅挂载本任务的私有 MPS 接入目录，全局控制 socket、租约文件和主机 cgroup 配置留在主机。GPU 计算模式为 EXCLUSIVE_PROCESS，移除 MPS 接入配置后无法另建直接 CUDA 上下文。共享任务仍共用物理卡带宽与设备故障域。
+内层 Docker 以 UID 1000 运行，通过用户命名空间映射内部身份。Docker 镜像、容器层、缓存和命名卷保存在 `/workspace/.docker`。内外层共同使用外层任务的 CPU、内存与 GPU 额度，LXCFS 为 SSH 会话提供额度视图。
 
-显存上限覆盖常规 CUDA 设备显存分配。NVIDIA 当前将 UVM / `cudaMallocManaged` 计入系统内存，这类分配不具有相同的 GPU 显存封顶保证，系统内存仍受容器 cgroup 限额约束。见 [驱动已知限制](https://docs.nvidia.com/deploy/mps/mpsv3-memory-partitioning.html#known-limitations)。
+| 资源 | 执行机制 | 显示与使用 |
+| --- | --- | --- |
+| CPU | cgroup `cpu.max` | LXCFS 显示申请核数，`cpu.stat` 记录实际用量 |
+| 内存 | 容器 cgroup | LXCFS 提供申请额度对应的内存视图 |
+| GPU 算力 | MPS v3 服务端绑定静态 SM 分区 | 任务的所有进程及内层容器共用分区 |
+| GPU 显存 | NVIDIA 驱动逐卡 cgroup 上限 | 常规 CUDA 设备分配达到上限时返回 OOM |
 
-RootlessKit 使用独立 PID 和网络命名空间，Docker 在内部配置桥接网卡。外层的 LXCFS 资源视图继续供 SSH 会话使用。`keyctl` 返回 `ENOSYS`，让 runc 跳过可选会话 keyring；`add_key` 和 `request_key` 继续禁用。实现使用标准 OCI 挂载与运行时配置。
+SM 份额决定可用计算单元，程序吞吐还取决于显存带宽和计算特征。同卡任务共用物理带宽与设备故障域。UVM / `cudaMallocManaged` 按 NVIDIA 驱动规则计入系统内存，受容器内存额度约束。[NVIDIA 内存计账说明](https://docs.nvidia.com/deploy/mps/mpsv3-memory-partitioning.html#known-limitations)
+
+GPU 租约与全局 MPS 控制文件由主机 root 管理，工作容器挂载本任务的私有 MPS 接入目录。GPU 使用 `EXCLUSIVE_PROCESS` 模式，由主机 MPS 服务持有计算上下文。
+
+## 镜像与数据
+
+工作容器挂载个人卷、工作卷和只读公用数据，平台管理凭据留在应用与主机服务。容器内可拉取共享镜像及本人的私有镜像，仓库登录配置使用个人只读身份。
+
+Dockerfile 构建位于独立命名空间，Rootless BuildKit 使用专用临时卷和所属用户的推送凭据。BuildKit 容器配置 Unconfined seccomp / AppArmor 与 `no-process-sandbox`；用户工作容器使用专用工作策略。
+
+环境保存请求携带源任务 UUID。节点进程校验源 Pod、用户和容器 ID，将可写层推送到所属用户仓库。个人卷、工作卷、SSH 运行文件与仓库凭据作为独立挂载保存。
+
+公用目录网页浏览通过文件描述符和 `O_NOFOLLOW` 逐级打开路径，下载采用流式附件响应。文件上传通过服务器 SSH 完成。

@@ -74,7 +74,7 @@ SSH 公钥启停会同步到现有运行容器。管理员启用公钥允许接�
 
 ## Docker 环境
 
-需要 Docker 时，在 `/images` 中选择共享镜像“Ubuntu 22.04”。平台启动独立 Rootless Docker，支持前台 `docker run --rm --gpus all IMAGE COMMAND` 作为运行命令；`all` 使用外层任务获分配的 GPU。内层镜像和 Docker 卷位于 `/workspace/.docker`，工作卷保留期对这些数据同样生效。长期使用的内层镜像可推送到自己的外部仓库，或使用 `docker save` 保存到个人卷。平台仓库在容器内提供只读凭据，镜像发布使用网页/API 构建与保存。从开发环境提交运行时沿用工作卷；使用已有镜像直接申请时创建新工作卷。
+需要 Docker 时，在 `/images` 中选择共享镜像“Ubuntu 22.04”。平台启动独立 Rootless Docker，支持前台 `docker run --rm --gpus all IMAGE COMMAND` 作为运行命令；`all` 使用外层任务获分配的 GPU。内层镜像和 Docker 卷位于 `/workspace/.docker`，工作卷保留期对这些数据同样生效。长期使用的内层镜像可推送到自己的外部仓库，或使用 `docker save` 保存到个人卷。平台仓库在容器内提供只读凭据，镜像发布使用网页/API 构建与保存。从开发环境提交运行时，相同容量复用工作卷，容量变化时复制到新卷；使用已有镜像直接申请时创建新工作卷。
 
 GPU：`GET /gpus` 查询逐卡余量及当前用户的 `request_limits`；`POST /tasks` 通过 `gpu_requests` 数组逐卡申请，如 `[{"compute_percent":100,"memory_gib":8},{"compute_percent":50,"memory_gib":4}]`。每个字段可独立用字符串 `"max"` 取最大值：保留手填值，将剩余总额度均分给选最大值的行，并受单卡权限和硬件容量限制；响应返回确定的整数。`gpu` 可省略；配置行对应 CUDA 设备序号，实际物理编号见 `gpu_allocations` 的 `slot`、`uuid`、`index`。用户组 GPU 权限包含总算力 `gpu_compute_percent`、总显存 `gpu_memory_gib`、单卡算力上限 `gpu_compute_per_card_percent` 与单卡显存上限 `gpu_memory_per_card_gib`。
 
