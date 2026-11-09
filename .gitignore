@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+runtime/
+config.yaml
+*.sqlite3*
+*.pem
+*.key
+*.tar
+.env
+dist/
+.tools/
+backend/staticfiles/

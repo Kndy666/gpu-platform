@@ -1,0 +1,4 @@
+interface:
+  display_name: "计算资源平台"
+  short_description: "通过平台API申请开发容器、运行程序、管理镜像和查询资源状态"
+  default_prompt: "使用 $gpu-platform 为我申请开发环境并返回连接配置。"

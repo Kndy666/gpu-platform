@@ -1,0 +1,12 @@
+{
+  "version": "5.0.0-0ubuntu2+platform2",
+  "upstream_fix": "https://github.com/lxc/lxcfs/pull/687",
+  "source_sha256": "d131b2284437165eabdcdf3c392b96fc95e6ee4f7bf04a7e9999f63997a995ee",
+  "ubuntu_patches_sha256": "200212ca04b437750fbc3ab57b3d5235936399fbc90c3eda8e9cbfcae8841037",
+  "packages": {
+    "arm64": {
+      "file": "lxcfs_5.0.0-0ubuntu2+platform2_arm64.deb",
+      "sha256": "3a979dbf1c7e57d1928bcfe6645c9fb906b0207cd1abf4cdc01d86d4df1c818c"
+    }
+  }
+}

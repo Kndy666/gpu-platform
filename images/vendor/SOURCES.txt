@@ -1,0 +1,6 @@
+ble.sh v0.4.0-devel3
+Upstream: https://github.com/akinomyoga/ble.sh/releases/tag/v0.4.0-devel3
+Original release archive SHA256: c8612ee612bc6b10dbfd6e85c6cbdfd7caf152a12d1f9de22ea0a9d735b3080c
+Packaged from the existing platform installation, version 0.4.0-devel3+1a5c451c.
+Deterministic tar (sorted names, uid/gid 0, mtime 0) SHA256: 9c29ed0370c1a7ef2cc13ab35b2b0a30f17d7dd53ec68e21d2821f10ce999866
+The BSD-3-Clause license is in LICENSE.blesh and is copied into the image.

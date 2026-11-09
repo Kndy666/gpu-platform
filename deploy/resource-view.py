@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+"""Install the approved host resource view and expose its read-only PVC."""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import shutil
+import stat
+import subprocess
+import sys
+import yaml
+
+SERVICE = '[Service]\nExecStart=\nExecStart=/usr/bin/lxcfs -f --enable-cfs --enable-loadavg --enable-pidfd /var/lib/lxcfs\nRestart=on-failure\n'
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def run(args, **kwargs):
+    return subprocess.check_output([str(value) for value in args], text=True, **kwargs)
+
+
+def require_idle_views(cfg):
+    raw = run(['k3s', 'kubectl', '-n', cfg['platform']['workload_namespace'], 'get', 'pods', '-o', 'json'])
+    if any(volume.get('persistentVolumeClaim', {}).get('claimName') == 'resource-view'
+           for pod in json.loads(raw)['items'] for volume in pod.get('spec', {}).get('volumes', [])):
+        raise RuntimeError('Stop user containers before changing the LXCFS installation')
+
+
+def install_lxcfs(cfg):
+    metadata = json.loads((ROOT / 'deploy/patches/lxcfs-packages.json').read_text())
+    try:
+        version = run(['dpkg-query', '-W', '-f=${Version}', 'lxcfs'], stderr=subprocess.DEVNULL).strip()
+    except subprocess.CalledProcessError:
+        version = ''
+    if version == metadata['version']:
+        return
+    architecture = run(['dpkg', '--print-architecture']).strip()
+    record = metadata['packages'].get(architecture)
+    if record is None:
+        raise RuntimeError('Build the LXCFS CPU fix for this architecture with deploy/build-resource-view.sh')
+    package = ROOT / 'deploy/packages' / record['file']
+    if not package.is_file() or hashlib.sha256(package.read_bytes()).hexdigest() != record['sha256']:
+        raise RuntimeError('Missing or invalid LXCFS CPU fix package: ' + str(package))
+    require_idle_views(cfg)
+    if shutil.which('lxcfs'):
+        run(['systemctl', 'stop', 'lxcfs'])
+    env = {**os.environ, 'DEBIAN_FRONTEND': 'noninteractive', 'NEEDRESTART_MODE': 'l'}
+    run(['apt-get', 'install', '-y', '--no-install-recommends', package], env=env)
+
+
+def configure(cfg, claims_only=False, dry_run=False):
+    if os.geteuid() != 0:
+        raise RuntimeError('Run with sudo')
+    if not claims_only and not Path('/dev/fuse').exists():
+        os.mknod('/dev/fuse', stat.S_IFCHR | 0o666, os.makedev(10, 229))
+    if not claims_only:
+        install_lxcfs(cfg)
+    dropin = Path('/etc/systemd/system/lxcfs.service.d/gpu-platform.conf')
+    changed = not dropin.exists() or dropin.read_text() != SERVICE
+    if changed and not claims_only:
+        require_idle_views(cfg)
+        dropin.parent.mkdir(parents=True, exist_ok=True)
+        dropin.write_text(SERVICE)
+    if not claims_only:
+        run(['systemctl', 'daemon-reload'])
+        run(['systemctl', 'enable', 'lxcfs'])
+        run(['systemctl', 'restart' if changed else 'start', 'lxcfs'])
+    run(['systemctl', 'is-active', 'lxcfs'])
+    for path in ['proc/cpuinfo', 'proc/meminfo', 'proc/stat', 'sys/devices/system/cpu/online']:
+        if not (Path('/var/lib/lxcfs') / path).is_file():
+            raise RuntimeError('Resource view missing: ' + path)
+    nodes = json.loads(run(['k3s', 'kubectl', 'get', 'nodes', '-o', 'json']))['items']
+    if len(nodes) != 1:
+        raise RuntimeError('A single resource-view node is required')
+    hostname = nodes[0]['metadata']['labels']['kubernetes.io/hostname']
+    pv = {'apiVersion': 'v1', 'kind': 'PersistentVolume', 'metadata': {'name': 'platform-resource-view'},
+          'spec': {'capacity': {'storage': '1Mi'}, 'accessModes': ['ReadOnlyMany'], 'storageClassName': '',
+                   'persistentVolumeReclaimPolicy': 'Retain', 'local': {'path': '/var/lib/lxcfs'},
+                   'nodeAffinity': {'required': {'nodeSelectorTerms': [{'matchExpressions': [
+                       {'key': 'kubernetes.io/hostname', 'operator': 'In', 'values': [hostname]}]}]}}}}
+    claim = {'apiVersion': 'v1', 'kind': 'PersistentVolumeClaim',
+             'metadata': {'name': 'resource-view', 'namespace': cfg['platform']['workload_namespace']},
+             'spec': {'accessModes': ['ReadOnlyMany'], 'storageClassName': '', 'volumeName': 'platform-resource-view',
+                      'resources': {'requests': {'storage': '1Mi'}}}}
+    for obj in (pv, claim):
+        run(['k3s', 'kubectl', 'apply', *(['--dry-run=server'] if dry_run else []), '-f', '-'], input=json.dumps(obj))
+    print('LXCFS resource view ready.')
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', type=Path)
+    parser.add_argument('--config-stdin', action='store_true')
+    parser.add_argument('--claims-only', action='store_true')
+    parser.add_argument('--dry-run', action='store_true')
+    args = parser.parse_args()
+    configure(yaml.safe_load(sys.stdin.read() if args.config_stdin else args.config.read_text()), args.claims_only or args.dry_run, args.dry_run)

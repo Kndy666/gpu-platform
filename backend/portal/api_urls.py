@@ -1,0 +1,51 @@
+from django.urls import path
+from . import api
+
+# The route catalog also supplies OpenAPI operations, keeping discovery in sync.
+ROUTES = [
+    ('', api.index, 'Discover the API', None),
+    ('health', api.health, 'Service health', None),
+    ('openapi.json', api.schema, 'OpenAPI document', None),
+    ('skill.zip', api.skill_download, 'Download the Agent skill', None),
+    ('auth/token', api.token, 'Issue or revoke a Bearer token', 'TokenRequest'),
+    ('auth/tokens', api.tokens, 'List or create your API tokens', 'TokenIssueRequest'),
+    ('auth/tokens/<uuid:pk>', api.token_entry, 'Reveal or revoke one of your API tokens', None),
+    ('me', api.me, 'Account, user group and resource usage', None),
+    ('me/password', api.password, 'Change your password', 'PasswordRequest'),
+    ('resources', api.resources, 'Resource availability and default image', None),
+    ('gpus', api.gpus, 'Physical GPUs, compute shares and VRAM availability', None),
+    ('timeline', api.timeline, 'Daily resource allocation timeline', None),
+    ('keys', api.keys, 'List or add SSH public keys', 'KeyRequest'),
+    ('keys/<int:pk>', api.key, 'Update or disable an SSH key', 'KeyUpdate'),
+    ('tasks', api.tasks, 'List or submit development and program requests', 'TaskRequest'),
+    ('tasks/<uuid:pk>', api.task, 'Read a task', None),
+    ('tasks/<uuid:pk>/connection', api.connection, 'SSH command and config', None),
+    ('admin/containers', api.containers, 'Search and inspect every user container; SSH via tasks/{id}/connection', None),
+    ('tasks/<uuid:pk>/logs', api.logs, 'Read current container logs', None),
+    ('tasks/<uuid:pk>/stop', api.stop, 'Cancel or stop a task', 'EmptyRequest'),
+    ('tasks/<uuid:pk>/review', api.review, 'Approve, reject, stop or extend a task', 'ReviewRequest'),
+    ('tasks/<uuid:pk>/save', api.save, 'Save your running development environment', 'EmptyRequest'),
+    ('snapshots', api.snapshots, 'List environment save operations', None),
+    ('snapshots/<uuid:pk>', api.snapshot, 'Read an environment save operation', None),
+    ('images', api.images, 'List accessible images', None),
+    ('images/<uuid:pk>', api.image, 'Read or schedule image recycling', None),
+    ('images/<uuid:pk>/<str:action>', api.image_action, 'Keep or recycle an image', 'EmptyRequest'),
+    ('builds', api.builds, 'List or submit image builds', 'BuildRequest'),
+    ('builds/<uuid:pk>', api.build, 'Read build status and logs', None),
+    ('volumes', api.volumes, 'List your data volumes', None),
+    ('volumes/<uuid:pk>', api.volume, 'Read or delete an idle volume', None),
+    ('datasets', api.datasets, 'Browse public data', None),
+    ('datasets/download', api.download, 'Download a public data file', None),
+    ('admin/overview', api.overview, 'Management counts', None),
+    ('admin/members', api.members, 'List or create accounts', 'MemberRequest'),
+    ('admin/members/<int:pk>', api.member, 'Read or edit an account', 'MemberRequest'),
+    ('admin/groups', api.groups, 'List or create user groups', 'GroupRequest'),
+    ('admin/groups/<int:pk>', api.group, 'Read, edit or delete a user group', 'GroupRequest'),
+    ('admin/storage', api.storage, 'Storage pools and all live volumes', None),
+    ('admin/images', api.managed_images, 'Manage image recycling', None),
+    ('admin/audits', api.audits, 'Read audit records', None),
+    ('admin/settings', api.recycling_settings, 'Read or update retention settings', 'SettingsRequest'),
+]
+
+urlpatterns = [path(route, view, name='api_'+view.__name__) for route, view, _, _ in ROUTES]
+urlpatterns += [path('<path:unmatched>', api.not_found)]

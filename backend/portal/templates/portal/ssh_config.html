@@ -1,0 +1,9 @@
+{% if task.status == 'running' and ws.ssh_port %}
+<div class="section-heading"><code>~/.ssh/config</code><button type="button" class="button secondary" data-copy="ssh-config">复制配置</button></div>
+<pre id="ssh-config">Host task-{{ task.pk }}
+    HostName {{ host }}
+    Port {{ ws.ssh_port }}
+    User {{ task.login_user }}
+    HostKeyAlias task-{{ task.pk }}
+</pre>
+{% endif %}

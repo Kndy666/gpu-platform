@@ -1,0 +1,230 @@
+{{- $c := .Values.config }}
+{{- $p := $c.platform }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: platform-config
+data:
+  config.yaml: |
+{{ toYaml $c | indent 4 }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: platform
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: platform-workloads
+  namespace: {{ $p.workload_namespace }}
+rules:
+- apiGroups: [""]
+  resources: [pods, services, secrets, persistentvolumeclaims, configmaps]
+  verbs: [get, list, watch, create, delete, patch, update]
+- apiGroups: [""]
+  resources: [pods/log, events]
+  verbs: [get, list]
+- apiGroups: [batch]
+  resources: [jobs]
+  verbs: [get, list, watch, create, delete, patch]
+- apiGroups: [kueue.x-k8s.io]
+  resources: [workloads, localqueues]
+  verbs: [get, list, watch]
+- apiGroups: [kueue.x-k8s.io]
+  resources: [localqueues]
+  verbs: [create, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: platform-workloads
+  namespace: {{ $p.workload_namespace }}
+subjects:
+- kind: ServiceAccount
+  name: platform
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: platform-workloads
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: gpu-platform-observe
+rules:
+- apiGroups: [""]
+  resources: [nodes, pods, services]
+  verbs: [get, list, watch]
+- apiGroups: [""]
+  resources: [nodes/stats]
+  verbs: [get]
+- apiGroups: [""]
+  resources: [persistentvolumes]
+  verbs: [get]
+- apiGroups: [kueue.x-k8s.io]
+  resources: [clusterqueues]
+  verbs: [get, list, create, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: gpu-platform-observe
+subjects:
+- kind: ServiceAccount
+  name: platform
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: gpu-platform-observe
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: platform-data
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ $p.data_storage_class }}
+  resources:
+    requests:
+      storage: {{ $p.data_size_gib }}Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platform
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: {app: gpu-platform}
+  template:
+    metadata:
+      labels: {app: gpu-platform}
+      annotations:
+        checksum/config: {{ toYaml $c | sha256sum }}
+        platform.image-revision: {{ .Values.imageRevision | default .Values.appImage | quote }}
+    spec:
+      serviceAccountName: platform
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+      - name: platform
+        image: {{ .Values.appImage | quote }}
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities: {drop: [ALL]}
+        ports: [{name: http, containerPort: 8000}]
+        resources:
+          requests: {cpu: 500m, memory: 512Mi, ephemeral-storage: 1Gi}
+          limits: {cpu: '2', memory: 2Gi, ephemeral-storage: 4Gi}
+        env:
+        - {name: PLATFORM_CONFIG, value: /etc/platform/config.yaml}
+        - {name: PLATFORM_DATA, value: /var/lib/platform}
+        - {name: PLATFORM_DATASET_ROOT, value: /srv/platform/datasets}
+        - {name: DJANGO_ALLOWED_HOSTS, value: {{ printf "%s,localhost,127.0.0.1" $p.public_host | quote }}}
+        - {name: CSRF_TRUSTED_ORIGINS, value: {{ $p.https_origin | quote }}}
+        - {name: PLATFORM_HTTPS, value: {{ ternary "1" "0" .Values.https | quote }}}
+        - name: DJANGO_SECRET_KEY
+          valueFrom: {secretKeyRef: {name: {{ .Values.secretName }}, key: django-secret-key}}
+        - name: PLATFORM_INITIAL_ADMIN_PASSWORD
+          valueFrom: {secretKeyRef: {name: {{ .Values.secretName }}, key: initial-admin-password}}
+        startupProbe:
+          httpGet: {path: /healthz/, port: http, httpHeaders: [{name: Host, value: localhost}]}
+          failureThreshold: 60
+          periodSeconds: 5
+        readinessProbe:
+          httpGet: {path: /healthz/, port: http, httpHeaders: [{name: Host, value: localhost}]}
+          periodSeconds: 10
+        livenessProbe:
+          httpGet: {path: /healthz/, port: http, httpHeaders: [{name: Host, value: localhost}]}
+          failureThreshold: 6
+          periodSeconds: 10
+        volumeMounts:
+        - {name: data, mountPath: /var/lib/platform}
+        - {name: config, mountPath: /etc/platform, readOnly: true}
+        - {name: registry-ca, mountPath: /etc/platform-registry-ca, readOnly: true}
+        - {name: datasets, mountPath: /srv/platform/datasets, readOnly: true}
+        {{- range $pool := $c.storage.pools }}
+        - {name: {{ $pool.name }}, mountPath: /storage-pools/{{ $pool.name }}, readOnly: true}
+        {{- end }}
+      volumes:
+      - {name: data, persistentVolumeClaim: {claimName: platform-data}}
+      - {name: config, configMap: {name: platform-config}}
+      - {name: registry-ca, configMap: {name: registry-ca}}
+      - name: datasets
+        hostPath: {path: {{ $c.storage.datasets | quote }}, type: Directory}
+      {{- range $pool := $c.storage.pools }}
+      - name: {{ $pool.name }}
+        hostPath: {path: {{ $pool.path | quote }}, type: Directory}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: platform
+spec:
+  selector: {app: gpu-platform}
+  ports: [{port: 8000, targetPort: http}]
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: platform
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: {{ ternary "websecure" "web" .Values.https | quote }}
+spec:
+  ingressClassName: traefik
+  {{- if .Values.https }}
+  tls:
+  - hosts: [{{ $p.public_host | quote }}]
+    secretName: {{ $p.tls_secret }}
+  {{- end }}
+  rules:
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend: {service: {name: platform, port: {number: 8000}}}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: workspace
+  namespace: {{ $p.workload_namespace }}
+automountServiceAccountToken: false
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: workspace-isolation
+  namespace: {{ $p.workload_namespace }}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress:
+  - ports: [{protocol: TCP, port: 2222}]
+  egress:
+  - to:
+    - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+      podSelector: {matchLabels: {k8s-app: kube-dns}}
+    ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+  - to:
+    - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: {{ .Release.Namespace }}}}
+      podSelector: {matchLabels: {app: zot}}
+    ports: [{protocol: TCP, port: 5000}]
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16{{ if ne $p.node_ip "auto" }}, {{ printf "%s/32" $p.node_ip | quote }}{{ end }}]

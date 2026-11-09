@@ -1,0 +1,3 @@
+{% extends base_template %}
+{% block content %}{% if management %}{{ block.super }}{% else %}<div class="page-heading"><h1>公用目录</h1></div>{% include 'portal/dataset_listing.html' %}{% endif %}{% endblock %}
+{% block manage_content %}{% include 'portal/dataset_listing.html' %}{% endblock %}

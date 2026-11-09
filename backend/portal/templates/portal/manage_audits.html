@@ -1,0 +1,15 @@
+{% extends 'portal/manage_base.html' %}
+{% block manage_content %}
+<div class="audit-list">
+  <div class="audit-head"><span>时间</span><span>操作人</span><span>操作</span><span></span></div>
+  {% for row in page %}
+  <details class="audit-entry">
+    <summary><time>{{ row.created_at|date:'Y/m/d H:i:s' }}</time><span class="audit-actor">{{ row.actor.username|default:'系统' }}</span><strong class="audit-event">{{ row.label }}</strong><svg class="audit-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg></summary>
+    <dl class="audit-details">
+      <div class="audit-detail-item"><dt>对象</dt><dd>{{ row.target_label }}</dd></div>
+      {% for item in row.details %}<div class="audit-detail-item"><dt>{{ item.label }}</dt><dd>{% if item.structured %}<pre>{{ item.value }}</pre>{% else %}{{ item.value }}{% endif %}</dd></div>{% endfor %}
+    </dl>
+  </details>
+  {% empty %}<div class="empty">暂无记录</div>{% endfor %}
+</div>{% include 'portal/pagination.html' %}
+{% endblock %}

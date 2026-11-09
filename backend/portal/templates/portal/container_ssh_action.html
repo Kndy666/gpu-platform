@@ -1,0 +1,3 @@
+{% if user.is_staff and task.status == 'running' and task.workspace.ssh_port and not task.workspace.stop_requested and not task.workspace.cleanup_complete %}
+<a class="task-action-icon" href="{% url 'task' task.pk %}?from=management#connection" title="SSH 连接" aria-label="SSH 连接：{{ task.purpose }}"><svg><use href="#i-terminal"/></svg></a>
+{% endif %}

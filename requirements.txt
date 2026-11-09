@@ -1,0 +1,7 @@
+Django==5.2.18
+gunicorn==23.0.0
+PyYAML==6.0.3
+requests==2.32.5
+cryptography==46.0.3
+whitenoise==6.11.0
+bcrypt==5.0.0

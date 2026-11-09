@@ -1,0 +1,23 @@
+{% extends 'portal/base.html' %}{% block content %}
+<div class="page-heading"><h1>API 访问</h1><div class="actions"><a class="button secondary" href="/api/v1/openapi.json">接口文档</a><a class="button" href="/api/v1/skill.zip">下载 Agent Skill</a></div></div>
+<section class="panel">
+  <h2>访问地址</h2><pre id="api-url">{{ api_url }}</pre><button type="button" class="button secondary" data-copy="api-url">复制地址</button>
+</section>
+<section class="panel">
+  <h2>访问令牌</h2>
+  <form method="post" class="token-issue-form">{% csrf_token %}{% include 'portal/field.html' with field=form.name %}{% include 'portal/field.html' with field=form.expires_in %}<button type="submit" class="button">生成令牌</button></form>
+</section>
+<div class="section-heading"><h2>已生成令牌 <span class="count">{{ tokens|length }}</span></h2></div>
+<div class="table-wrap"><table class="token-table"><thead><tr><th>令牌</th><th>创建时间</th><th>有效期</th><th class="task-actions-heading">操作</th></tr></thead><tbody>
+{% for token in tokens %}<tr>
+  <td class="token-identity"><strong>{{ token.name }}</strong><input id="token-{{ token.id }}" class="token-value" type="password" value="{{ token.token }}" readonly autocomplete="off" aria-label="{{ token.name }}的令牌"></td>
+  <td class="token-created">{% if token.created_at %}<time>{{ token.created_at|date:'Y/m/d H:i' }}</time>{% else %}<span class="table-sub">未记录</span>{% endif %}</td>
+  <td class="token-expiry">{% if token.status == 'expired' %}<span class="badge failed">已过期</span>{% elif token.status == 'invalidated' %}<span class="badge canceled">已失效</span>{% endif %}{% if token.expires_at %}<time>{{ token.expires_at|date:'Y/m/d H:i' }}</time>{% else %}<span class="badge {% if token.status == 'active' %}succeeded{% endif %}">{% if token.status == 'active' %}永久有效{% else %}永久{% endif %}</span>{% endif %}</td>
+  <td class="task-actions-cell token-controls"><div class="task-row-actions">
+    <button type="button" class="task-action-icon" data-token-reveal="token-{{ token.id }}" title="显示令牌" aria-label="显示令牌" aria-pressed="false"><svg aria-hidden="true"><use href="#i-eye"/></svg></button>
+    <button type="button" class="task-action-icon" data-copy="token-{{ token.id }}" data-icon-action title="复制令牌" aria-label="复制令牌"><svg aria-hidden="true"><use href="#i-copy"/></svg></button>
+    <form method="post" action="{% url 'delete_api_token' token.id %}">{% csrf_token %}<button type="submit" class="task-action-icon danger" title="删除令牌" aria-label="删除令牌：{{ token.name }}"><svg aria-hidden="true"><use href="#i-trash"/></svg></button></form>
+  </div></td>
+</tr>{% empty %}<tr><td colspan="4" class="empty">暂无令牌</td></tr>{% endfor %}
+</tbody></table></div>
+{% endblock %}

@@ -1,0 +1,7 @@
+Moby default seccomp source: https://github.com/moby/profiles/blob/main/seccomp/default.json
+Source SHA256: 6416b47770785a41ac59073cdc77d9fe98517df2799dc83ef207e622de3053f6
+Moby AppArmor template: https://github.com/moby/profiles/blob/main/apparmor/template.go
+Template SHA256: 7da15d81aa5c507f5002b844fdc49a969904681447a2cc29222bd6cbe797163b
+License: Apache-2.0, see LICENSE.moby
+
+workspace-seccomp.json resolves the default profile for ARM64 and the Docker default capability set, then permits clone/unshare/setns/mount/umount/pivot_root/sethostname/setdomainname for namespace-local bubblewrap operations. keyctl remains blocked with ENOSYS so runc skips its optional session keyring during nested Docker and BuildKit startup. Other privileged syscall rules remain gated out. AppArmor retains proc/sysfs protections and permits namespace-local mounts.

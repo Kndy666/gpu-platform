@@ -1,0 +1,38 @@
+From: Quanjin Lin <478942543@qq.com>
+Subject: Backport cgroup v2 /proc/stat CPU count filtering to LXCFS 5.0.0
+Origin: https://github.com/lxc/lxcfs/commit/255b7a74774ea1b3ca87a6c16153241b6abdd30d
+Upstream-PR: https://github.com/lxc/lxcfs/pull/687
+Adaptation: 5.0.0 uses max_cpu_count(cg) and already renders contiguous CPU IDs.
+License: LGPL-2.1-or-later (same as upstream src/proc_fuse.c)
+
+--- a/src/proc_fuse.c
++++ b/src/proc_fuse.c
+@@ -905,6 +905,8 @@
+ 	char *cache = d->buf + CPUALL_MAX_SIZE;
+ 	size_t cache_size = d->buflen - CPUALL_MAX_SIZE;
+ 	int cg_cpu_usage_size = 0;
++	bool use_view;
++	int max_cpus = 0;
+ 
+ 	if (offset) {
+ 		size_t left;
+@@ -967,6 +969,9 @@
+ 		lxcfs_v("proc_stat_read failed to read from cpuacct, falling back to the host's /proc/stat");
+ 	}
+ 
++	use_view = cgroup_ops->can_use_cpuview(cgroup_ops) && opts && opts->use_cfs;
++	if (use_view)
++		max_cpus = max_cpu_count(cg);
+ 	while (getline(&line, &linelen, f) != -1) {
+ 		ssize_t l;
+ 		char cpu_char[10]; /* That's a lot of cores */
+@@ -994,6 +999,9 @@
+ 		if (sscanf(cpu_char, "%d", &physcpu) != 1)
+ 			continue;
+ 
++		/* Preserve non-CPU records after the last visible CPU. */
++		if (use_view && max_cpus > 0 && (curcpu + 1) == max_cpus)
++			continue;
+ 		if (!cpu_in_cpuset(physcpu, cpuset))
+ 			continue;
+ 

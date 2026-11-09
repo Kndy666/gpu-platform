@@ -1,0 +1,12 @@
+{% extends 'portal/manage_base.html' %}
+{% block manage_content %}
+{% if not ssh_access.ready %}<div class="notice"><a href="{% url 'keys' %}">添加 SSH 公钥</a>，即可使用你的密钥进入所有用户容器。</div>{% endif %}
+<form method="get" class="container-filters" role="search">
+<input type="search" name="q" value="{{ query }}" placeholder="搜索名称、成员或容器编号" aria-label="搜索容器">
+<select name="status" aria-label="容器状态"><option value="">全部状态</option>{% for value,label in states %}<option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+<select name="mode" aria-label="容器类型"><option value="">全部类型</option><option value="interactive" {% if mode == 'interactive' %}selected{% endif %}>开发环境</option><option value="batch" {% if mode == 'batch' %}selected{% endif %}>运行程序</option></select>
+<button type="submit">筛选</button>
+</form>
+<div class="container-list">{% include 'portal/task_table.html' with management_links=True %}</div>
+{% include 'portal/history_pagination.html' with page=tasks %}
+{% endblock %}

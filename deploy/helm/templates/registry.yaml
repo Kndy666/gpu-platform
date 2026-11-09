@@ -1,0 +1,145 @@
+{{- $c := .Values.config }}
+{{- $p := $c.platform }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: registry-data
+  annotations: {helm.sh/resource-policy: keep}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ $p.data_storage_class }}
+  resources:
+    requests: {storage: {{ $c.storage.registry_budget_gib }}Gi}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: registry
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: zot}}
+  template:
+    metadata:
+      labels: {app: zot}
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {runAsUser: 10001, runAsGroup: 10001, runAsNonRoot: true, fsGroup: 10001, seccompProfile: {type: RuntimeDefault}}
+      containers:
+      - name: zot
+        image: {{ $c.registry.zot_image | quote }}
+        args: [serve, /etc/zot/auth/config.json]
+        securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+        ports: [{name: registry, containerPort: 5000}]
+        resources:
+          requests: {cpu: 100m, memory: 256Mi}
+          limits: {cpu: '2', memory: 2Gi}
+        readinessProbe: {tcpSocket: {port: 5000}, periodSeconds: 5}
+        livenessProbe: {tcpSocket: {port: 5000}, periodSeconds: 10}
+        volumeMounts:
+        - {name: data, mountPath: /var/lib/registry}
+        - {name: auth, mountPath: /etc/zot/auth, readOnly: true}
+        - {name: tls, mountPath: /etc/zot/tls, readOnly: true}
+      volumes:
+      - {name: data, persistentVolumeClaim: {claimName: registry-data}}
+      - {name: auth, secret: {secretName: registry-state}}
+      - {name: tls, secret: {secretName: registry-tls}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: registry
+spec:
+  clusterIP: {{ $c.network.registry_service_ip }}
+  selector: {app: zot}
+  ports: [{port: 5000, targetPort: registry}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: platform-registry
+rules:
+- apiGroups: [""]
+  resources: [configmaps]
+  verbs: [get, list, create, update, patch, delete]
+- apiGroups: [""]
+  resources: [secrets]
+  resourceNames: [registry-state]
+  verbs: [get, update]
+- apiGroups: [apps]
+  resources: [deployments]
+  resourceNames: [registry]
+  verbs: [get, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: platform-registry
+subjects:
+- {kind: ServiceAccount, name: platform, namespace: {{ .Release.Namespace }}}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: platform-registry}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: platform-builds
+  namespace: {{ $p.build_namespace }}
+rules:
+- apiGroups: [""]
+  resources: [pods, configmaps, secrets]
+  verbs: [get, list, create, update, delete]
+- apiGroups: [""]
+  resources: [secrets]
+  verbs: [patch]
+- apiGroups: [""]
+  resources: [pods/log]
+  verbs: [get]
+- apiGroups: [batch]
+  resources: [jobs]
+  verbs: [get, list, create, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: platform-builds
+  namespace: {{ $p.build_namespace }}
+subjects:
+- {kind: ServiceAccount, name: platform, namespace: {{ .Release.Namespace }}}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: platform-builds}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: registry-access
+spec:
+  podSelector: {matchLabels: {app: zot}}
+  policyTypes: [Ingress]
+  ingress:
+  - from:
+    - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: {{ $p.build_namespace }}}}
+    - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: {{ $p.workload_namespace }}}}
+    - podSelector: {matchLabels: {app: gpu-platform}}
+    ports: [{protocol: TCP, port: 5000}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: build-isolation
+  namespace: {{ $p.build_namespace }}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress:
+  - to:
+    - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+      podSelector: {matchLabels: {k8s-app: kube-dns}}
+    ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+  - to:
+    - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: {{ .Release.Namespace }}}}
+      podSelector: {matchLabels: {app: zot}}
+    ports: [{protocol: TCP, port: 5000}]
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16{{ if ne $p.node_ip "auto" }}, {{ printf "%s/32" $p.node_ip | quote }}{{ end }}]

@@ -1,0 +1,10 @@
+# Every infrastructure version is explicit; chart archives are verified in install.py.
+k3s=v1.33.5+k3s1
+helm=v3.19.0
+kueue=0.13.4
+kueue_chart_sha256=5c9ac084ce1ff1cc2b42a8d8bf13b5b6b3ea83fb066492717b844cc47185fa4e
+rawfile_localpv=0.15.3
+rawfile_chart_sha256=57da44022c61e8e6b08650c34308997fb06f48bc66f37afacf0fdcc61ee08bcb
+zot=2.1.22
+buildkit=0.26.1
+nerdctl=2.1.3

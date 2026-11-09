@@ -1,0 +1,9 @@
+.git
+.venv
+.tools
+runtime
+config.yaml
+**/__pycache__
+*.tar
+dist
+backend/staticfiles

@@ -1,0 +1,4 @@
+<span class="record-name">{{ record_name }}</span>
+<span class="badge {{ record_status }}">{{ record_label }}</span>
+<time datetime="{{ record_time|date:'c' }}">{{ record_time|date:'Y/m/d H:i' }}</time>
+{% if collapsible %}<span class="record-chevron" aria-hidden="true">⌄</span>{% endif %}

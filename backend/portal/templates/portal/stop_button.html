@@ -1,0 +1,7 @@
+{% if task.can_stop %}
+<form class="stop-form" method="post" action="{% url 'stop' task.pk %}" data-stop-form>
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ request.get_full_path }}">
+  <button type="submit" class="{% if compact %}task-action-icon{% else %}button{% endif %} danger" title="{% if task.workspace.stop_requested %}{{ task.stop_pending_label }}{% else %}{{ task.stop_label }}{% endif %}" aria-label="{{ task.stop_label }}：{{ task.purpose }}" data-pending-label="{{ task.stop_pending_label }}"{% if compact %} data-icon-action{% endif %}{% if task.workspace.stop_requested %} disabled{% endif %}>{% if compact %}<svg viewBox="0 0 24 24" aria-hidden="true">{% if task.stop_label == '取消任务' %}<path d="m7 7 10 10M17 7 7 17"/>{% else %}<rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor" stroke="none"/>{% endif %}</svg>{% elif task.workspace.stop_requested %}{{ task.stop_pending_label }}{% else %}{{ task.stop_label }}{% endif %}</button>
+</form>
+{% endif %}

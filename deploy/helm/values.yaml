@@ -1,0 +1,4 @@
+config: {}
+secretName: platform-secrets
+appImage: gpu-platform:0.1.0
+https: false

@@ -1,0 +1,33 @@
+from django.urls import path
+from . import views
+from . import management_views as manage
+from .datasets import browse_datasets
+urlpatterns = [path('', views.dashboard, name='dashboard'), path('keys/', views.keys, name='keys'),
+    path('api/', views.api_access, name='api_access'),
+    path('api/tokens/<uuid:pk>/delete/', views.delete_api_token, name='delete_api_token'),
+    path('management/containers/', manage.containers, name='manage_containers'),
+    path('management/members/', manage.members, name='manage_members'),
+    path('management/members/new/', manage.member_edit, name='manage_member_new'),
+    path('management/members/<int:pk>/', manage.member_edit, name='manage_member'),
+    path('management/groups/', manage.groups, name='manage_groups'),
+    path('management/groups/new/', manage.group_edit, name='manage_group_new'),
+    path('management/groups/<int:pk>/', manage.group_edit, name='manage_group'),
+    path('management/groups/<int:pk>/delete/', manage.group_delete, name='manage_group_delete'),
+    path('management/storage/', manage.storage, name='manage_storage'),
+    path('management/storage/<uuid:pk>/delete/', manage.volume_delete, name='manage_volume_delete'),
+    path('management/datasets/', browse_datasets, {'management': True}, name='manage_datasets'),
+    path('management/images/', manage.images, name='manage_images'),
+    path('management/audits/', manage.audits, name='manage_audits'),
+    path('management/settings/', manage.settings, name='manage_settings'),
+    path('images/<uuid:pk>/<str:action>/', manage.image_action, name='image_action'),
+    path('keys/<int:pk>/disable/', views.delete_key, name='delete_key'), path('tasks/', views.tasks, name='tasks'),
+    path('environments/new/', views.new_request, name='new_request'),
+    path('resources/available/',views.available_resources,name='available_resources'),
+    path('training/new/', views.new_request, {'mode': 'batch'}, name='new_training'),
+    path('timeline/', views.timeline, name='timeline'), path('management/', views.management, name='management'),
+    path('tasks/<uuid:pk>/save/', views.save_environment, name='save_environment'),
+    path('tasks/<uuid:pk>/', views.task, name='task'),
+    path('tasks/<uuid:pk>/stop/', views.stop, name='stop'), path('tasks/<uuid:pk>/review/', views.review, name='review'),
+    path('tasks/<uuid:pk>/status/', views.task_status, name='task_status'),
+    path('images/', views.images, name='images'), path('healthz/', views.health)]
+urlpatterns += [path('datasets/', browse_datasets, name='datasets')]

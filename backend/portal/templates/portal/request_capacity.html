@@ -1,0 +1,10 @@
+<section class="panel capacity-panel" data-capacity-url="{% url 'available_resources' %}">
+<div class="section-heading"><h2>当前余量</h2><span class="badge pending" data-capacity-stale {% if capacity.fresh %}hidden{% endif %}>等待更新</span></div>
+<div class="capacity-metrics">
+<div><span>CPU 核</span><strong data-capacity-cpu>{% if capacity.cpu %}{{ capacity.cpu.available|floatformat:'-1' }}{% else %}—{% endif %}</strong></div>
+<div><span>内存 GiB</span><strong data-capacity-memory>{% if capacity.memory_gib %}{{ capacity.memory_gib.available|floatformat:'-1' }}{% else %}—{% endif %}</strong></div>
+<div><span>存储 GiB</span><strong data-capacity-storage>{{ capacity.storage_gib|floatformat:'-1' }}</strong></div>
+<div><span>工作卷额度 GiB</span><strong data-capacity-work>{% if capacity.workspace_gib.available == None %}不限{% else %}{{ capacity.workspace_gib.available }}{% endif %}</strong></div>
+</div>
+<div class="capacity-gpus" data-capacity-gpus>{% for gpu in capacity.gpus %}<article class="capacity-gpu"><h3>GPU {{ gpu.index }}</h3><div><span>算力</span><strong>{{ gpu.compute_percent }}%</strong></div><div class="meter"><i style="width:{{ gpu.compute_percent }}%"></i></div><div><span>显存</span><strong>{{ gpu.memory_gib }} GiB</strong></div><div class="meter"><i style="width:{% widthratio gpu.memory_gib gpu.memory_total_gib 100 %}%"></i></div></article>{% empty %}<div class="muted">GPU 信息等待更新</div>{% endfor %}</div>
+</section>

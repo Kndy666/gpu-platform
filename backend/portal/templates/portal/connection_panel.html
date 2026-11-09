@@ -1,0 +1,11 @@
+<section class="panel connection-panel" id="connection">
+<h2>{% if admin_connection %}管理员 SSH 连接{% else %}连接环境{% endif %}</h2>
+{% if task.status == 'running' and ws.ssh_port %}
+{% if admin_connection and not administrator_access.ready %}<div class="notice"><a href="{% url 'keys' %}">添加你的 SSH 公钥</a>，即可连接此容器。</div>{% endif %}
+<pre id="ssh-command">ssh -o HostKeyAlias=task-{{ task.pk }} -p {{ ws.ssh_port }} {{ task.login_user }}@{{ host }}</pre>
+{% else %}<div class="connection-empty"><span class="status-ring"></span>{{ task.get_status_display }}</div>{% endif %}
+{% if task.can_stop or ws.ssh_port %}<div class="actions">
+{% if task.status == 'running' and ws.ssh_port %}<button class="button secondary" data-copy="ssh-command">复制 SSH 命令</button>{% endif %}
+{% include 'portal/stop_button.html' %}</div>{% endif %}
+{% include 'portal/ssh_config.html' %}
+</section>

@@ -1,0 +1,1 @@
+{% extends 'portal/manage_base.html' %}{% block manage_content %}<div class="section-heading"><h2>待审核 <span class="count">{{ pending|length }}</span></h2></div>{% include 'portal/task_table.html' with tasks=pending %}{% include 'portal/timeline.html' %}<div class="section-heading"><h2>当前任务</h2></div>{% include 'portal/task_table.html' with tasks=active %}{% endblock %}
