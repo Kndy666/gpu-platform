@@ -1,6 +1,6 @@
 apiVersion: v2
 name: gpu-platform
-description: Single-instance laboratory GPU portal and supported infrastructure configuration
+description: Central GPU portal and node execution infrastructure
 type: application
-version: 0.1.0
-appVersion: 0.1.0
+version: 0.3.0
+appVersion: 0.3.0

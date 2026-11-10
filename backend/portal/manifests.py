@@ -13,14 +13,19 @@ def metadata(name, req):
     return {'name': name, 'labels': labels(req)}
 
 def pvc(volume):
+    if volume.node_id != volume.pool.node_id:
+        raise ValueError('Volume and storage pool belong to different nodes')
     return {'apiVersion': 'v1', 'kind': 'PersistentVolumeClaim',
             'metadata': {'name': volume.pvc_name, 'labels': {'platform.volume': str(volume.pk), 'platform.user': str(volume.user_id)}},
             'spec': {'accessModes': ['ReadWriteOnce'], 'storageClassName': volume.pool.storage_class,
                      'resources': {'requests': {'storage': f'{volume.size_gib}Gi'}}}}
 
 def task_objects(req, ws):
-    cfg = config()['platform']
-    home = VolumeAllocation.objects.exclude(state='deleted').get(user=req.user, kind='home')
+    from .configuration import base_config
+    from .node_context import node_config
+    execution = node_config(req.node, base_config())
+    cfg = execution['platform']
+    home = VolumeAllocation.objects.exclude(state='deleted').get(node=req.node, user=req.user, kind='home')
     from .services import work_volume
     work = work_volume(req)
     keys = authorized_keys(req.user_id)
@@ -89,12 +94,14 @@ def task_objects(req, ws):
         spec['containers'][0]['volumeMounts'].append({'name':'gpu-connections','mountPath':'/run/platform-mps',
             'subPath':'t_'+req.pk.hex,'readOnly':True})
         gpu_annotations={'gpu.platform/request':json.dumps(req.gpu_requests),'gpu.platform/config-secret':ws.object_name}
-    host = config()['registry']['host']
+    host = execution['registry']['host']
     spec['volumes'].append({'name': 'registry-ca', 'configMap': {'name': 'registry-ca'}})
     spec['containers'][0]['volumeMounts'].append({'name': 'registry-ca',
         'mountPath': '/etc/docker/certs.d/'+host+'/ca.crt', 'subPath': 'tls.crt', 'readOnly': True})
     meta = metadata(ws.object_name, req)
     meta['annotations']=gpu_annotations
+    if req.mode == 'interactive':
+        meta['annotations']['platform.ends-at'] = req.ends_at.isoformat()
     meta['labels']['kueue.x-k8s.io/queue-name'] = f'user-{req.user_id}'
     # Kueue priorities are named, pre-installed classes, not a second business scheduler.
     meta['labels']['kueue.x-k8s.io/priority-class'] = 'platform-high' if req.priority > 0 else 'platform-normal'

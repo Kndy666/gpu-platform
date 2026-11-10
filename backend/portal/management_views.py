@@ -22,6 +22,22 @@ from .ssh_access import administrator_access
 staff_required = user_passes_test(lambda user: user.is_active and user.is_staff)
 
 
+@staff_required
+def nodes(request, pk=None):
+    from .models import ComputeNode, default_node_id
+    from .nodes import NodeForm
+    default_node_id()
+    node = get_object_or_404(ComputeNode, pk=pk) if pk else None
+    form = NodeForm(request.POST if request.method == 'POST' else None, instance=node)
+    if request.method == 'POST' and form.is_valid():
+        node = form.save()
+        audit(request.user, 'node_updated', node.pk, name=node.name, enabled=node.enabled, maintenance=node.maintenance)
+        messages.success(request, '节点设置已保存，后台将同步连接状态。')
+        return redirect('manage_nodes')
+    return render(request, 'portal/manage_nodes.html', {'section': 'nodes', 'section_title': '计算节点',
+                  'nodes': ComputeNode.objects.order_by('pk'), 'form': form, 'editing': node})
+
+
 def page(request, queryset):
     return Paginator(queryset, 25).get_page(request.GET.get('page'))
 

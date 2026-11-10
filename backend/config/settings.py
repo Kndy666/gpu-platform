@@ -25,7 +25,6 @@ TEMPLATES = [{'BACKEND': 'django.template.backends.django.DjangoTemplates', 'DIR
 WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': DATA_DIR / 'platform.sqlite3',
                         'OPTIONS': {'timeout': 30, 'transaction_mode': 'IMMEDIATE'}, 'TEST': {'NAME': DATA_DIR / 'test.sqlite3'}}}
-MIGRATION_MODULES = {'portal': None}
 AUTH_PASSWORD_VALIDATORS = [{'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
                            {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'}]
 LANGUAGE_CODE = 'zh-hans'

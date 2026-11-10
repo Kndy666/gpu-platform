@@ -160,7 +160,7 @@
     };
     const refresh=async()=>{
       if(refreshing||document.hidden)return;refreshing=true;
-      try{const response=await fetch(capacityPanel.dataset.capacityUrl,{cache:'no-store'});if(response.ok)showCapacity(await response.json());}
+      try{const response=await fetch(capacityPanel.dataset.capacityUrl + '?node=' + encodeURIComponent(document.querySelector('[name=node]')?.value || ''),{cache:'no-store'});if(response.ok)showCapacity(await response.json());}
       catch(_){$('[data-capacity-stale]').hidden=false;}finally{refreshing=false;}
     };
     setInterval(refresh,15000);document.addEventListener('visibilitychange',refresh);
@@ -250,3 +250,5 @@
   $('[data-today]',panel).addEventListener('click',()=>{dateInput.value=today();load();});
   load();setInterval(load,30000);
 })();
+
+document.querySelectorAll('[data-node-select=request]').forEach(select => select.addEventListener('change', () => { const url = new URL(location.href); url.searchParams.set('node', select.value); url.searchParams.delete('image'); url.searchParams.delete('source'); location.assign(url); }));

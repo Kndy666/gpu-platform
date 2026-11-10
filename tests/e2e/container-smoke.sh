@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 project_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
-image="${PLATFORM_TEST_IMAGE:-gpu-platform:0.2.0}"
+image="${PLATFORM_TEST_IMAGE:-gpu-platform:0.3.0}"
 name="gpu-platform-smoke-$$"
 volume="${name}-data"
 smoke_dir="$(mktemp -d -t gpu-platform-smoke.XXXXXX)"
@@ -32,4 +32,4 @@ docker stop "${name}" >/dev/null
 docker rm "${name}" >/dev/null
 start
 docker exec "${name}" python manage.py shell -c 'from portal.models import AuditLog; assert AuditLog.objects.filter(action="container_smoke",target="upgrade-persistence").count()==1; print("History persists after container replacement")'
-echo 'ARM64 container schema initialization, login, static assets, replacement persistence: PASS'
+echo 'Container schema initialization, login, static assets, replacement persistence: PASS'

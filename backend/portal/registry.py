@@ -91,13 +91,28 @@ def sync_registry_users(kube):
 
 class RegistryClient:
     def __init__(self, identity):
+        from .node_context import active_node
+        self.node = active_node.get()
+        self.identity = identity
         self.host = config()['registry']['host']
         self.session = requests.Session(); self.session.trust_env = False
         self.session.auth = identity['login'], identity['password']
         self.session.verify = '/etc/platform-registry-ca/tls.crt'
 
+    def request(self, method, url, **kwargs):
+        if self.node and self.node.transport == 'ssh':
+            from .node_transport import node_call
+            result = node_call(self.node, 'registry', method=method, path=url.split(self.host, 1)[1],
+                               identity=self.identity, headers=kwargs.get('headers', {}))
+            response = requests.Response()
+            response.status_code = result['status']
+            response._content = result['data'].encode()
+            response.headers.update(result.get('headers', {}))
+            return response
+        return getattr(self.session, method.lower())(url, **kwargs)
+
     def manifest(self, repo, reference):
-        response = self.session.get(f'https://{self.host}/v2/{quote(repo, safe="/")}/manifests/{quote(reference, safe=":")}',
+        response = self.request('GET', f'https://{self.host}/v2/{quote(repo, safe="/")}/manifests/{quote(reference, safe=":")}',
             headers={'Accept': 'application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json'}, timeout=30)
         response.raise_for_status()
         content = response.json()
@@ -111,11 +126,11 @@ class RegistryClient:
         return digest, size
 
     def delete_manifest(self, repo, digest):
-        response = self.session.delete(f'https://{self.host}/v2/{quote(repo, safe="/")}/manifests/{quote(digest, safe=":")}', timeout=30)
+        response = self.request('DELETE', f'https://{self.host}/v2/{quote(repo, safe="/")}/manifests/{quote(digest, safe=":")}', timeout=30)
         response.raise_for_status()
 
     def delete_tag(self, repo, tag):
         # Deleting the tag preserves other tags that share the same digest.
-        response = self.session.delete(f'https://{self.host}/v2/{quote(repo, safe="/")}/manifests/{quote(tag, safe="")}', timeout=30)
+        response = self.request('DELETE', f'https://{self.host}/v2/{quote(repo, safe="/")}/manifests/{quote(tag, safe="")}', timeout=30)
         if response.status_code != 404:
             response.raise_for_status()

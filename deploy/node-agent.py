@@ -128,6 +128,14 @@ def save_environment(cfg, obj):
         return result
 
 def tick(cfg):
+    from datetime import datetime, timezone
+    # Enforce expiry locally while the controller's SSH connection is down.
+    pods = json.loads(kube('-n', cfg['platform']['workload_namespace'], 'get', 'pods',
+                           '-l', 'app.kubernetes.io/managed-by=gpu-platform', '-o', 'json'))['items']
+    for pod in pods:
+        deadline = pod['metadata'].get('annotations', {}).get('platform.ends-at')
+        if deadline and datetime.fromisoformat(deadline.replace('Z', '+00:00')) <= datetime.now(timezone.utc):
+            kube('-n', cfg['platform']['workload_namespace'], 'delete', 'pod', pod['metadata']['name'], '--wait=false', '--ignore-not-found')
     retry_image_cleanup()
     observe(cfg)
     ns = cfg['platform']['namespace']

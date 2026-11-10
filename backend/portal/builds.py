@@ -12,8 +12,26 @@ from .kube import KubeError
 
 log = logging.getLogger(__name__)
 
+
+def ensure_base_build():
+    from django.contrib.auth import get_user_model
+    if not config()['registry'].get('bootstrap_workspace', True):
+        return
+    if ImageArtifact.objects.filter(shared=True, verified=True, state='ready', name='Ubuntu 22.04').exists():
+        return
+    if ImageBuild.objects.filter(bootstrap=True).exists():
+        return
+    administrator = get_user_model().objects.filter(is_superuser=True, is_active=True).first()
+    if administrator:
+        recipe = Path(__file__).with_name('workspace.Dockerfile')
+        if not recipe.exists():
+            recipe = Path(__file__).resolve().parents[2] / 'images/Dockerfile'
+        ImageBuild.objects.create(user=administrator, name='platform-ubuntu-ssh', dockerfile=recipe.read_text(), bootstrap=True)
+
 def build_objects(build):
-    cfg = config(); name = 'build-'+build.pk.hex
+    from .configuration import base_config
+    from .node_context import node_config
+    cfg = node_config(build.node, base_config()); name = 'build-'+build.pk.hex
     labels = {'platform.build': str(build.pk), 'platform.user': str(build.user_id)}
     meta = {'name': name, 'labels': labels}
     repo = f'user-{build.user_id}/{build.name}'
@@ -54,6 +72,8 @@ def build_objects(build):
                 {'name': 'cache', 'emptyDir': {'sizeLimit': '25Gi'}},
                 {'name': 'auth', 'secret': {'secretName': f'registry-u{build.user_id}', 'items': [{'key': '.dockerconfigjson', 'path': 'config.json'}]}},
                 {'name': 'ca', 'configMap': {'name': 'registry-ca'}}, {'name': 'buildkit-config', 'configMap': {'name': 'buildkit-config'}}]}
+    if cfg['registry'].get('build_apparmor_profile'):
+        spec['containers'][0]['securityContext']['appArmorProfile'] = {'type': 'Localhost', 'localhostProfile': cfg['registry']['build_apparmor_profile']}
     if build.context_git:
         spec['initContainers'] = [{'name': 'context', 'image': cfg['registry']['git_image'],
             'command': ['git', '-c', 'http.followRedirects=false', 'clone', '--depth', '1', '--', build.context_git, '/context'],
@@ -105,7 +125,7 @@ class BuildReconciler:
         cm, job, repo, reference = build_objects(build)
         policy = policy_for(build.user)
         if build.status == 'submitted':
-            total = ImageArtifact.objects.filter(owner=build.user).exclude(state='deleted').aggregate(n=Sum('size_bytes'))['n'] or 0
+            total = ImageArtifact._base_manager.filter(owner=build.user).exclude(state='deleted').aggregate(n=Sum('size_bytes'))['n'] or 0
             if not policy.unlimited and total >= policy.image_gib * 2**30:
                 ImageBuild.objects.filter(pk=build.pk).update(status='failed', error='个人镜像额度已用满')
                 return

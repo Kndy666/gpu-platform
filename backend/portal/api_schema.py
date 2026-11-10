@@ -25,7 +25,9 @@ SCHEMAS = {
     'PasswordRequest': obj({key: {'type': 'string', 'format': 'password'} for key in ['old_password', 'new_password1', 'new_password2']}, ['old_password', 'new_password1', 'new_password2']),
     'KeyRequest': obj({'name': S, 'public_key': S}, ['name', 'public_key']),
     'KeyUpdate': obj({'name': S, 'enabled': B}),
-    'TaskRequest': obj({'purpose': S, 'mode': {'type': 'string', 'enum': ['interactive', 'batch'], 'default': 'interactive'},
+    'NodeRequest': obj({'name': S, 'transport': {'type': 'string', 'enum': ['local', 'ssh']}, 'ssh_port': I,
+        'ssh_user': S, 'identity': S, 'architecture': {'type': 'string', 'enum': ['amd64', 'arm64']}, 'enabled': B, 'maintenance': B}),
+    'TaskRequest': obj({'node': I, 'purpose': S, 'mode': {'type': 'string', 'enum': ['interactive', 'batch'], 'default': 'interactive'},
         'image': U, 'source_kind': {'type': 'string', 'enum': ['image', 'environment']},
         'source_environment':{**U,'description':'Own running development environment, with or without GPUs. Save its image, release it, then run the requested command.'},
         'gpu': {'type': 'integer', 'minimum': 0, 'description':'Number of distinct physical GPUs'},
@@ -36,7 +38,7 @@ SCHEMAS = {
         'environment': {'type': 'object', 'additionalProperties': S}, 'notes': S}, ['purpose']),
     'ReviewRequest': obj({'action': {'type': 'string', 'enum': ['approve', 'reject', 'stop', 'extend']},
         'reason': S, 'priority': {'type': 'integer', 'enum': [0, 100]}, 'ends_at': DATE}, ['action']),
-    'BuildRequest': obj({'name': S, 'dockerfile': S, 'context_git': {'type': 'string', 'format': 'uri'}}, ['name', 'dockerfile']),
+    'BuildRequest': obj({'node': I, 'name': S, 'dockerfile': S, 'context_git': {'type': 'string', 'format': 'uri'}}, ['name', 'dockerfile']),
     'MemberRequest': obj({'username': S, 'first_name': S, 'email': {'type': 'string', 'format': 'email'},
         'group': I, 'home_quota_gib': I, 'password': {'type': 'string', 'format': 'password'}, 'is_active': B,
         'is_staff': {**B, 'description': 'Editable by a superuser, matching the member form.'}}),
@@ -60,7 +62,7 @@ SCHEMAS = {
         'slot':{'type':'integer','minimum':0,'description':'Zero-based request and CUDA device index'},
         'compute_percent':{'type':'integer','minimum':2,'maximum':100},
         'actual_compute_percent':{'type':'number','minimum':0,'maximum':100},'memory_mib':I,'partition':S}),
-    'GPUDevice': obj({'uuid':S,'index':{'type':'integer','minimum':0},'name':S,'pci':S,'sm_count':I,
+    'GPUDevice': obj({'node_id': I, 'node_name': S, 'uuid':S,'index':{'type':'integer','minimum':0},'name':S,'pci':S,'sm_count':I,
         'memory_mib':I,'usable_memory_mib':I,'ready':B,
         **{k:{'type':'integer','minimum':0} for k in ['used_compute_percent','used_sm_count','used_memory_mib','available_compute_percent']},
         **{k:{'type':'number','minimum':0} for k in ['available_memory_gib','used_memory_gib']}}),
@@ -76,7 +78,7 @@ SCHEMAS = {
             'description':'null means unlimited.'} for key in ['available','total']}),
         'gpu_quota':{'type':'object','nullable':True,'properties':{
             'compute_percent':{'type':'integer','minimum':0},'memory_gib':{'type':'integer','minimum':0}}},
-        'gpus':{'type':'array','items':obj({'index':{'type':'integer','minimum':0},'ready':B,
+        'gpus':{'type':'array','items':obj({'node_id':I,'node_name':S,'index':{'type':'integer','minimum':0},'ready':B,
             'compute_percent':{'type':'number','minimum':0,'maximum':100},
             'memory_gib':{'type':'number','minimum':0},'memory_total_gib':{'type':'number','minimum':0}})}}),
     'ResourcesResponse':obj({'data':{'type':'object','properties':{
@@ -110,7 +112,7 @@ def openapi(request):
         path = '/'+re.sub(r'<[^:>]+:([^>]+)>', r'{\1}', route)
         operations = {}
         for method in view.api_methods:
-            requires_staff = view.api_staff or (view.__name__ == 'volume' and method == 'DELETE')
+            requires_staff = view.api_staff or (view.__name__ == 'volume' and method == 'DELETE') or (view.__name__ in {'node', 'nodes'} and method != 'GET')
             op = {'summary': summary, 'operationId': view.__name__+'_'+method.lower(),
                   'tags': ['admin' if requires_staff else route.split('/')[0] or 'discovery'],
                   'x-required-role': 'public' if method in view.api_public else 'staff' if requires_staff else 'account',
@@ -120,11 +122,13 @@ def openapi(request):
                                 '400': {'description': 'Invalid request', 'content': {'application/json': {'schema': {'$ref': '#/components/schemas/Error'}}}},
                                 '401': {'description': 'Missing, expired or revoked Bearer token'}, '403': {'description': 'Insufficient permissions'},
                                 '404': {'description': 'Object not found'}, '409': {'description': 'Conflict or idempotency mismatch'}}}
-            if method == 'GET' and view.__name__ in {'tokens', 'tasks', 'containers', 'keys', 'images', 'builds', 'snapshots', 'volumes', 'members', 'groups', 'storage', 'managed_images', 'audits', 'datasets'}:
+            if method == 'GET' and view.__name__ in {'nodes', 'tokens', 'tasks', 'containers', 'keys', 'images', 'builds', 'snapshots', 'volumes', 'members', 'groups', 'storage', 'managed_images', 'audits', 'datasets'}:
                 op['parameters'] += [{'name': name, 'in': 'query', 'schema': {**I, 'maximum': 100} if name == 'page_size' else I} for name in ['page', 'page_size']]
             queries = {'tasks': ['mode', 'status', 'purpose', 'scope'], 'images': ['available', 'kind'], 'timeline': ['date'],
                        'logs': ['tail'], 'datasets': ['path', 'q'], 'download': ['path'], 'members': ['q'], 'audits': ['action'],
                        'containers':['q','status','mode']}
+            if view.__name__ in {'resources', 'gpus', 'timeline', 'tasks', 'images', 'builds', 'volumes', 'datasets', 'download'}:
+                queries.setdefault(view.__name__, []).append('node')
             if method == 'GET':
                 op['parameters'] += [{'name': name, 'in': 'query', 'schema': S} for name in queries.get(view.__name__, [])]
                 response_schema={'resources':'ResourcesResponse','gpus':'GPUInventoryResponse','task':'TaskResponse','connection':'ConnectionResponse'}.get(view.__name__)

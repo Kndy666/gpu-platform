@@ -59,7 +59,7 @@ def sync_snapshots(kube):
             delete_operation(kube, ns, obj)
         elif state == 'succeeded':
             result = json.loads(obj['data']['result'])
-            used = ImageArtifact.objects.filter(owner=snapshot.source.user).exclude(state='deleted').aggregate(n=Sum('size_bytes'))['n'] or 0
+            used = ImageArtifact._base_manager.filter(owner=snapshot.source.user).exclude(state='deleted').aggregate(n=Sum('size_bytes'))['n'] or 0
             policy = policy_for(snapshot.source.user)
             if not policy.unlimited and used + result['size_bytes'] > policy.image_gib * 2**30:
                 from .registry import RegistryClient

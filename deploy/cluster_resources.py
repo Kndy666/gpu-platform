@@ -89,7 +89,8 @@ def main():
     apply({'apiVersion': 'kueue.x-k8s.io/v1beta1', 'kind': 'LocalQueue', 'metadata': {'name': p['queue'], 'namespace': p['workload_namespace']}, 'spec': {'clusterQueue': p['queue']}})
     for name, value in [('platform-normal', 0), ('platform-high', 100)]:
         apply({'apiVersion': 'kueue.x-k8s.io/v1beta1', 'kind': 'WorkloadPriorityClass', 'metadata': {'name': name}, 'value': value})
-    secret(p['namespace'], 'platform-secrets', {'django-secret-key': secrets.token_urlsafe(64), 'initial-admin-password': secrets.token_urlsafe(24)})
+    if p.get('role', 'controller') == 'controller':
+        secret(p['namespace'], 'platform-secrets', {'django-secret-key': secrets.token_urlsafe(64), 'initial-admin-password': secrets.token_urlsafe(24)})
     registry(cfg)
     host = node['metadata']['labels']['kubernetes.io/hostname']
     apply({'apiVersion': 'v1', 'kind': 'PersistentVolume', 'metadata': {'name': 'platform-public-datasets'},

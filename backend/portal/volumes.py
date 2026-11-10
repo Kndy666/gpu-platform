@@ -12,7 +12,7 @@ log = logging.getLogger(__name__)
 
 
 def related_requests(volume):
-    requests = ResourceRequest.objects.filter(user_id=volume.user_id)
+    requests = ResourceRequest.objects.filter(node_id=volume.node_id, user_id=volume.user_id)
     if volume.kind == 'work':
         requests = requests.filter(Q(pk=volume.request_id) | (Q(source_environment_id=volume.request_id) &
             (Q(volumeallocation__isnull=True)|Q(volumeallocation__state__in=['copy_pending','copying']))))
@@ -89,11 +89,11 @@ def annotate_volume_usage(volumes):
     requests = ResourceRequest.objects.filter(user_id__in=owners).filter(
         Q(status__in=ACTIVE | {'submitted'}) | Q(workspace__cleanup_complete=False))
     busy_users, busy_requests = set(), set()
-    for user_id, pk, source in requests.values_list('user_id', 'pk', 'source_environment_id'):
-        busy_users.add(user_id)
+    for user_id, node_id, pk, source in requests.values_list('user_id', 'node_id', 'pk', 'source_environment_id'):
+        busy_users.add((user_id, node_id))
         busy_requests.update({pk, source})
-    for user_id, source in EnvironmentSnapshot.objects.filter(source__user_id__in=owners, status__in=['pending', 'working']).values_list('source__user_id', 'source_id'):
-        busy_users.add(user_id)
+    for user_id, node_id, source in EnvironmentSnapshot.objects.filter(source__user_id__in=owners, status__in=['pending', 'working']).values_list('source__user_id', 'source__node_id', 'source_id'):
+        busy_users.add((user_id, node_id))
         busy_requests.add(source)
     for volume in volumes:
-        volume.busy = volume.user_id in busy_users if volume.kind == 'home' else volume.request_id in busy_requests
+        volume.busy = (volume.user_id, volume.node_id) in busy_users if volume.kind == 'home' else volume.request_id in busy_requests

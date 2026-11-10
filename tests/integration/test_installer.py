@@ -2,8 +2,10 @@ from copy import deepcopy
 import hashlib
 import importlib.util
 import io
+import os
 from pathlib import Path
 import sys
+import subprocess
 import tempfile
 from unittest import TestCase
 from unittest.mock import patch
@@ -14,6 +16,49 @@ spec = importlib.util.spec_from_file_location('platform_installer', ROOT/'deploy
 installer = importlib.util.module_from_spec(spec); spec.loader.exec_module(installer)
 
 class InstallerSimulationTests(TestCase):
+    def test_worker_client_is_installed_outside_the_private_checkout(self):
+        spec = importlib.util.spec_from_file_location('node_services_test', ROOT/'deploy/node_services.py')
+        services = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(services)
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            source = temporary/'private-checkout'
+            (source/'deploy').mkdir(parents=True)
+            (source/'backend/portal').mkdir(parents=True)
+            for name in ('deploy/worker-rpc.py', 'backend/portal/node_transport.py'):
+                (source/name).write_text((ROOT/name).read_text())
+            installed = temporary/'system'
+            (installed/'usr/local/bin').mkdir(parents=True)
+            (installed/'etc/systemd/system').mkdir(parents=True)
+            def target(path):
+                return installed/str(path).lstrip('/')
+            previous = os.umask(0o077)
+            try:
+                with patch.object(services, 'Path', side_effect=target), \
+                        patch.object(services.pwd, 'getpwnam'), patch.object(services.subprocess, 'run'):
+                    services.install_node_services({'platform': {'role': 'worker'}}, source)
+            finally:
+                os.umask(previous)
+            library = installed/'usr/local/lib/gpu-platform'
+            self.assertEqual(library.stat().st_mode & 0o777, 0o755)
+            self.assertEqual((library/'portal/node_transport.py').stat().st_mode & 0o777, 0o644)
+            unit = (installed/'etc/systemd/system/gpu-platform-worker.service').read_text()
+            self.assertIn(str(library/'worker-rpc.py'), unit)
+            self.assertNotIn(str(source), unit)
+            result = subprocess.run([sys.executable, str(library/'worker-rpc.py'), '--help'],
+                                    capture_output=True, text=True, timeout=10, env={**os.environ, 'PYTHONPATH': ''})
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_worker_render_disables_portal_and_uses_worker_architecture(self):
+        with tempfile.TemporaryDirectory() as directory:
+            cfg = yaml.safe_load((ROOT/'config.worker.example.yaml').read_text())
+            facts = {'architecture': 'amd64', 'node_ip': '192.0.2.25', 'interface': 'ens3'}
+            installer.render(cfg, facts, Path(directory))
+            values = yaml.safe_load((Path(directory)/'app-values.yaml').read_text())
+            self.assertTrue(values['worker'])
+            self.assertEqual(values['config']['platform']['data_size_gib'], 0)
+            self.assertEqual(values['config']['platform']['architecture'], 'amd64')
+
     def test_download_falls_back_after_timeout_and_checks_integrity(self):
         payload = b'verified chart archive'
         digest = hashlib.sha256(payload).hexdigest()

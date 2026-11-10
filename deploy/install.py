@@ -70,6 +70,8 @@ def dump(path, value): path.write_text(yaml.safe_dump(value, sort_keys=False))
 
 def render(cfg, facts, out):
     cfg['platform']['architecture'] = facts['architecture']
+    if Path('/proc/sys/kernel/apparmor_restrict_unprivileged_userns').exists():
+        cfg['registry']['build_apparmor_profile'] = 'gpu-platform-build'
     if cfg['registry']['zot_image'].startswith('ghcr.io/project-zot/zot-linux-'):
         cfg['registry']['zot_image'] = re.sub(r'zot-linux-(arm64|amd64):', 'zot-linux-'+facts['architecture']+':', cfg['registry']['zot_image'])
     if cfg['platform'].get('node_ip') == 'auto': cfg['platform']['node_ip'] = facts['node_ip']
@@ -78,7 +80,8 @@ def render(cfg, facts, out):
     out.mkdir(parents=True, exist_ok=True)
     dump(out/'discovery.yaml', facts)
     dump(out/'resolved-config.yaml', cfg)
-    dump(out/'app-values.yaml', {'config': cfg, 'appImage': cfg['platform']['app_image'], 'https': cfg['network']['https']})
+    dump(out/'app-values.yaml', {'config': cfg, 'appImage': cfg['platform']['app_image'], 'https': cfg['network']['https'],
+                                'worker': cfg['platform'].get('role', 'controller') == 'worker'})
     pools = {p['name']: {'path': p['path'], 'reservedCapacity': f"{p['buffer_percent']}%", 'reservedCapacityMode': 'plain'} for p in cfg['storage']['pools']}
     classes = [{'name': p['storage_class'], 'enabled': True, 'volumeBindingMode': 'WaitForFirstConsumer', 'isDefault': False,
                 'allowVolumeExpansion': True, 'reclaimPolicy': 'Delete', 'fsType': 'ext4', 'storagePool': p['name'], 'thinProvision': 'false',
@@ -157,7 +160,7 @@ def install_k3s(cfg, facts, cache):
         dump(kcfg/'registries.yaml', {'mirrors': {host: {'endpoint': endpoints} for host, endpoints in cfg['network'].get('registry_mirrors', {}).items()}})
     dump(kcfg/'config.yaml', {'write-kubeconfig-mode': '0600', 'node-ip': cfg['platform']['node_ip'],
         'bind-address': '0.0.0.0', 'cluster-cidr': cfg['network']['pod_cidr'], 'service-cidr': cfg['network']['service_cidr'],
-        'disable': ['local-storage'], 'kubelet-arg': [f"system-reserved=cpu={cfg['platform']['reserve_cpu']},memory={cfg['platform']['reserve_memory_gib']}Gi"],
+        'disable': ['local-storage'] + (['traefik', 'servicelb'] if cfg['platform'].get('role') == 'worker' else []), 'kubelet-arg': [f"system-reserved=cpu={cfg['platform']['reserve_cpu']},memory={cfg['platform']['reserve_memory_gib']}Gi"],
         'secrets-encryption': True})
     manifest_dir = Path('/var/lib/rancher/k3s/server/manifests')
     manifest_dir.mkdir(parents=True, exist_ok=True)
@@ -201,7 +204,13 @@ def install_workspace_security():
     seccomp.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(profiles / 'workspace-seccomp.json', seccomp / 'gpu-platform-workspace.json')
     apparmor = Path('/etc/apparmor.d/gpu-platform-workspace')
-    shutil.copyfile(profiles / 'workspace-apparmor', apparmor)
+    profile = (profiles / 'workspace-apparmor').read_text()
+    if Path('/proc/sys/kernel/apparmor_restrict_unprivileged_userns').exists():
+        profile = profile.replace('  capability,', '  capability,\n  userns,')
+        build_profile = Path('/etc/apparmor.d/gpu-platform-build')
+        build_profile.write_text('abi <abi/4.0>,\ninclude <tunables/global>\nprofile gpu-platform-build flags=(unconfined) {\n  userns,\n}\n')
+        run(['apparmor_parser', '-r', str(build_profile)])
+    apparmor.write_text(profile)
     run(['apparmor_parser', '-r', str(apparmor)])
 
 def install_node_agent(cfg):
@@ -216,8 +225,9 @@ def install_node_agent(cfg):
 def apply(cfg, facts, out):
     if os.geteuid() != 0: raise RuntimeError('Installation requires sudo')
     install_workspace_security()
-    if not cfg['network'].get('public_ports_approved'): raise RuntimeError('Configure network.public_ports_approved only after administrator confirms HTTP and SSH ingress ports')
-    if cfg['platform']['public_host'] == 'gpu.example.edu': raise RuntimeError('Configure public_host first')
+    worker = cfg['platform'].get('role', 'controller') == 'worker'
+    if not worker and not cfg['network'].get('public_ports_approved'): raise RuntimeError('Configure network.public_ports_approved only after administrator confirms HTTP and SSH ingress ports')
+    if not worker and cfg['platform']['public_host'] == 'gpu.example.edu': raise RuntimeError('Configure public_host first')
     if facts['gpu_inventory']:
         run([ROOT/'deploy/toolkit.sh'])
     for path in [p['path'] for p in cfg['storage']['pools']] + [cfg['storage']['datasets']]:
@@ -279,7 +289,9 @@ def apply(cfg, facts, out):
     else:
         raise RuntimeError('Shared GPU worker has not registered the discovered GPU capacity')
     run([sys.executable, ROOT/'deploy/cluster_resources.py', '--config', out/'resolved-config.yaml'], env=env)
-    if cfg['platform'].get('app_image_archive'):
+    if worker:
+        revision = ''
+    elif cfg['platform'].get('app_image_archive'):
         archive = Path(cfg['platform']['app_image_archive']).expanduser().resolve()
         if not archive.is_file(): raise RuntimeError('Application image archive does not exist')
         run(['k3s', 'ctr', 'images', 'import', '--platform', 'linux/'+facts['architecture'], archive])
@@ -296,10 +308,14 @@ def apply(cfg, facts, out):
         revision = cfg['platform']['app_image']
     h(['upgrade', '--install', 'platform', ROOT/'deploy/helm', '-n', cfg['platform']['namespace'], '-f', out/'app-values.yaml', '--set-string', 'imageRevision='+revision, '--wait', '--timeout', '10m'])
     if not (ROOT/'.tools/nerdctl').is_file(): run([ROOT/'deploy/prepare.sh', '--nerdctl-only'], env=env)
-    run(['k3s', 'kubectl', '-n', cfg['platform']['namespace'], 'exec', 'deploy/platform', '--',
-         'python', 'manage.py', 'bootstrap_workspace', '--wait', '1800'], env=env)
+    from node_services import install_node_services
+    install_node_services(cfg, ROOT)
+    if not worker:
+        run(['k3s', 'kubectl', '-n', cfg['platform']['namespace'], 'exec', 'deploy/platform', '--',
+             'python', 'manage.py', 'bootstrap_workspace', '--wait', '1800'], env=env)
     run(['k3s', 'kubectl', '-n', cfg['platform']['namespace'], 'rollout', 'status', 'deployment/registry', '--timeout=180s'], env=env)
-    print('Deployment completed. Initial administrator: admin. Read its initial password with sudo ./deploy/admin-password.sh')
+    print('Worker ready. Register its SSH endpoint in the controller.' if worker else
+          'Deployment completed. Initial administrator: admin. Read its initial password with sudo ./deploy/admin-password.sh')
 
 def main():
     parser = argparse.ArgumentParser()
@@ -309,6 +325,8 @@ def main():
     parser.add_argument('--output', type=Path, default=ROOT/'runtime/deploy')
     args = parser.parse_args()
     cfg = yaml.safe_load(args.config.read_text())
+    if cfg['platform'].get('role', 'controller') not in {'controller', 'worker'}:
+        raise RuntimeError('platform.role must be controller or worker')
     facts = discover(cfg)
     if args.preflight:
         print(yaml.safe_dump(facts, sort_keys=False)); return

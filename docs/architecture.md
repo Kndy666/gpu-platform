@@ -1,12 +1,17 @@
 # 系统架构
 
-平台在单台 GPU 服务器的 K3s 集群中运行。Django 提供网页和 API，Kueue 管理排队与配额，本机工作进程管理 GPU 分配和环境保存。
+一台主控提供 Django 网页、API、业务数据库和统一审批。主控本机及各从机分别运行独立的单节点 K3s；每个执行节点具备相同的 Kueue、Rawfile、镜像仓库、构建和 GPU 服务。从机不启动面板。
 
 ```mermaid
 flowchart TD
     User[网页与 Agent] --> Entry[Traefik]
     Entry --> App[Django · Gunicorn · 后台同步]
     App --> DB[(SQLite WAL)]
+    App --> Socket[主控 Unix socket]
+    Socket --> Links[主控 SSH 连接服务]
+    Links --> Tunnel[已有反向 SSH 入口]
+    Tunnel --> RPC[从机账户 · worker Unix socket]
+    RPC --> Worker[从机独立 K3s · Kueue · GPU · 本地存储]
     App --> Queue[Kueue]
     Queue --> K3s[K3s · containerd]
     K3s --> Dev[开发环境 Pod]
@@ -30,6 +35,8 @@ flowchart TD
 | Django | 账号、公钥、用户组、申请、审批、任务、镜像、存储和审计 |
 | SQLite WAL | 保存业务记录，使用持久卷；应用采用单实例 `Recreate` 更新 |
 | 后台同步 | 同步任务与构建状态、资源余量和卷用量，执行到期回收 |
+| `gpu-platform-links.service` | 主控持有节点专属 SSH 私钥，复用 SSH 连接，转发节点 RPC 和任务 SSH 端口 |
+| `gpu-platform-worker.service` | 从机提供有界 JSON RPC，通过本地 Unix socket 操作本机集群、仓库和只读公用目录 |
 | K3s / containerd | 创建 Pod、Job、Service、Secret 和 PVC，执行 CPU 与内存限制 |
 | Kueue | 每用户队列、资源借用、并发任务限制和任务准入 |
 | `gpu-platform-node.service` | GPU 库存、多卡分配、租约回收、容器环境保存和本机镜像清理 |
@@ -39,6 +46,10 @@ flowchart TD
 | LXCFS | 向工作容器提供按申请额度显示的 CPU 和内存信息 |
 
 `backend/supervise.py` 管理 Web 和同步两个进程。子进程退出后，应用容器退出，由 Kubernetes 重启；健康接口检查 Web 与同步心跳。
+
+同步进程按节点并发执行，查询和配置在一轮同步中绑定节点。Kubernetes API、镜像仓库及文件浏览请求通过 SSH 传递；主从之间不要求 Pod 网段互通。每条 RPC 限制消息大小和超时，每轮节点同步有时间预算。
+
+节点不可达时保留数据库中的任务、租约归属及端口，不根据连接失败推断容器消失。从机本地进程按任务结束时间停止过期开发环境；恢复连接后继续同步和清理。维护模式停止新派发并继续管理既有任务。
 
 ## 任务生命周期
 
@@ -54,7 +65,7 @@ flowchart LR
     Retain --> Recycle[到期回收]
 ```
 
-审批事务检查用户组配额和存储空间，预留卷容量、固定镜像 digest，并创建 Workspace。每位用户对应一组 Kueue LocalQueue / ClusterQueue，控制资源总量和并发数。
+审批事务检查用户组配额和所选节点存储空间，预留卷容量、固定镜像 digest，并创建 Workspace。每个节点为用户维护 Kueue LocalQueue / ClusterQueue；主控在派发事务中跨节点检查同一用户的总算力、总显存、CPU、内存和并发额度。SSH 端口也使用全局池。
 
 开发环境使用带准入门的 Pod，按开始和结束日期运行。程序使用初始挂起的 Job，准入后执行 Shell 命令，以退出码记录结果。任务派发标记持久化，已派发对象丢失时记录失败。计算对象和 Service 清理完成后释放 SSH 端口。
 
@@ -76,7 +87,7 @@ GPU 使用 `EXCLUSIVE_PROCESS` 模式，主机 MPS 服务持有计算上下文�
 
 | 内容 | 位置 | 生命周期 |
 | --- | --- | --- |
-| 个人卷 | 容器 `/home/<网站用户名>` | 同账号共享，长期保留，可由管理员扩容或删除 |
+| 个人卷 | 容器 `/home/<网站用户名>` | 同账号在同节点共享，长期保留，可由管理员扩容或删除 |
 | 工作卷 | 容器 `/workspace` | 每任务独立，结束后默认保留 3 天 |
 | 内层 Docker 数据 | `/workspace/.docker` | 随工作卷保存 |
 | 程序与 Docker 日志 | `/workspace/.platform` | 随工作卷保存 |
@@ -87,7 +98,9 @@ GPU 使用 `EXCLUSIVE_PROCESS` 模式，主机 MPS 服务持有计算上下文�
 | MPS 接入与日志 | 主机 `/var/lib/gpu-platform/gpu/pipes`、`logs` | 由 GPU 服务管理 |
 | 本机镜像清理重试 | `/var/lib/gpu-platform/image-cleanup` | 清理成功后删除 |
 
-存储池对应独立数据盘，每个卷放在一块容量充足的盘上。审批同时考虑实时空闲、逻辑预留、待绑定卷和池缓冲。平台数据库与镜像仓库在指定池中另占预算，默认分别为 10 GiB 和 300 GiB。
+节点绑定任务、存储池、卷、镜像、构建和观测数据。存储池对应该节点独立数据盘，每个卷放在一块容量充足的盘上。审批同时考虑实时空闲、逻辑预留、待绑定卷和池缓冲。主控数据库默认另占 10 GiB；每个节点的镜像仓库默认另占 300 GiB，从机数据库预算为 0。
+
+同名池和相同目录可以存在于不同节点。镜像只在其所属节点及架构使用；从已有环境运行程序必须选择同一节点，卷复制也在该节点内完成。
 
 Rawfile 使用独立 ext4 文件系统、实际容量预分配和 `nodiscard` 挂载。管理员删除卷时，平台检查关联任务、保存操作和实际挂载，依次删除 PVC、等待 PV 释放，再归还容量。
 

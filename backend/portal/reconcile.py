@@ -15,6 +15,26 @@ from .resources import quantity
 
 log = logging.getLogger(__name__)
 
+
+@transaction.atomic
+def reserve_dispatch(req, ws):
+    from .services import policy_for
+    policy = policy_for(req.user)
+    ws.refresh_from_db()
+    if ws.dispatch_started_at:
+        return True
+    if not policy.unlimited:
+        active = [row.request for row in Workspace.objects.filter(request__user=req.user,
+                  cleanup_complete=False, dispatch_started_at__isnull=False).exclude(pk=ws.pk).select_related('request')]
+        limits = {'cpu': policy.cpu, 'memory_gib': policy.memory_gib,
+                  'gpu_compute_total': policy.gpu_compute_percent, 'gpu_memory_total_gib': policy.gpu_memory_gib}
+        if len(active) >= policy.concurrent_tasks or any(sum(getattr(row, key) for row in active) + getattr(req, key) > limit
+                                                       for key, limit in limits.items()):
+            return False
+    ws.dispatch_started_at = timezone.now()
+    ws.save(update_fields=['dispatch_started_at'])
+    return True
+
 @transaction.atomic
 def allocate_port(ws, occupied=()):
     ws.refresh_from_db()
@@ -48,8 +68,10 @@ def mark_finished(req, status, code=None, error='', ended_at=None):
     audit(None, 'finished', req.pk, status=status, exit_code=code, error=error)
 
 class Reconciler:
-    def __init__(self, kube=None):
-        self.kube = kube or KubeClient()
+    def __init__(self, kube=None, node=None):
+        from .models import ComputeNode, default_node_id
+        self.node = node or ComputeNode.objects.get(pk=default_node_id())
+        self.kube = kube or KubeClient(node=self.node)
         self.ns = config()['platform']['workload_namespace']
 
     def observe(self):
@@ -64,14 +86,20 @@ class Reconciler:
         from .queues import sync_pool_capacity
         sync_pool_capacity(self.kube, nodes)
         SystemObservation.objects.update_or_create(name='resources', defaults={'data': resource_summary(nodes, pods)})
+        remote_pools = getattr(self, 'remote_pools', {})
         for pool in StoragePool.objects.all():
             # The chart mounts only the configured pool paths read-only for statvfs.
             path = Path('/storage-pools') / pool.name
             try:
-                stats = os.statvfs(path)
-                StoragePool.objects.filter(pk=pool.pk).update(capacity_gib=stats.f_blocks * stats.f_frsize // 2**30,
-                    free_gib=stats.f_bavail * stats.f_frsize // 2**30, healthy=True, observed_at=timezone.now())
-            except OSError:
+                if self.node.transport == 'ssh':
+                    observed = remote_pools[pool.name]
+                    capacity, free = observed['capacity_gib'], observed['free_gib']
+                else:
+                    stats = os.statvfs(path)
+                    capacity, free = stats.f_blocks * stats.f_frsize // 2**30, stats.f_bavail * stats.f_frsize // 2**30
+                StoragePool.objects.filter(pk=pool.pk).update(capacity_gib=capacity,
+                    free_gib=free, healthy=True, observed_at=timezone.now())
+            except (OSError, KeyError):
                 StoragePool.objects.filter(pk=pool.pk).update(healthy=False)
         previous = SystemObservation.objects.filter(name='volume_usage').first()
         if not previous or previous.observed_at < timezone.now()-timedelta(seconds=30):
@@ -123,7 +151,7 @@ class Reconciler:
             mark_finished(req, 'expired')
             self.cleanup(req, ws)
             return
-        if config()['platform'].get('maintenance') and req.status == 'approved':
+        if (config()['platform'].get('maintenance') or self.node.maintenance) and not ws.dispatch_started_at:
             return
         self.ensure_volumes(req)
         from .workspace_copy import ensure_workspace_copy
@@ -133,6 +161,10 @@ class Reconciler:
             else:ResourceRequest.objects.filter(pk=req.pk).update(status='preparing')
             return
         occupied = {p['nodePort'] for s in self.kube.list('services') for p in s.get('spec', {}).get('ports', []) if p.get('nodePort')}
+        if self.node.transport == 'ssh':
+            from .models import ComputeNode
+            local = ComputeNode.objects.get(transport='local')
+            occupied |= {p['nodePort'] for s in KubeClient(node=local).list('services') for p in s.get('spec', {}).get('ports', []) if p.get('nodePort')}
         allocate_port(ws, occupied)
         secret, workload, service = task_objects(req, ws)
         current=self.kube.ensure(secret, 'secrets', self.ns)
@@ -146,8 +178,9 @@ class Reconciler:
             self.cleanup(req, ws)
             return
         if obj is None:
-            ws.dispatch_started_at = timezone.now()
-            ws.save(update_fields=['dispatch_started_at'])
+            if not reserve_dispatch(req, ws):
+                ResourceRequest.objects.filter(pk=req.pk).update(status='queued')
+                return
             self.kube.ensure(workload, resource, self.ns, group)
         self.kube.ensure(service, 'services', self.ns)
         Workspace.objects.filter(pk=ws.pk).update(error='')
@@ -239,6 +272,44 @@ class Reconciler:
         collect_volume_deletions(self.kube)
 
     def tick(self):
+        from .node_context import using_node
+        from .node_transport import node_call, request_budget
+        from .models import ComputeNode
+        with using_node(self.node), request_budget(45):
+            if self.node.transport == 'ssh':
+                try:
+                    observation = node_call(self.node, 'observe')
+                    if observation.get('protocol') != 1:
+                        raise RuntimeError('节点协议版本不一致，请更新节点代码')
+                    self.node.runtime_config = observation['config']
+                    self.node.architecture = observation['config']['platform']['architecture']
+                    self.node.last_seen, self.node.state, self.node.error = timezone.now(), 'online', ''
+                    self.node.save(update_fields=['runtime_config', 'architecture', 'last_seen', 'state', 'error'])
+                    self.remote_pools = {pool['name']: pool for pool in observation['pools']}
+                    for pool in observation['pools']:
+                        StoragePool.objects.update_or_create(name=pool['name'], defaults={
+                            key: pool[key] for key in ('path', 'storage_class', 'buffer_percent', 'capacity_gib', 'free_gib')})
+                    self.ns = config()['platform']['workload_namespace']
+                    from .builds import ensure_base_build
+                    ensure_base_build()
+                except Exception as exc:
+                    ComputeNode.objects.filter(pk=self.node.pk).update(state='offline', error=str(exc)[:1000])
+                    StoragePool.objects.update(healthy=False)
+                    # An unreachable node must never be mistaken for missing work.
+                    return
+            self._tick()
+            if self.node.transport == 'local':
+                ComputeNode.objects.filter(pk=self.node.pk).update(state='online', last_seen=timezone.now())
+            if self.node.transport == 'ssh':
+                ports = list(Workspace.objects.filter(request__node=self.node, cleanup_complete=False,
+                    request__status__in=ACTIVE).exclude(ssh_port=None).values_list('ssh_port', flat=True))
+                try:
+                    node_call(self.node, 'forwards', ports=ports)
+                except Exception as exc:
+                    ComputeNode.objects.filter(pk=self.node.pk).update(error='SSH 转发待恢复：' + str(exc)[:800])
+                    Workspace.objects.filter(request__node=self.node, request__status='running').update(error='SSH 转发待恢复，请稍后重连。')
+
+    def _tick(self):
         errors = []
         try:
             from .builds import BuildReconciler

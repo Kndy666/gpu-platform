@@ -10,6 +10,7 @@
 | `/auth/tokens` | GET / POST | 查看本人令牌元数据 / 以当前账号生成令牌，字段 name、expires_in |
 | `/auth/tokens/{id}` | GET / DELETE | 查看本人令牌原文 / 删除指定令牌 |
 | `/me` | GET | 账号、用户组、配额、当前占用 |
+| `/nodes`、`/nodes/{id}` | GET | 节点 ID、架构、在线状态、维护状态 |
 | `/me/password` | POST | 使用 old_password、new_password1、new_password2 修改密码 |
 | `/resources` | GET | 资源余量、默认镜像、服务器时间与时区 |
 | `/timeline?date=YYYY-MM-DD` | GET | 当天具体资源分配 |
@@ -40,6 +41,8 @@
 
 示例日期需按用户实际要求替换。省略 image 会使用共享默认镜像。图形界面的 GiB 与 API 字段 memory_gib、workspace_gib 一致。
 
+任务和构建正文的 `node` 是执行节点数字 ID，省略时选本机；从 `source_environment` 运行时自动沿用源节点。资源、GPU、镜像、任务、构建、卷、时间轴及公用目录支持 `?node=ID`。列表省略节点时跨节点返回；GPU 和公用目录省略时选本机。镜像、个人卷、工作卷和公用目录归属节点，任务及镜像等响应包含 `node_id`、`node_name`。账号配额跨节点计算。
+
 从已配置的开发容器运行：
 
 ```json
@@ -55,6 +58,7 @@
 `/me.permissions` 表示当前管理权限。不限额组只改变配额。管理员可管理他人任务、镜像和数据卷；公钥、令牌、构建记录和保存记录保持本人可见。
 
 - `GET /admin/overview`：管理计数。
+- `POST /nodes`、`PATCH /nodes/{id}`：登记或修改 name、transport、ssh_port、ssh_user、identity、architecture、enabled、maintenance；identity 为主控密钥目录内的私钥文件名。维护模式暂停新任务派发，保留已有任务同步。
 - `GET /admin/containers?q=...&status=...&mode=...`：全体容器，可按名称、所属用户、容器编号和状态筛选；管理员通过 `GET /tasks/{id}/connection` 的 command/config，以目标容器用户名和本人密钥登录。`administrator_access` 返回本人启用公钥的元数据与 ready 状态；可在容器内 sudo。
 - `POST /tasks/{id}/review`：action 为 approve、reject、stop、extend；priority 为 0 或 100，拒绝带 reason，延期带 ends_at 和 reason。
 - `GET/POST /admin/members`，`GET/PATCH /admin/members/{id}`：账号创建与编辑。group 为用户组数字 ID，home_quota_gib 为个人卷额度。新账号需要 username、password；停用账号使用 is_active=false。

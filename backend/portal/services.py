@@ -48,8 +48,10 @@ def policy_for(user):
     except ObjectDoesNotExist as e:
         raise ValidationError('用户尚未加入用户组。') from e
 
-def gpu_request_limits(user,inventory=None):
-    if inventory is None:inventory=SystemObservation.objects.filter(name='gpu_inventory').first()
+def gpu_request_limits(user,inventory=None,node=None):
+    if inventory is None:
+        query = SystemObservation.objects.filter(name='gpu_inventory')
+        inventory = query.filter(node=node).first() if node else query.first()
     devices=[]
     for d in inventory.data.get('devices',[]) if inventory else []:
         memory=d.get('usable_memory_mib',d.get('memory_mib',0))//1024
@@ -63,7 +65,9 @@ def gpu_request_limits(user,inventory=None):
         'memory_total_gib':None if policy.unlimited else policy.gpu_memory_gib,'devices':devices}
 
 def pool_available(pool):
-    cfg = config()
+    from .configuration import base_config
+    from .node_context import node_config
+    cfg = node_config(pool.node, base_config())
     system = cfg['storage']['registry_budget_gib'] + cfg['platform']['data_size_gib'] if pool.storage_class == cfg['platform']['data_storage_class'] else 0
     buffer = (pool.capacity_gib * pool.buffer_percent + 99) // 100
     pending = VolumeAllocation.objects.filter(pool=pool, state='reserved').aggregate(n=Sum('size_gib'))['n'] or 0
@@ -73,6 +77,15 @@ def validate_request(req):
     from .identity import validate_login_name
     validate_login_name(req.login_user)
     policy = policy_for(req.user)
+    node = req.node
+    if not node.enabled or node.maintenance:
+        raise ValidationError('所选节点已暂停接单。')
+    if node.transport == 'ssh' and (node.state != 'online' or not node.last_seen or node.last_seen < timezone.now()-timedelta(minutes=2)):
+        raise ValidationError('所选节点离线，暂不能提交或批准新任务。')
+    if req.image.node_id != req.node_id or req.image.architecture != node.architecture:
+        raise ValidationError('请选择目标节点上架构匹配的镜像。')
+    if req.source_environment_id and req.source_environment.node_id != req.node_id:
+        raise ValidationError('源开发环境、镜像与工作卷必须位于同一节点。')
     if not req.user.is_active:
         raise ValidationError('账号已停用。')
     if not policy.unlimited and req.user.profile.home_quota_gib > policy.home_gib:
@@ -93,7 +106,7 @@ def validate_request(req):
                 raise ValidationError(f'GPU 总算力超过用户组上限 {policy.gpu_compute_percent}%。')
             if req.gpu_memory_total_gib>policy.gpu_memory_gib:
                 raise ValidationError(f'GPU 总显存超过用户组上限 {policy.gpu_memory_gib} GiB。')
-        inventory=SystemObservation.objects.filter(name='gpu_inventory').first()
+        inventory=SystemObservation.objects.filter(node=req.node, name='gpu_inventory').first()
         if inventory:
             devices=inventory.data.get('devices',[])
             if choose_devices(devices,[],req.gpu_requests) is None:
@@ -102,7 +115,7 @@ def validate_request(req):
         value = getattr(req, field)
         if (not policy.unlimited and value > getattr(policy, field)) or value < (0 if field == 'gpu' else 1):
             raise ValidationError(f'{field} 超出用户组配额。')
-    observed = SystemObservation.objects.filter(name='resources', observed_at__gte=timezone.now()-timedelta(minutes=2)).first()
+    observed = SystemObservation.objects.filter(node=req.node, name='resources', observed_at__gte=timezone.now()-timedelta(minutes=2)).first()
     if observed:
         for field in ('gpu', 'cpu', 'memory_gib'):
             if getattr(req, field) > observed.data.get(field, {}).get('total', float('inf')):
@@ -138,10 +151,12 @@ def validate_request(req):
     if not p.is_absolute() or '..' in p.parts or not any(p == PurePosixPath(root) or PurePosixPath(root) in p.parents for root in ('/workspace', req.home_dir)):
         raise ValidationError(f'工作目录必须位于 /workspace 或 {req.home_dir}。')
 
-def reserve_volume(user, size, kind, req=None):
+def reserve_volume(user, size, kind, req=None, node=None):
     # Caller holds SQLite BEGIN IMMEDIATE; no reliance on select_for_update().
     now = timezone.now()
-    for pool in StoragePool.objects.filter(healthy=True, observed_at__gte=now - timedelta(minutes=2)).order_by('-free_gib', 'name'):
+    from .models import default_node_id
+    node_id = req.node_id if req else node.pk if node else default_node_id()
+    for pool in StoragePool.objects.filter(node_id=node_id, healthy=True, observed_at__gte=now - timedelta(minutes=2)).order_by('-free_gib', 'name'):
         available = pool_available(pool)
         if size <= available:
             updated = StoragePool.objects.filter(pk=pool.pk, reserved_gib=pool.reserved_gib, healthy=True).update(reserved_gib=F('reserved_gib') + size)
@@ -150,11 +165,12 @@ def reserve_volume(user, size, kind, req=None):
                 if VolumeAllocation.objects.filter(pvc_name=name).exists():
                     import uuid
                     name += '-' + uuid.uuid4().hex[:12]
-                return VolumeAllocation.objects.create(user=user, request=req, kind=kind, pool=pool, size_gib=size, pvc_name=name)
+                return VolumeAllocation.objects.create(node_id=node_id, user=user, request=req, kind=kind, pool=pool, size_gib=size, pvc_name=name)
     raise ValidationError('没有单块磁盘具备足够的可分配容量（含空闲缓冲）。')
 
-def home_resize_delta(user, size):
-    volume = VolumeAllocation.objects.filter(user=user, kind='home').exclude(state='deleted').select_related('pool').first()
+def home_resize_delta(user, size, node=None):
+    query = VolumeAllocation.objects.filter(user=user, kind='home').exclude(state='deleted').select_related('pool')
+    volume = (query.filter(node=node) if node else query).first()
     if volume and volume.state == 'deleting':
         raise ValidationError('个人卷正在删除，请等待完成。')
     policy = policy_for(user)
@@ -176,12 +192,14 @@ def home_resize_delta(user, size):
 def resize_home(user, size, actor):
     if not actor.is_staff:
         raise ValidationError('需要管理员权限。')
-    volume, delta = home_resize_delta(user, size)
-    if delta:
-        StoragePool.objects.filter(pk=volume.pool_id).update(reserved_gib=F('reserved_gib')+delta)
-        volume.size_gib = size
-        volume.save(update_fields=['size_gib'])
-        audit(actor, 'home_resize', user.pk, size_gib=size)
+    homes = list(VolumeAllocation.objects.filter(user=user, kind='home').exclude(state='deleted').select_related('node'))
+    changes = [home_resize_delta(user, size, volume.node) for volume in homes] if homes else [home_resize_delta(user, size)]
+    for volume, delta in changes:
+        if delta:
+            StoragePool.objects.filter(pk=volume.pool_id).update(reserved_gib=F('reserved_gib')+delta)
+            volume.size_gib = size
+            volume.save(update_fields=['size_gib'])
+            audit(actor, 'home_resize', user.pk, size_gib=size, node=volume.node_id)
     user.profile.home_quota_gib = size
     user.profile.save(update_fields=['home_quota_gib'])
 
@@ -201,11 +219,11 @@ def approve(request_id, actor, reason='', priority=None):
     requested_delta=req.workspace_gib-source_volume.size_gib if source_volume else req.workspace_gib
     if not policy.unlimited and allocated + requested_delta > policy.workspace_gib:
         raise ValidationError('工作卷总额度不足，请联系管理员调整额度或回收保留卷。')
-    home = VolumeAllocation.objects.filter(user=req.user, kind='home').exclude(state='deleted').first()
+    home = VolumeAllocation.objects.filter(node=req.node, user=req.user, kind='home').exclude(state='deleted').first()
     if home and home.state == 'deleting':
         raise ValidationError('个人卷正在删除，请等待完成。')
     if not home:
-        reserve_volume(req.user, req.user.profile.home_quota_gib, 'home')
+        reserve_volume(req.user, req.user.profile.home_quota_gib, 'home', node=req.node)
     if req.source_environment_id:
         volume = source_volume
         if volume.state in {'deleted', 'deleting'}:
@@ -265,6 +283,19 @@ def extend(request_id, actor, ends_at, reason):
     if not actor.is_staff or req.mode != 'interactive' or req.status not in ACTIVE or not ends_at or ends_at <= req.ends_at or not reason.strip():
         raise ValidationError('请选择更晚的结束时间，并填写原因。')
     ws = Workspace.objects.get(request=req)
+    if ws.dispatch_started_at:
+        from .kube import KubeClient
+        from .node_context import node_config
+        from .configuration import base_config
+        kube = KubeClient(node=req.node)
+        ns = node_config(req.node, base_config())['platform']['workload_namespace']
+        try:
+            updated = kube.call('PATCH', kube.path('pods', ns, ws.object_name),
+                                {'metadata': {'annotations': {'platform.ends-at': ends_at.isoformat()}}})
+            if updated is None:
+                raise RuntimeError('任务容器已结束或正在同步')
+        except Exception as exc:
+            raise ValidationError('延期尚未送达节点，请恢复连接后重试。') from exc
     if ws.expire_at:
         ws.expire_at = ends_at
         ws.save(update_fields=['expire_at'])

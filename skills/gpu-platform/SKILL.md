@@ -21,6 +21,8 @@ python3 scripts/client.py request GET /api/v1/images --query available=true
 
 申请开发环境时，先确认账号额度、可用镜像和已启用的 SSH 公钥。缺少公钥时向用户取得公钥，或按用户授权生成密钥后提交公钥。`mode=interactive` 表示按日期时段使用；默认无 GPU，申请中写明 CPU、内存和工作卷大小。时间使用带时区的 ISO 8601；用户口述日期以站点返回的 `timezone` 为准，当前为北京时间。
 
+通过 `GET /nodes` 查询执行节点和在线状态，按用户指定的服务器或资源选择节点。用 `?node=ID` 查询该节点的资源、GPU 和镜像，任务与构建正文填写 `node`。镜像、个人卷、工作卷和公用目录绑定节点；从已有开发环境运行时沿用源节点。用户组额度在全部节点间共享。节点管理接口的写操作使用管理员权限。
+
 GPU 算力和显存可分别填写 `"max"`。服务端按当前用户组权限、物理容量和其他行手填值计算，将剩余总额度均分给选最大值的行，并返回确定的整数。`GET /gpus` 的 `request_limits` 给出解析使用的单卡上限、总上限和设备容量；不限额组总上限为 `null`。当前占用由排队处理。
 
 GPU 申请使用 `gpu_requests` 数组，每个元素填写 `compute_percent`（2–100）和 `memory_gib`（正整数）。例如 `[ {"compute_percent":100,"memory_gib":8}, {"compute_percent":50,"memory_gib":4} ]` 表示第一张全卡、第二张半卡。卡数 `gpu` 可省略，由数组长度确定；显式提供时须一致。数组顺序对应外层与内层 Docker `--gpus all` 的 CUDA 设备顺序。通过 `GET /gpus` 查询逐卡余量。平台一次匹配全部物理卡后启动；`gpu_allocations.slot` 对应配置行，`index` 是实际物理 GPU 编号。用户组 `gpu_compute_percent` 是各卡及同时运行任务的总算力额度（百分比之和），`gpu_memory_gib` 是总显存；`gpu_compute_per_card_percent`、`gpu_memory_per_card_gib` 分别限制单卡。管理员不限额。运行命令和环境变量不覆盖 NVIDIA、CUDA_MPS 或平台保留配置。

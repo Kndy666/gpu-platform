@@ -9,7 +9,7 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
-from django.http import FileResponse, Http404
+from django.http import FileResponse, Http404, StreamingHttpResponse
 from django.shortcuts import render
 from django.urls import reverse
 from django.views.decorators.http import require_safe
@@ -38,7 +38,29 @@ def open_dataset_path(relative):
             os.close(descriptor)
 
 
-def dataset_content(relative, query=''):
+def dataset_content(relative, query='', node=None):
+    if node and node.transport == 'ssh':
+        import base64
+        from django.utils.http import content_disposition_header
+        from .node_transport import node_call
+        result = node_call(node, 'dataset', path=relative, query=query)
+        if result.get('file'):
+            def chunks():
+                offset = 0
+                while offset < result['size']:
+                    chunk = node_call(node, 'dataset', action='read', path=relative, offset=offset)
+                    data = base64.b64decode(chunk['data'])
+                    if not data:
+                        raise OSError('Remote dataset file changed during download')
+                    offset += len(data)
+                    yield data
+            response = StreamingHttpResponse(chunks(), content_type='application/octet-stream')
+            response['Content-Disposition'] = content_disposition_header(True, PurePosixPath(relative).name)
+            response['Content-Length'] = result['size']
+            return response
+        for entry in result['entries']:
+            entry['modified'] = datetime.fromtimestamp(entry['modified'], timezone.utc)
+        return result['entries']
     path = PurePosixPath(relative)
     query = query.strip()
     with open_dataset_path(relative) as descriptor:
@@ -74,18 +96,22 @@ def browse_datasets(request, management=False):
     path = PurePosixPath(request.GET.get('path', ''))
     relative = str(path) if str(path) != '.' else ''
     query = request.GET.get('q', '').strip()
+    from .nodes import selected_node
+    from .models import ComputeNode
+    node = selected_node(request.GET.get('node'))
     endpoint = reverse('manage_datasets' if management else 'datasets')
     def url(path, **kwargs):
-        return endpoint + '?' + urlencode({'path': str(path) if str(path) != '.' else '', **kwargs})
-    entries = dataset_content(relative, query)
-    if isinstance(entries, FileResponse):
+        return endpoint + '?' + urlencode({'node': node.pk, 'path': str(path) if str(path) != '.' else '', **kwargs})
+    entries = dataset_content(relative, query, node=node)
+    if isinstance(entries, StreamingHttpResponse):
         return entries
     for entry in entries:
         entry['url'] = url(entry['path']) if entry['kind'] != 'link' else None
-    crumbs = [{'name': '公用目录', 'url': endpoint}]
+    crumbs = [{'name': node.name + ' 公用目录', 'url': url('')}]
     for index, part in enumerate(path.parts):
         crumbs.append({'name': part, 'url': url(PurePosixPath(*path.parts[:index+1]))})
     page = Paginator(entries, 100).get_page(request.GET.get('page'))
     return render(request, 'portal/datasets.html', {'base_template': 'portal/manage_base.html' if management else 'portal/base.html',
         'section': 'datasets', 'section_title': '公用目录', 'management': management, 'page': page,
+        'node': node, 'nodes': ComputeNode.objects.filter(enabled=True),
         'query': query, 'relative': relative, 'breadcrumbs': crumbs, 'parent_url': url(path.parent) if path.parts else None})

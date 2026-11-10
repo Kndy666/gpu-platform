@@ -5,6 +5,58 @@ from django.db.models import Q
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator
 
+
+class ComputeNode(models.Model):
+    name = models.SlugField(max_length=63, unique=True, verbose_name='节点名称')
+    transport = models.CharField(max_length=8, choices=[('local', '本机'), ('ssh', 'SSH 从机')], default='ssh')
+    ssh_port = models.PositiveIntegerField(default=2201)
+    ssh_user = models.CharField(max_length=32, default='gpu-platform')
+    identity = models.SlugField(max_length=80, blank=True, verbose_name='密钥名称')
+    architecture = models.CharField(max_length=20, choices=[('arm64', 'ARM64'), ('amd64', 'AMD64')], default='amd64')
+    enabled = models.BooleanField(default=True, verbose_name='启用同步')
+    maintenance = models.BooleanField(default=False, verbose_name='暂停接单')
+    state = models.CharField(max_length=16, default='unknown', choices=[('unknown', '未连接'), ('online', '在线'), ('offline', '离线')])
+    last_seen = models.DateTimeField(null=True, blank=True)
+    error = models.TextField(blank=True)
+    runtime_config = models.JSONField(default=dict, blank=True)
+
+    def __str__(self):
+        return self.name
+
+    def clean(self):
+        import re
+        if not 1 <= self.ssh_port <= 65535:
+            raise ValidationError('SSH 端口范围为 1–65535。')
+        if not re.fullmatch(r'[a-z_][a-z0-9_-]{0,31}', self.ssh_user):
+            raise ValidationError('无效 SSH 用户名。')
+        if self.transport == 'ssh' and not self.identity:
+            raise ValidationError('请选择节点专属密钥。')
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['transport'], condition=Q(transport='local'), name='one_local_node')]
+
+
+def default_node_id():
+    from .node_context import active_node
+    node = active_node.get()
+    if node:
+        return node.pk
+    from .configuration import base_config
+    architecture = base_config()['platform']['architecture']
+    return ComputeNode.objects.get_or_create(name='local', defaults={'transport': 'local', 'architecture': architecture})[0].pk
+
+
+class NodeManager(models.Manager):
+    def __init__(self, field='node_id'):
+        super().__init__()
+        self.node_field = field
+
+    def get_queryset(self):
+        from .node_context import active_node
+        query = super().get_queryset()
+        node = active_node.get()
+        return query.filter(**{self.node_field: node.pk}) if node else query
+
 GROUP_QUOTA_FIELDS = ('gpu_compute_percent', 'gpu_memory_gib', 'gpu_compute_per_card_percent', 'gpu_memory_per_card_gib', 'cpu', 'memory_gib', 'workspace_gib', 'home_gib', 'image_gib',
                       'concurrent_tasks', 'interactive_hours')
 
@@ -79,8 +131,10 @@ class SSHKey(models.Model):
         constraints = [models.UniqueConstraint(fields=['user', 'fingerprint'], name='unique_user_key')]
 
 class StoragePool(models.Model):
-    name = models.SlugField(unique=True, verbose_name='名称')
-    path = models.CharField(max_length=500, unique=True)
+    node = models.ForeignKey(ComputeNode, on_delete=models.PROTECT, default=default_node_id)
+    objects = NodeManager()
+    name = models.SlugField(verbose_name='名称')
+    path = models.CharField(max_length=500)
     storage_class = models.CharField(max_length=100)
     capacity_gib = models.PositiveBigIntegerField(default=0, verbose_name='总容量 GiB')
     free_gib = models.PositiveBigIntegerField(default=0, verbose_name='空闲 GiB')
@@ -95,8 +149,12 @@ class StoragePool(models.Model):
     class Meta:
         verbose_name = '存储池'
         verbose_name_plural = verbose_name
+        constraints = [models.UniqueConstraint(fields=['node', 'name'], name='node_pool_name'),
+                       models.UniqueConstraint(fields=['node', 'path'], name='node_pool_path')]
 
 class ImageArtifact(models.Model):
+    node = models.ForeignKey(ComputeNode, on_delete=models.PROTECT, default=default_node_id)
+    objects = NodeManager()
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, verbose_name='所属用户')
     name = models.CharField(max_length=120, verbose_name='名称')
@@ -132,6 +190,8 @@ class PlatformSettings(models.Model):
         return cls.objects.get_or_create(singleton=1)[0]
 
 class ResourceRequest(models.Model):
+    node = models.ForeignKey(ComputeNode, on_delete=models.PROTECT, default=default_node_id, verbose_name='计算节点')
+    objects = NodeManager()
     class State(models.TextChoices):
         SUBMITTED = 'submitted', '待审核'
         REJECTED = 'rejected', '已拒绝'
@@ -218,6 +278,8 @@ class ResourceRequest(models.Model):
         return '正在停止' if self.status in {'starting', 'running'} else '正在取消'
 
 class VolumeAllocation(models.Model):
+    node = models.ForeignKey(ComputeNode, on_delete=models.PROTECT, default=default_node_id)
+    objects = NodeManager()
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, verbose_name='用户')
     request = models.OneToOneField(ResourceRequest, on_delete=models.PROTECT, null=True, blank=True, verbose_name='资源申请')
@@ -236,7 +298,7 @@ class VolumeAllocation(models.Model):
     class Meta:
         verbose_name = '数据卷'
         verbose_name_plural = verbose_name
-        constraints = [models.UniqueConstraint(fields=['user'], condition=Q(kind='home') & ~Q(state='deleted'), name='one_home_per_user')]
+        constraints = [models.UniqueConstraint(fields=['user', 'node'], condition=Q(kind='home') & ~Q(state='deleted'), name='one_home_per_node')]
 
 class Workspace(models.Model):
     request = models.OneToOneField(ResourceRequest, on_delete=models.PROTECT, primary_key=True, verbose_name='资源申请')
@@ -258,6 +320,7 @@ class Workspace(models.Model):
         verbose_name_plural = verbose_name
 
 class EnvironmentSnapshot(models.Model):
+    objects = NodeManager('source__node_id')
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     source = models.ForeignKey(ResourceRequest, on_delete=models.PROTECT, related_name='snapshots', verbose_name='源环境')
     target = models.OneToOneField(ResourceRequest, null=True, blank=True, on_delete=models.PROTECT, related_name='environment_snapshot', verbose_name='对象')
@@ -272,6 +335,8 @@ class EnvironmentSnapshot(models.Model):
         verbose_name_plural = verbose_name
 
 class ImageBuild(models.Model):
+    node = models.ForeignKey(ComputeNode, on_delete=models.PROTECT, default=default_node_id, verbose_name='计算节点')
+    objects = NodeManager()
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, verbose_name='用户')
     name = models.SlugField(max_length=80, verbose_name='名称')
@@ -300,10 +365,13 @@ class AuditLog(models.Model):
         verbose_name_plural = verbose_name
 
 class SystemObservation(models.Model):
-    name = models.CharField(max_length=80, unique=True, verbose_name='名称')
+    node = models.ForeignKey(ComputeNode, on_delete=models.PROTECT, default=default_node_id)
+    objects = NodeManager()
+    name = models.CharField(max_length=80, verbose_name='名称')
     data = models.JSONField(default=dict, verbose_name='观测数据')
     observed_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
 
     class Meta:
         verbose_name = '资源观测'
         verbose_name_plural = verbose_name
+        constraints = [models.UniqueConstraint(fields=['node', 'name'], name='node_observation')]

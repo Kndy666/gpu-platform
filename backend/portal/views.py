@@ -76,13 +76,15 @@ def delete_key(request, pk):
 @transaction.atomic
 def new_request(request, mode='interactive'):
     initial = {}
+    if request.GET.get('node'):
+        initial['node'] = request.GET['node']
     try:
         if mode == 'batch' and request.GET.get('image'):
             image = get_object_or_404(ImageArtifact.objects.filter(Q(owner=request.user) | Q(shared=True), verified=True), pk=request.GET['image'])
-            initial.update(source_kind='image', image=image)
+            initial.update(source_kind='image', image=image, node=image.node)
         if mode == 'batch' and request.GET.get('source'):
             source = get_object_or_404(ResourceRequest, pk=request.GET['source'], user=request.user, mode='interactive', status='running')
-            initial.update(source_kind='environment', source_environment=source, purpose=source.purpose+' · 运行', workspace_gib=source.workspace_gib)
+            initial.update(source_kind='environment', source_environment=source, purpose=source.purpose+' · 运行', workspace_gib=source.workspace_gib, node=source.node)
     except ValidationError as exc:
         raise Http404 from exc
     form = RequestForm(request.POST or None, user=request.user, mode=mode, initial=initial)
@@ -91,7 +93,7 @@ def new_request(request, mode='interactive'):
         audit(request.user, 'submit', req.pk)
         return redirect('task', pk=req.pk)
     from .queries import request_capacity
-    return render(request, 'portal/request.html', {'form': form, 'mode': mode, 'capacity':request_capacity(request.user),
+    return render(request, 'portal/request.html', {'form': form, 'mode': mode, 'capacity':request_capacity(request.user,node=form.node),
         'title': '新建开发环境' if mode == 'interactive' else '运行程序'})
 
 @login_required
@@ -199,7 +201,9 @@ def save_environment(request, pk):
 @require_http_methods(['GET'])
 def available_resources(request):
     from .queries import request_capacity
-    response=JsonResponse(request_capacity(request.user))
+    from .nodes import selected_node
+    node = selected_node(request.GET.get('node'))
+    response=JsonResponse(request_capacity(request.user,node=node))
     response['Cache-Control']='no-store'
     return response
 
@@ -211,7 +215,7 @@ def management(request):
         'members': get_user_model().objects.count(), 'audits': audit_list()[:12]})
 
 def health(request):
-    obs = SystemObservation.objects.filter(name='reconciler').first()
+    obs = SystemObservation.objects.filter(name='reconciler').order_by('-observed_at').first()
     ok = bool(obs and obs.observed_at >= timezone.now() - timedelta(seconds=60))
     return JsonResponse({'web': 'ok', 'reconciler': 'ok' if ok else 'stale'}, status=200 if ok else 503)
 

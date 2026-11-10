@@ -14,6 +14,8 @@ ROUTES = [
     ('me/password', api.password, 'Change your password', 'PasswordRequest'),
     ('resources', api.resources, 'Resource availability and default image', None),
     ('gpus', api.gpus, 'Physical GPUs, compute shares and VRAM availability', None),
+    ('nodes', api.nodes, 'List nodes; administrators may register SSH workers', 'NodeRequest'),
+    ('nodes/<int:pk>', api.node, 'Read or configure one node', 'NodeRequest'),
     ('timeline', api.timeline, 'Daily resource allocation timeline', None),
     ('keys', api.keys, 'List or add SSH public keys', 'KeyRequest'),
     ('keys/<int:pk>', api.key, 'Update or disable an SSH key', 'KeyUpdate'),

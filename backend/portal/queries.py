@@ -8,40 +8,60 @@ from .models import AuditLog, ImageArtifact, ResourceRequest, StoragePool, Syste
 from .services import ACTIVE, pool_available
 
 
-def resource_overview():
-    observation = SystemObservation.objects.filter(name='resources').first()
-    fresh = bool(observation and observation.observed_at >= timezone.now()-timedelta(minutes=2))
-    pools = StoragePool.objects.filter(healthy=True, observed_at__gte=timezone.now()-timedelta(minutes=2))
+def resource_overview(node=None):
+    observations = SystemObservation.objects.filter(name='resources', node__enabled=True, observed_at__gte=timezone.now()-timedelta(minutes=2)).exclude(node__state='offline')
+    if node:
+        observations = observations.filter(node=node)
+    observations = list(observations)
+    fresh = bool(observations)
+    combined = {}
+    for observation in observations:
+        for name, values in observation.data.items():
+            if isinstance(values, dict) and 'total' in values:
+                result = combined.setdefault(name, {'total': 0, 'used': 0, 'available': 0})
+                for key in ('total', 'used', 'available'):
+                    result[key] += values.get(key, 0)
+    for values in combined.values():
+        values['used_percent'] = round(min(100, values['used'] / values['total'] * 100), 1) if values['total'] else 0
+    pools = StoragePool.objects.filter(healthy=True, node__enabled=True, observed_at__gte=timezone.now()-timedelta(minutes=2)).exclude(node__state='offline')
+    if node:
+        pools = pools.filter(node=node)
     available = sum(pool_available(pool) for pool in pools)
-    counts = tasks_for_counts()
-    inventory=SystemObservation.objects.filter(name='gpu_inventory').first()
-    devices=inventory.data.get('devices',[]) if inventory else []
+    counts = tasks_for_counts(node)
+    inventories=SystemObservation.objects.filter(name='gpu_inventory').select_related('node')
+    if node:
+        inventories = inventories.filter(node=node)
+    devices=[{**device, 'node_id': inventory.node_id, 'node_name': inventory.node.name,
+              'ready': device.get('ready', True) and inventory.node.enabled and inventory.node.state != 'offline'
+                       and inventory.observed_at >= timezone.now()-timedelta(minutes=2)}
+             for inventory in inventories for device in inventory.data.get('devices',[])]
     for d in devices:
         d['available_compute_percent']=max(0,100-d.get('used_compute_percent',0)) if d.get('ready',True) else 0
-        d['available_memory_gib']=round(max(0,d.get('usable_memory_mib',d.get('memory_mib',0))-d.get('used_memory_mib',0))/1024,1)
+        d['available_memory_gib']=round(max(0,d.get('usable_memory_mib',d.get('memory_mib',0))-d.get('used_memory_mib',0))/1024,1) if d['ready'] else 0
         d['used_memory_gib']=round(d.get('used_memory_mib',0)/1024,1)
-    return {'resources': observation.data if fresh else None, 'gpus':devices, 'fresh': fresh,
+    return {'resources': combined if fresh else None, 'gpus':devices, 'fresh': fresh,
             'available_storage_gib': available, 'storage_tib': round(available/1024, 1), **counts}
 
 
-def tasks_for_counts():
+def tasks_for_counts(node=None):
     from .models import ResourceRequest
-    counts = ResourceRequest.objects.aggregate(
+    query = ResourceRequest.objects.filter(node=node) if node else ResourceRequest.objects.all()
+    counts = query.aggregate(
         running_count=Count('pk', filter=Q(status='running')),
         queued_count=Count('pk', filter=Q(status__in=ACTIVE-{'running'})))
     return counts
 
 
-def request_capacity(user,overview=None):
+def request_capacity(user,overview=None,node=None):
     from .services import policy_for
     from .models import VolumeAllocation
-    overview=overview if overview is not None else resource_overview()
+    overview=overview if overview is not None else resource_overview(node)
     policy=policy_for(user)
     work=VolumeAllocation.objects.filter(user=user,kind='work').exclude(state='deleted').aggregate(n=Sum('size_gib'))['n'] or 0
     gpus=[]
     for gpu in overview['gpus']:
         ready=gpu.get('ready',True) and overview['fresh']
-        gpus.append({'index':gpu['index'],'ready':ready,'compute_percent':gpu['available_compute_percent'] if ready else 0,
+        gpus.append({'node_id':gpu['node_id'],'node_name':gpu['node_name'],'index':gpu['index'],'ready':ready,'compute_percent':gpu['available_compute_percent'] if ready else 0,
             'memory_gib':gpu['available_memory_gib'] if ready else 0,
             'memory_total_gib':round(gpu.get('usable_memory_mib',gpu.get('memory_mib',0))/1024,1)})
     resources=overview['resources'] or {}
@@ -94,7 +114,7 @@ def image_summary(query):
 
 
 def pool_list():
-    pools = list(StoragePool.objects.order_by('name'))
+    pools = list(StoragePool.objects.select_related('node').order_by('node__name', 'name'))
     for pool in pools:
         pool.available_gib = pool_available(pool)
         pool.percent = min(100, round(100*(pool.capacity_gib-pool.free_gib)/max(1, pool.capacity_gib)))

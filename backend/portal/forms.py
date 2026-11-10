@@ -1,7 +1,7 @@
 from django import forms
 from django.db.models import Q
 from django.core.exceptions import ValidationError
-from .models import ResourceRequest, SSHKey, ImageArtifact, ImageBuild
+from .models import ResourceRequest, SSHKey, ImageArtifact, ImageBuild, ComputeNode, default_node_id
 from .services import parse_ssh_key, validate_request, gpu_request_limits
 from .gpu_math import has_gpu_max,resolve_gpu_max
 from .api_auth import TOKEN_LIFETIMES, TOKEN_SECONDS
@@ -19,8 +19,11 @@ def request_defaults(mode):
     return data
 
 
-def default_image(user):
-    return ImageArtifact.objects.filter(Q(owner=user) | Q(shared=True), verified=True).order_by('-shared', '-created_at').first()
+def default_image(user, node=None):
+    query = ImageArtifact.objects.filter(Q(owner=user) | Q(shared=True), verified=True)
+    if node:
+        query = query.filter(node=node)
+    return query.order_by('-shared', '-created_at').first()
 
 
 class TokenIssueForm(forms.Form):
@@ -49,7 +52,7 @@ class RequestForm(forms.ModelForm):
     variables = forms.CharField(required=False, label='环境变量', widget=forms.Textarea(attrs={'rows': 3, 'placeholder': 'OMP_NUM_THREADS=8'}))
     class Meta:
         model = ResourceRequest
-        fields = ['purpose', 'image', 'source_environment', 'gpu', 'gpu_requests', 'cpu', 'memory_gib', 'workspace_gib', 'starts_at', 'ends_at', 'command', 'working_dir', 'notes']
+        fields = ['node', 'purpose', 'image', 'source_environment', 'gpu', 'gpu_requests', 'cpu', 'memory_gib', 'workspace_gib', 'starts_at', 'ends_at', 'command', 'working_dir', 'notes']
         labels = {'purpose': '名称', 'image': '环境镜像', 'gpu': 'GPU', 'cpu': 'CPU 核', 'memory_gib': '内存 GiB', 'workspace_gib': '工作卷 GiB', 'starts_at': '开始', 'ends_at': '结束', 'working_dir': '工作目录', 'notes': '备注'}
         widgets = {'starts_at': forms.DateTimeInput(format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}), 'ends_at': forms.DateTimeInput(format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}), 'notes': forms.Textarea(attrs={'rows': 2})}
 
@@ -57,19 +60,30 @@ class RequestForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.instance.user, self.instance.mode = user, mode
         self.instance.login_name = user.username
+        selected = self.data.get('node') or self.initial.get('node') or default_node_id()
+        if isinstance(selected, ComputeNode):
+            selected = selected.pk
+        self.node = ComputeNode.objects.filter(pk=selected).first() if str(selected).isdigit() else None
+        self.node = self.node or ComputeNode.objects.get(pk=default_node_id())
+        self.instance.node = self.node
+        self.initial['node'] = self.node.pk
+        self.fields['node'].queryset = ComputeNode.objects.filter(enabled=True)
+        self.fields['node'].required = False
+        self.fields['node'].empty_label = None
+        self.fields['node'].widget.attrs['data-node-select'] = 'request'
         self.fields['gpu'].label='GPU 数量'
         from .models import SystemObservation
-        inventory=SystemObservation.objects.filter(name='gpu_inventory').first()
-        self.gpu_limits=gpu_request_limits(user,inventory)
+        inventory=SystemObservation.objects.filter(node=self.node, name='gpu_inventory').first()
+        self.gpu_limits=gpu_request_limits(user,inventory,node=self.node)
         count=len(inventory.data.get('devices',[])) if inventory else 4
         self.fields['gpu'].widget=forms.Select(choices=[(i,f'{i} 张') for i in range(count+1)])
         self.fields['command'].widget.attrs['placeholder'] = f'/home/{user.username}/venvs/app/bin/python /home/{user.username}/project/main.py'
         self.mode = mode
-        self.fields['image'].queryset = ImageArtifact.objects.filter(Q(owner=user) | Q(shared=True), verified=True).order_by('-shared', '-created_at')
+        self.fields['image'].queryset = ImageArtifact.objects.filter(Q(owner=user) | Q(shared=True), node=self.node, verified=True).order_by('-shared', '-created_at')
         self.fields['image'].required = False
         if mode == 'batch' and self.data.get('source_kind') == 'environment':
             self.fields['workspace_gib'].required = False
-        self.fields['source_environment'].queryset = ResourceRequest.objects.filter(user=user, mode='interactive', status='running').exclude(workspace__stop_requested=True)
+        self.fields['source_environment'].queryset = ResourceRequest.objects.filter(node=self.node, user=user, mode='interactive', status='running').exclude(workspace__stop_requested=True)
         images = self.fields['image'].queryset
         environments = self.fields['source_environment'].queryset
         self.fields['image'].empty_label = None if images.exists() else '暂无可用镜像'
@@ -89,6 +103,7 @@ class RequestForm(forms.ModelForm):
 
     def clean(self):
         data = super().clean()
+        data['node'] = data.get('node') or self.node
         if data.get('gpu_requests') is None:data['gpu_requests']=[]
         if has_gpu_max(data['gpu_requests']):
             try:data['gpu_requests']=resolve_gpu_max(data['gpu_requests'],self.gpu_limits)
@@ -128,9 +143,22 @@ class RequestForm(forms.ModelForm):
 class ImageBuildForm(forms.ModelForm):
     class Meta:
         model = ImageBuild
-        fields = ['name', 'dockerfile', 'context_git']
+        fields = ['node', 'name', 'dockerfile', 'context_git']
         labels = {'name': '版本名称', 'dockerfile': 'Dockerfile', 'context_git': '构建上下文 Git URL（可选，HTTPS）'}
         widgets = {'dockerfile': forms.Textarea(attrs={'rows': 10})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['node'].queryset = ComputeNode.objects.filter(enabled=True)
+        self.fields['node'].required = False
+        self.fields['node'].initial = default_node_id()
+        self.fields['node'].empty_label = None
+
+    def clean_node(self):
+        node = self.cleaned_data.get('node') or ComputeNode.objects.get(pk=default_node_id())
+        if not node.enabled or node.maintenance or (node.transport == 'ssh' and node.state != 'online'):
+            raise ValidationError('所选节点暂不能构建镜像。')
+        return node
 
     def clean_context_git(self):
         from urllib.parse import urlsplit

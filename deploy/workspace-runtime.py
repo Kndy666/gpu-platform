@@ -81,7 +81,10 @@ def install(cfg):
     profiles = ROOT/'deploy/profiles'
     for source, target in [('workspace-seccomp.json', '/var/lib/kubelet/seccomp/gpu-platform-workspace.json'),
                            ('workspace-apparmor', '/etc/apparmor.d/gpu-platform-workspace')]:
-        write_changed(Path(target), (profiles/source).read_text())
+        content = (profiles/source).read_text()
+        if source == 'workspace-apparmor' and Path('/proc/sys/kernel/apparmor_restrict_unprivileged_userns').exists():
+            content = content.replace('  capability,', '  capability,\n  userns,')
+        write_changed(Path(target), content)
     run(['apparmor_parser', '-r', '/etc/apparmor.d/gpu-platform-workspace'])
     if changed:
         run(['systemctl', 'restart', 'k3s'])

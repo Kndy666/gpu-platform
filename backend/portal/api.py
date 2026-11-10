@@ -18,7 +18,7 @@ from django.core.exceptions import PermissionDenied, ValidationError, RequestDat
 from django.core.paginator import EmptyPage, Paginator
 from django.db import IntegrityError, transaction
 from django.db.models import Sum
-from django.http import FileResponse, Http404, JsonResponse
+from django.http import FileResponse, Http404, JsonResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.crypto import salted_hmac
@@ -175,6 +175,13 @@ def owned(request, model, pk, relation='user'):
     return get_object_or_404(query, pk=pk)
 
 
+def node_filter(request, query):
+    if request.GET.get('node'):
+        from .nodes import selected_node
+        query = query.filter(node=selected_node(request.GET['node']))
+    return query
+
+
 def group_data(group, members=False):
     fields = ['id', 'name', 'is_default', 'unlimited', *GROUP_QUOTA_FIELDS]
     data = {name: getattr(group, name) for name in fields}
@@ -210,7 +217,7 @@ def task_data(req, detail=True):
         fields += ['command', 'environment', 'notes', 'review_reason']
     data = {name: getattr(req, name) for name in fields}
     ws = getattr(req, 'workspace', None)
-    data.update(user_id=req.user_id, username=req.user.username, image_id=req.image_id, image_name=req.image.name,
+    data.update(node_id=req.node_id, node_name=req.node.name, user_id=req.user_id, username=req.user.username, image_id=req.image_id, image_name=req.image.name,
                 source_environment_id=req.source_environment_id,
                 login_name=req.login_user, home_dir=req.home_dir, status_label=req.get_status_display(),
                 connection=connection_data(req), stop_requested=bool(ws and ws.stop_requested),
@@ -231,7 +238,7 @@ def task_data(req, detail=True):
 def image_data(image):
     data = {name: getattr(image, name) for name in ['id', 'name', 'owner_id', 'reference', 'digest', 'size_bytes',
         'architecture', 'shared', 'verified', 'temporary', 'state', 'recycle_after', 'cleanup_error', 'created_at']}
-    data.update(owner_name=image.owner.username if image.owner_id else None, state_label=image.get_state_display())
+    data.update(node_id=image.node_id, node_name=image.node.name, owner_name=image.owner.username if image.owner_id else None, state_label=image.get_state_display())
     return data
 
 
@@ -239,7 +246,7 @@ def build_data(build, detail=True):
     fields = ['id', 'user_id', 'name', 'context_git', 'status', 'artifact_id', 'error', 'created_at']
     if detail:
         fields += ['dockerfile', 'log']
-    return {**{name: getattr(build, name) for name in fields}, 'status_label': build.get_status_display()}
+    return {**{name: getattr(build, name) for name in fields}, 'node_id': build.node_id, 'node_name': build.node.name, 'status_label': build.get_status_display()}
 
 
 def snapshot_data(snapshot):
@@ -251,7 +258,7 @@ def snapshot_data(snapshot):
 def volume_data(volume):
     data = {name: getattr(volume, name) for name in ['id', 'user_id', 'request_id', 'kind', 'size_gib', 'used_bytes',
         'pvc_name', 'state', 'retain_until', 'notified_at', 'deletion_error', 'created_at']}
-    data.update(pool_id=volume.pool_id, pool_name=volume.pool.name, username=volume.user.username,
+    data.update(node_id=volume.node_id, node_name=volume.node.name, pool_id=volume.pool_id, pool_name=volume.pool.name, username=volume.user.username,
                 request_name=volume.request.purpose if volume.request_id else None)
     busy = getattr(volume, 'busy', None)
     data['busy'] = volume_busy(volume) if busy is None else busy
@@ -328,21 +335,27 @@ def password(request):
 
 @endpoint('GET')
 def resources(request):
-    default = default_image(request.user)
+    from .nodes import selected_node
+    node = selected_node(request.GET.get('node'))
+    default = default_image(request.user, node)
     from .queries import request_capacity
-    overview=resource_overview()
+    overview=resource_overview(node if request.GET.get('node') else None)
     return success({'now': timezone.now(), 'timezone': settings.TIME_ZONE, **overview,'request_capacity':request_capacity(request.user,overview),
         'default_image_id': default.pk if default else None, 'group': group_data(policy_for(request.user))})
 
 @endpoint('GET')
 def gpus(request):
-    overview=resource_overview()
-    return success({'devices':overview['gpus'],'fresh':overview['fresh'],'request_limits':gpu_request_limits(request.user)})
+    from .nodes import selected_node
+    node = selected_node(request.GET.get('node'))
+    overview=resource_overview(node)
+    return success({'devices':overview['gpus'],'fresh':overview['fresh'],'request_limits':gpu_request_limits(request.user,node=node)})
 
 
 @endpoint('GET')
 def timeline(request):
-    return success(allocation_timeline(request.user, request.GET.get('date')))
+    from .nodes import selected_node
+    node = selected_node(request.GET['node']) if request.GET.get('node') else None
+    return success(allocation_timeline(request.user, request.GET.get('date'), node=node))
 
 
 @endpoint('GET', 'POST', idempotent=True)
@@ -386,6 +399,7 @@ def tasks(request):
                 raise PermissionDenied
         else:
             query = query.filter(user=request.user)
+        query = node_filter(request, query)
         for field in ('mode', 'status', 'purpose'):
             if request.GET.get(field):
                 query = query.filter(**{field: request.GET[field]})
@@ -398,7 +412,14 @@ def tasks(request):
     mode = data.pop('mode', 'interactive')
     if not isinstance(mode, str) or mode not in {'interactive', 'batch'}:
         raise APIError('invalid_mode', 'mode 需为 interactive 或 batch。')
-    default = default_image(request.user)
+    from .nodes import selected_node
+    if data.get('source_environment') and not data.get('node'):
+        source = ResourceRequest.objects.filter(pk=data['source_environment'], user=request.user).first()
+        if source:
+            data['node'] = source.node_id
+    selected = selected_node(data.get('node'))
+    data.setdefault('node', selected.pk)
+    default = default_image(request.user, selected)
     defaults = {**request_defaults(mode),
                 'image': str(default.pk) if default else '',
                 'source_kind': 'environment' if data.get('source_environment') else 'image'}
@@ -460,7 +481,9 @@ def logs(request, pk):
     from .kube import KubeClient
     req = get_task(request, pk)
     tail = number(request.GET.get('tail'), 200, maximum=3000)
-    kube, ns = KubeClient(), config()['platform']['workload_namespace']
+    from .node_context import node_config
+    from .configuration import base_config
+    kube, ns = KubeClient(node=req.node), node_config(req.node, base_config())['platform']['workload_namespace']
     pods = kube.list('pods', ns, 'platform.task='+str(req.pk))
     text = ''
     available = bool(pods and pods[0].get('status', {}).get('phase') in {'Running', 'Succeeded', 'Failed'})
@@ -530,7 +553,7 @@ def images(request):
     kind = request.GET.get('kind')
     if kind not in {None, 'permanent', 'temporary'}:
         raise APIError('invalid_kind', 'kind 需为 permanent 或 temporary。')
-    query = image_catalog(request.user, kind)
+    query = node_filter(request, image_catalog(request.user, kind))
     if request.GET.get('available') == 'true':
         query = query.filter(verified=True, state='ready')
     return page(request, query, image_data)
@@ -559,8 +582,8 @@ def image_action(request, pk, action):
 @endpoint('GET', 'POST', idempotent=True)
 def builds(request):
     if request.method == 'GET':
-        return page(request, ImageBuild.objects.filter(user=request.user).defer('log', 'dockerfile').order_by('-created_at', '-pk'), lambda obj: build_data(obj, detail=False))
-    data = body(request, {'name', 'dockerfile', 'context_git'})
+        return page(request, node_filter(request, ImageBuild.objects.filter(user=request.user)).defer('log', 'dockerfile').order_by('-created_at', '-pk'), lambda obj: build_data(obj, detail=False))
+    data = body(request, {'node', 'name', 'dockerfile', 'context_git'})
     if ImageBuild.objects.filter(user=request.user, status__in=['submitted', 'building']).exists():
         raise APIError('build_in_progress', '请等待上一份镜像构建结束。', 409)
     form = valid(ImageBuildForm(data))
@@ -578,7 +601,7 @@ def build(request, pk):
 
 @endpoint('GET')
 def volumes(request):
-    query = volumes_for(request.user, own=True).exclude(state='deleted').order_by('-created_at')
+    query = node_filter(request, volumes_for(request.user, own=True)).exclude(state='deleted').order_by('-created_at')
     return page(request, query, volume_data, prepare=annotate_volume_usage)
 
 
@@ -601,8 +624,9 @@ def volume(request, pk):
 
 @endpoint('GET')
 def datasets(request):
-    entries = dataset_content(request.GET.get('path', ''), request.GET.get('q', ''))
-    if isinstance(entries, FileResponse):
+    from .nodes import selected_node
+    entries = dataset_content(request.GET.get('path', ''), request.GET.get('q', ''), node=selected_node(request.GET.get('node')))
+    if isinstance(entries, StreamingHttpResponse):
         return entries
     return page(request, entries, lambda item: item)
 
@@ -610,11 +634,49 @@ def datasets(request):
 @endpoint('GET')
 def download(request):
     relative = request.GET.get('path', '')
+    from .nodes import selected_node
+    node = selected_node(request.GET.get('node'))
+    if node.transport == 'ssh':
+        response = dataset_content(relative, node=node)
+        if not isinstance(response, StreamingHttpResponse):
+            raise Http404
+        return response
     with open_dataset_path(relative) as descriptor:
         if not stat.S_ISREG(os.fstat(descriptor).st_mode):
             raise Http404
         stream = os.fdopen(os.dup(descriptor), 'rb')
     return FileResponse(stream, as_attachment=True, filename=PurePosixPath(relative).name, content_type='application/octet-stream')
+
+
+@endpoint('GET', 'POST', idempotent=True)
+def nodes(request):
+    from .nodes import NodeForm, node_data
+    from .models import ComputeNode, default_node_id
+    default_node_id()
+    if request.method == 'GET':
+        return page(request, ComputeNode.objects.order_by('pk'), lambda node: node_data(node, request.user.is_staff))
+    if not request.user.is_staff:
+        raise PermissionDenied
+    data = body(request, NodeForm.Meta.fields)
+    data.setdefault('enabled', True)
+    node = valid(NodeForm(data)).save()
+    audit(request.user, 'node_created', node.pk, name=node.name)
+    return success(node_data(node, True), 201)
+
+
+@endpoint('GET', 'PATCH')
+def node(request, pk):
+    from .nodes import NodeForm, node_data
+    from .models import ComputeNode
+    obj = get_object_or_404(ComputeNode, pk=pk)
+    if request.method == 'PATCH':
+        if not request.user.is_staff:
+            raise PermissionDenied
+        data = {name: getattr(obj, name) for name in NodeForm.Meta.fields}
+        data.update(body(request, NodeForm.Meta.fields))
+        obj = valid(NodeForm(data, instance=obj)).save()
+        audit(request.user, 'node_updated', obj.pk, name=obj.name)
+    return success(node_data(obj, request.user.is_staff))
 
 
 @endpoint('GET', staff=True)
@@ -683,7 +745,7 @@ def group(request, pk):
 
 @endpoint('GET', staff=True)
 def storage(request):
-    pools = [{name: getattr(pool, name) for name in ['id', 'name', 'capacity_gib', 'free_gib', 'available_gib',
+    pools = [{name: getattr(pool, name) for name in ['id', 'node_id', 'name', 'capacity_gib', 'free_gib', 'available_gib',
               'reserved_gib', 'healthy', 'observed_at', 'percent']} for pool in pool_list()]
     query = volumes_for(request.user).exclude(state='deleted').order_by('user__username', 'kind')
     response = page(request, query, volume_data, prepare=annotate_volume_usage)
@@ -746,7 +808,7 @@ def skill_download(request):
 
 @endpoint('GET', public=('GET',))
 def health(request):
-    obs = SystemObservation.objects.filter(name='reconciler').first()
+    obs = SystemObservation.objects.filter(name='reconciler').order_by('-observed_at').first()
     fresh = bool(obs and obs.observed_at >= timezone.now()-timedelta(seconds=60))
     return success({'web': 'ok', 'reconciler': 'ok' if fresh else 'stale'}, 200 if fresh else 503)
 

@@ -1,0 +1,87 @@
+platform:
+  role: worker
+  namespace: gpu-platform
+  workload_namespace: gpu-workloads
+  build_namespace: gpu-builds
+  public_host: gpu.example.edu
+  https_origin: https://gpu.example.edu
+  tls_secret: platform-tls
+  app_image: gpu-platform:0.3.0
+  app_image_archive: ''
+  architecture: amd64
+  node_ip: auto
+  maintenance: false
+  reconcile_seconds: 10
+  ssh_ports:
+  - 30022
+  - 30121
+  batch_reminder_hours: 168
+  data_storage_class: platform-rawfile-1
+  data_size_gib: 0
+  queue: laboratory
+  runtime_classes:
+    cpu: workspace-runc
+    gpu: workspace-nvidia
+  reserve_cpu: 4
+  reserve_memory_gib: 16
+network:
+  https: false
+  public_ports_approved: false
+  public_interface: auto
+  private_ports:
+  - 6443
+  - 10250
+  pod_cidr: 10.42.0.0/16
+  service_cidr: 10.43.0.0/16
+  registry_service_ip: 10.43.0.50
+  download_proxy: ''
+  registry_mirrors:
+    docker.io:
+    - https://docker.m.daocloud.io
+    registry.k8s.io:
+    - https://k8s.m.daocloud.io
+storage:
+  datasets: /data/platform/datasets
+  registry_budget_gib: 300
+  pools:
+  - name: disk1
+    path: /data/platform/volumes
+    storage_class: platform-rawfile-1
+    buffer_percent: 5
+registry:
+  bootstrap_workspace: true
+  host: registry.gpu-platform.svc.cluster.local:5000
+  tls_secret: registry-tls
+  buildkit_image: moby/buildkit:v0.26.1-rootless
+  zot_image: ghcr.io/project-zot/zot-linux-amd64:v2.1.22
+  git_image: alpine/git:2.49.1
+  git_hosts:
+  - github.com
+  - gitlab.com
+  - gitee.com
+  base_image: docker.m.daocloud.io/library/ubuntu:22.04
+policies:
+  temporary:
+    gpu_compute_percent: 200
+    gpu_compute_per_card_percent: 100
+    gpu_memory_per_card_gib: 24
+    gpu_memory_gib: 48
+    cpu: 32
+    memory_gib: 96
+    workspace_gib: 500
+    home_gib: 50
+    image_gib: 50
+    concurrent_tasks: 1
+    interactive_hours: 48
+  longterm:
+    gpu_compute_percent: 400
+    gpu_compute_per_card_percent: 100
+    gpu_memory_per_card_gib: 24
+    gpu_memory_gib: 96
+    cpu: 80
+    memory_gib: 192
+    workspace_gib: 2000
+    home_gib: 100
+    image_gib: 150
+    concurrent_tasks: 2
+    interactive_hours: 720

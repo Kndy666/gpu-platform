@@ -2,9 +2,9 @@ from datetime import datetime, time, timedelta
 from django.db.models import Q, Value
 from django.db.models.functions import Coalesce
 from django.utils import timezone
-from .models import ResourceRequest, SystemObservation
+from .models import ResourceRequest, SystemObservation, ComputeNode
 
-def allocation_timeline(user, day=None):
+def allocation_timeline(user, day=None, node=None):
     try:
         date = datetime.strptime(day, '%Y-%m-%d').date() if day else timezone.localdate()
         if not 2 <= date.year <= 9998:
@@ -14,11 +14,17 @@ def allocation_timeline(user, day=None):
     start = timezone.make_aware(datetime.combine(date, time.min))
     end = start + timedelta(days=1)
     now = timezone.now()
-    obs = SystemObservation.objects.filter(name='gpu_inventory').first()
-    devices = obs.data.get('devices', []) if obs else []
-    rows = [{'id': d['uuid'], 'name': 'GPU '+str(d['index']), 'detail': d['name']} for d in devices]
+    observations = SystemObservation.objects.filter(name='gpu_inventory').select_related('node')
+    if node:
+        observations = observations.filter(node=node)
+    devices = [{**device, 'node_name': observation.node.name} for observation in observations for device in observation.data.get('devices', [])]
+    nodes = [node] if node else list(ComputeNode.objects.all())
+    multiple = len(nodes) > 1
+    rows = [{'id': d['uuid'], 'name': (d['node_name']+' · ' if multiple else '')+'GPU '+str(d['index']), 'detail': d['name']} for d in devices]
     rows += [{'id': 'gpu', 'name': 'GPU', 'detail': '设备信息同步中'}] if not devices else []
-    rows += [{'id': 'cpu', 'name': 'CPU', 'detail': '核'}, {'id': 'memory', 'name': '内存', 'detail': 'GiB'}]
+    for node in nodes:
+        rows += [{'id': 'cpu-'+str(node.pk) if multiple else 'cpu', 'name': node.name+' CPU' if multiple else 'CPU', 'detail': '核'},
+                 {'id': 'memory-'+str(node.pk) if multiple else 'memory', 'name': node.name+' 内存' if multiple else '内存', 'detail': 'GiB'}]
     blocks = []
     reservations = Q(workspace__started_at__isnull=True, mode='interactive', status__in=['approved', 'scheduled', 'queued', 'starting'])
     requests = ResourceRequest.objects.select_related('workspace', 'user').exclude(status='rejected').filter(
@@ -27,6 +33,8 @@ def allocation_timeline(user, day=None):
         timeline_start=Coalesce('workspace__started_at', 'starts_at'),
         timeline_end=Coalesce('workspace__ended_at', 'ends_at', Value(min(now, end))),
     ).filter(timeline_start__lt=end, timeline_end__gt=start).defer('notes', 'command', 'argv', 'environment', 'review_reason')
+    if node:
+        requests = requests.filter(node=node)
     for req in requests:
         ws = getattr(req, 'workspace', None)
         if not ws: continue
@@ -54,7 +62,7 @@ def allocation_timeline(user, day=None):
             if req.gpu and not ws.gpu_devices:
                 if not any(r['id'] == 'gpu' for r in rows): rows.insert(len(devices), {'id': 'gpu', 'name': 'GPU', 'detail': '设备同步中'})
                 blocks.append(dict(base, row='gpu', amount=str(req.gpu)+' 张'))
-            blocks.append(dict(base, row='cpu', amount=str(req.cpu)+' 核'))
-            blocks.append(dict(base, row='memory', amount=str(req.memory_gib)+' GiB'))
+            blocks.append(dict(base, row='cpu-'+str(req.node_id) if multiple else 'cpu', amount=str(req.cpu)+' 核'))
+            blocks.append(dict(base, row='memory-'+str(req.node_id) if multiple else 'memory', amount=str(req.memory_gib)+' GiB'))
     rows.append({'id': 'reservations', 'name': '预约', 'detail': '等待启动'})
     return {'date': date.isoformat(), 'rows': rows, 'blocks': blocks, 'now': (now-start).total_seconds()/864 if start <= now < end else None}

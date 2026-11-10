@@ -80,6 +80,7 @@ roleRef:
   kind: ClusterRole
   name: gpu-platform-observe
 ---
+{{- if not .Values.worker }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -152,6 +153,7 @@ spec:
           failureThreshold: 6
           periodSeconds: 10
         volumeMounts:
+        - {name: connector, mountPath: /run/gpu-platform}
         - {name: data, mountPath: /var/lib/platform}
         - {name: config, mountPath: /etc/platform, readOnly: true}
         - {name: registry-ca, mountPath: /etc/platform-registry-ca, readOnly: true}
@@ -160,6 +162,8 @@ spec:
         - {name: {{ $pool.name }}, mountPath: /storage-pools/{{ $pool.name }}, readOnly: true}
         {{- end }}
       volumes:
+      - name: connector
+        hostPath: {path: /run/gpu-platform, type: DirectoryOrCreate}
       - {name: data, persistentVolumeClaim: {claimName: platform-data}}
       - {name: config, configMap: {name: platform-config}}
       - {name: registry-ca, configMap: {name: registry-ca}}
@@ -198,6 +202,7 @@ spec:
         pathType: Prefix
         backend: {service: {name: platform, port: {number: 8000}}}
 ---
+{{- end }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:

@@ -9,7 +9,9 @@ class KubeError(RuntimeError):
         super().__init__(f'Kubernetes HTTP {status}: {message[:1000]}')
 
 class KubeClient:
-    def __init__(self):
+    def __init__(self, node=None):
+        from .node_context import active_node
+        self.node = node or active_node.get()
         self.base = os.environ.get('KUBE_API', 'https://kubernetes.default.svc').rstrip('/')
         self.token_file = Path(os.environ.get('KUBE_TOKEN_FILE', '/var/run/secrets/kubernetes.io/serviceaccount/token'))
         self.ca = os.environ.get('KUBE_CA', '/var/run/secrets/kubernetes.io/serviceaccount/ca.crt')
@@ -17,6 +19,14 @@ class KubeClient:
         self.session.trust_env = False
 
     def call(self, method, path, body=None, params=None, text=False):
+        if self.node and self.node.transport == 'ssh':
+            from .node_transport import node_call
+            response = node_call(self.node, 'kube', method=method, path=path, body=body, params=params, text=text)
+            if response['status'] == 404:
+                return None
+            if response['status'] >= 400:
+                raise KubeError(response['status'], str(response['data']))
+            return response['data']
         headers = {'Authorization': 'Bearer ' + self.token_file.read_text().strip()}
         if method == 'PATCH':
             headers['Content-Type'] = 'application/merge-patch+json'
@@ -39,6 +49,9 @@ class KubeClient:
         return (self.call('GET', self.path(resource, ns, group=group), params={'labelSelector': selector} if selector else {}) or {}).get('items', [])
 
     def volume_stats(self, node):
+        if self.node and self.node.transport == 'ssh':
+            from .node_transport import node_call
+            return node_call(self.node, 'volume_stats', node=node['metadata']['name'])
         address = next(a['address'] for a in node['status']['addresses'] if a['type'] == 'InternalIP')
         if ':' in address: address = '['+address+']'
         port = node['status'].get('daemonEndpoints', {}).get('kubeletEndpoint', {}).get('Port', 10250)

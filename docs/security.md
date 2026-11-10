@@ -10,6 +10,12 @@ SSH 使用公钥认证，登录账号与任务创建时的网站用户名一致�
 
 ## 网络
 
+主从管理通信复用现有反向 SSH 入口，不需要 VPN。建议反向入口只监听主控回环地址。反向 SSH 服务可以继续由原账户保持连接，平台另用每节点独立的 Ed25519 密钥登录从机 `gpu-platform` 服务账户；该账户不授予 sudo，也不保存登录密码。
+
+私钥和固定的 `known_hosts` 留在主控宿主机，SSH 强制校验主机公钥并禁用密码回退。面板容器只挂载通信 Unix socket，权限为 root:10001、660。从机 RPC socket 为 root:gpu-platform、660。此服务账户可经 RPC 管理从机执行集群，应作为受信任的平台管理身份保管。
+
+RPC 支持 Kubernetes 请求、节点观测、卷统计、仓库查询与删除、公用目录只读访问；拒绝任意目标 URL、路径穿越和超限消息。任务端口转发只允许配置的全局 NodePort 范围，目标固定为从机回环地址。
+
 | 入口 | 默认端口 | 配置 |
 | --- | --- | --- |
 | 网页与 API | TCP 80 | Traefik HTTP |
@@ -17,9 +23,11 @@ SSH 使用公钥认证，登录账号与任务创建时的网站用户名一致�
 | 容器 SSH | TCP 30022–30121 | `platform.ssh_ports`，按任务分配 |
 | Kubernetes API | TCP 6443 | 集群内部使用 |
 | kubelet | TCP 10250 | 集群内部使用 |
-| Flannel VXLAN | UDP 8472 | 节点网络通信 |
+| Flannel VXLAN | UDP 8472 | 单个执行集群内部使用 |
 
 安装器在公网接口过滤 6443、10250 和 8472，规则随主机启动恢复。K3s 的 Service 转发同时经过 NAT 与 FORWARD 链，排查连通性时检查平台规则和 UFW。
+
+从机不运行 Traefik 或面板；用户通过主控分配的任务端口接入，由主控 SSH 服务转发。从机防火墙仍需允许本地 Pod / Service 网络流量。多节点不共享控制平面或存储网络。
 
 `platform.https_origin` 设置网页地址，`network.https` 控制 HTTPS。生产环境关闭 Django DEBUG；Cookie 的 Secure 属性由 `PLATFORM_HTTPS` 控制。
 
@@ -46,7 +54,7 @@ GPU 租约与全局 MPS 控制文件由主机 root 管理，工作容器挂载�
 
 工作容器挂载个人卷、工作卷和只读公用数据，平台管理凭据留在应用与主机服务。容器内可拉取共享镜像及本人的私有镜像，仓库登录配置使用个人只读身份。
 
-Dockerfile 构建位于独立命名空间，Rootless BuildKit 使用专用临时卷和所属用户的推送凭据。BuildKit 容器配置 Unconfined seccomp / AppArmor 与 `no-process-sandbox`；用户工作容器使用专用工作策略。
+Dockerfile 构建位于独立命名空间，Rootless BuildKit 使用专用临时卷和所属用户的推送凭据。BuildKit 使用 Unconfined seccomp 和 `no-process-sandbox`；Ubuntu 24.04 使用允许用户命名空间的 `gpu-platform-build` AppArmor 策略，Ubuntu 22.04 使用 Unconfined AppArmor。用户工作容器使用专用工作策略。
 
 环境保存请求携带源任务 UUID。节点进程校验源 Pod、用户和容器 ID，将可写层推送到所属用户仓库。个人卷、工作卷、SSH 运行文件与仓库凭据作为独立挂载保存。
 

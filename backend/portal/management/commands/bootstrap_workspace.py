@@ -11,10 +11,18 @@ class Command(BaseCommand):
     help = 'Prepare the shared Ubuntu 22.04 workspace image'
 
     def add_arguments(self, parser):
+        parser.add_argument('--node', type=int)
         parser.add_argument('--wait', type=int, default=1800)
         parser.add_argument('--rebuild', action='store_true')
 
     def handle(self, *args, **options):
+        from portal.models import ComputeNode, default_node_id
+        from portal.node_context import using_node
+        node = ComputeNode.objects.get(pk=options.get('node') or default_node_id())
+        with using_node(node):
+            return self.prepare(options)
+
+    def prepare(self, options):
         if not options['rebuild'] and ImageArtifact.objects.filter(shared=True, verified=True, state='ready',
                 name='Ubuntu 22.04', architecture=config()['platform']['architecture']).exists():
             self.stdout.write('A verified shared workspace image is available.'); return

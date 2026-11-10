@@ -19,7 +19,6 @@ set -euo pipefail
 apt-get update >/build/dependencies.log 2>&1
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends build-essential meson ninja-build pkg-config python3-jinja2 libfuse-dev patch >>/build/dependencies.log 2>&1
 test "$(dpkg-deb -f /build/lxcfs-original.deb Version)" = 5.0.0-0ubuntu2
-test "$(dpkg-deb -f /build/lxcfs-original.deb Architecture)" = "$(dpkg --print-architecture)"
 rm -rf /build/lxcfs-5.0.0 /build/compiled /build/package
 tar -xzf /build/lxcfs-5.0.0.tar.gz -C /build
 tar -xf /build/debian.tar.xz -C /build/lxcfs-5.0.0
@@ -31,11 +30,17 @@ patch -p1 < /patches/lxcfs-5.0.0-cgroup2-cpu-count.patch
 multiarch="$(gcc -dumpmachine)"
 architecture="$(dpkg --print-architecture)"
 meson setup /build/compiled --prefix=/usr --libdir="lib/$multiarch" -Dtests=false -Ddocs=false -Dinit-script=sysvinit
-ninja -C /build/compiled liblxcfs.so
+ninja -C /build/compiled liblxcfs.so lxcfs
 strip --strip-unneeded /build/compiled/liblxcfs.so
 rm -rf /build/package
 dpkg-deb -R /build/lxcfs-original.deb /build/package
+install -d "/build/package/usr/lib/$multiarch/lxcfs"
 install -m 0644 /build/compiled/liblxcfs.so "/build/package/usr/lib/$multiarch/lxcfs/liblxcfs.so"
+install -m 0755 /build/compiled/lxcfs /build/package/usr/bin/lxcfs
+if [[ "$architecture" != arm64 ]]; then
+  rm -rf /build/package/usr/lib/aarch64-linux-gnu
+fi
+sed -i "s/^Architecture: .*/Architecture: ${architecture}/" /build/package/DEBIAN/control
 sed -i 's/^Version: .*/Version: 5.0.0-0ubuntu2+platform2/' /build/package/DEBIAN/control
 rm -f /build/package/DEBIAN/preinst
 cat > /build/package/DEBIAN/postinst <<'POSTINST'

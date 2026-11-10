@@ -53,7 +53,20 @@ def install_lxcfs(cfg):
     architecture = run(['dpkg', '--print-architecture']).strip()
     record = metadata['packages'].get(architecture)
     if record is None:
-        raise RuntimeError('Build the LXCFS CPU fix for this architecture with deploy/build-resource-view.sh')
+        if architecture != 'amd64':
+            raise RuntimeError('Unsupported LXCFS architecture: ' + architecture)
+        import tempfile
+        require_idle_views(cfg)
+        release = dict(line.split('=', 1) for line in Path('/etc/os-release').read_text().splitlines() if '=' in line)
+        version_id = release['VERSION_ID'].strip('"')
+        if version_id not in {'22.04', '24.04'}:
+            raise RuntimeError('The LXCFS source build requires Ubuntu 22.04 or 24.04')
+        with tempfile.TemporaryDirectory(prefix='gpu-platform-lxcfs-') as directory:
+            run([ROOT / 'deploy/build-resource-view.sh', directory, 'docker.m.daocloud.io/library/ubuntu:' + version_id])
+            package = Path(directory) / f"lxcfs_{metadata['version']}_{architecture}.deb"
+            run(['apt-get', 'install', '-y', '--no-install-recommends', package],
+                env={**os.environ, 'DEBIAN_FRONTEND': 'noninteractive', 'NEEDRESTART_MODE': 'l'})
+        return
     package = ROOT / 'deploy/packages' / record['file']
     if not package.is_file() or hashlib.sha256(package.read_bytes()).hexdigest() != record['sha256']:
         raise RuntimeError('Missing or invalid LXCFS CPU fix package: ' + str(package))

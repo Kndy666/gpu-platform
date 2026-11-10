@@ -5,7 +5,7 @@
 ## 开发环境
 
 1. 在“SSH 公钥”添加设备公钥。
-2. 打开“新建开发环境”，查看当前 GPU、CPU、内存与存储余量。
+2. 打开“新建开发环境”，选择执行节点，查看该节点的 GPU、CPU、内存与存储余量。
 3. 选择镜像、日期时段和资源。选择 GPU 后逐行填写每张卡的算力与显存。
 4. 提交申请，管理员批准后按时段启动。
 5. 打开任务详情，复制 SSH 命令或 `~/.ssh/config` 配置连接；VS Code 使用同一配置。
@@ -40,7 +40,7 @@ python /workspace/main.py
 
 开发环境详情的“保存镜像”保存容器系统文件，原环境继续运行。个人卷和工作卷独立保存。后续用该镜像申请环境时，挂载本人的个人卷并创建新工作卷。
 
-“环境镜像”支持填写名称、Dockerfile 和可选 HTTPS Git 上下文。构建结果进入本人的镜像仓库，页面提供使用入口、镜像地址和构建日志。镜像应支持 ARM64。
+“环境镜像”支持选择节点，填写名称、Dockerfile 和可选 HTTPS Git 上下文。构建结果进入该节点本人的镜像仓库，页面提供使用入口、节点、架构、镜像地址和构建日志。基础镜像使用目标节点的 ARM64 或 AMD64 架构。
 
 每用户同时运行一份构建，构建上限 1 小时、4 核 CPU、8 GiB 内存。构建完成后保留 Job/Pod 24 小时，日志读取上限为 3000 行、250 KB。
 
@@ -71,6 +71,7 @@ Docker 镜像、缓存、容器可写层与命名卷位于 `/workspace/.docker`�
 
 | 页面 | 操作 |
 | --- | --- |
+| 节点 | 登记反向 SSH 端口与专属密钥文件名，查看在线状态、最近同步与错误，启停同步或切换维护模式 |
 | 审批 | 查看资源、日期与来源，批准、拒绝、调整优先级或延期 |
 | 成员 | 创建账号、重置密码、启停账号、配置角色、用户组和个人卷容量 |
 | 用户组 | 新增、编辑、删除、设置默认组，配置资源上限 |
@@ -91,7 +92,7 @@ Docker 镜像、缓存、容器可写层与命名卷位于 `/workspace/.docker`�
 
 | 数据 | 位置 | 保存方式 |
 | --- | --- | --- |
-| 个人文件 | `/home/<用户名>` | 同账号任务共享，长期保留 |
+| 个人文件 | `/home/<用户名>` | 同账号在同节点的任务共享，长期保留 |
 | 任务文件 | `/workspace` | 结束后默认保留 3 天，到期前一天通知 |
 | 内层 Docker | `/workspace/.docker` | 随工作卷保留 |
 | 公用目录 | 主机 `storage.datasets`，容器 `/datasets` | 管理员通过服务器 SSH 上传，网页和容器只读 |
@@ -99,6 +100,8 @@ Docker 镜像、缓存、容器可写层与命名卷位于 `/workspace/.docker`�
 “管理 → 设置”修改的保留时间用于之后结束的任务或开始计时的快照。“管理 → 存储”删除卷时显示名称、容量和所属用户；平台等待任务、保存操作和实际挂载释放后执行删除。
 
 个人卷扩容会预留新增容量，文件系统在下次挂载时完成扩容。网站用户名修改后，已经创建的任务继续使用创建时的容器账号与目录。
+
+任务、个人卷、工作卷、镜像和公用目录均绑定节点。切换节点后使用该节点的镜像和数据。从开发环境提交程序时沿用源节点；工作卷容量变化时在该节点内复制。公用目录页面通过节点选择器浏览各台服务器的目录。
 
 ## 主机维护
 
@@ -112,6 +115,16 @@ sudo ./deploy/admin-password.sh
 sudo ./deploy/upgrade-app.sh config.yaml
 ```
 
+主控的 SSH 通信服务为 `gpu-platform-links`；从机的通信服务为 `gpu-platform-worker`。在相应服务器检查：
+
+```bash
+sudo journalctl -u gpu-platform-links --since '10 minutes ago'  # 主控
+sudo journalctl -u gpu-platform-worker --since '10 minutes ago' # 从机
+sudo systemctl status reverse-ssh                            # 从机已有隧道
+```
+
+维护一台服务器时先在“管理 → 节点”开启维护模式，待任务结束后升级驱动或执行 `git pull --ff-only` 和 `sudo ./deploy/upgrade-app.sh config.yaml`。从机断线期间，面板保留任务与端口，本地进程执行开发环境到期停止；隧道恢复后继续同步。
+
 GPU 服务异常后，后台结束受影响任务，等待旧容器与 cgroup 释放，回收租约并重建 MPS 服务。任务记录和卷按保留设置保存。
 
 环境保存完成后，节点进程清理本次生成的本机镜像引用。失败的清理记录位于 `/var/lib/gpu-platform/image-cleanup/`，每轮同步重试。
@@ -123,5 +136,7 @@ LXCFS 修补包位于 `deploy/packages/`，安装器校验 SHA256 后安装。�
 重建共享默认镜像：
 
 ```bash
-sudo k3s kubectl -n gpu-platform exec deploy/platform -- python manage.py bootstrap_workspace --rebuild
+sudo k3s kubectl -n gpu-platform exec deploy/platform -- python manage.py bootstrap_workspace --node 节点ID --rebuild
 ```
+
+在主控执行，从“管理 → 节点”取得节点 ID。首次接入从机时自动创建基础镜像构建；失败后查看构建日志，再执行上述命令重试。

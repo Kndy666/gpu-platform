@@ -23,6 +23,7 @@ API 根路径为 `/api/v1`，网页地址由 `config.yaml` 的 `platform.https_o
 
 | 功能 | 方法与路径 |
 | --- | --- |
+| 执行节点 | `GET/POST /nodes`，`GET/PATCH /nodes/{id}`；写入使用管理员权限 |
 | 签发与撤销当前令牌 | `POST/DELETE /auth/token` |
 | 个人令牌 | `GET/POST /auth/tokens`，`GET/DELETE /auth/tokens/{id}` |
 | 账号与密码 | `GET /me`，`POST /me/password` |
@@ -45,6 +46,12 @@ API 根路径为 `/api/v1`，网页地址由 `config.yaml` 的 `platform.https_o
 各接口的字段、查询参数、权限和幂等支持以 OpenAPI 为准。支持 `Idempotency-Key` 的操作在文档中标注；相同用户、方法、路径、key 和参数重试返回原结果，修改参数时使用新 key。
 
 ## 提交任务
+
+先通过 `GET /nodes` 查询节点 ID、架构、在线状态和维护状态。任务与构建正文的 `node` 指定执行节点；任务、镜像、构建和卷响应包含 `node_id`、`node_name`。
+
+`GET /tasks`、`/images`、`/builds`、`/volumes`、`/timeline` 支持 `?node=ID` 筛选，省略时返回所有节点。`/resources` 省略节点时汇总资源；`/gpus`、`/datasets` 和 `/datasets/download` 省略节点时选择本机。任务省略 `node` 时选本机；使用 `source_environment` 时自动沿用源环境节点。
+
+镜像、个人卷、工作卷和公用目录归属节点。镜像选择与源环境须对应执行节点，账号配额跨节点汇总。管理员通过 `POST /nodes` 或 `PATCH /nodes/{id}` 管理 `name`、`transport`、`ssh_port`、`ssh_user`、`identity`、`architecture`、`enabled` 和 `maintenance`；主机标识使用固定的 `local`。
 
 开发环境使用 `mode=interactive`，填写 `starts_at` 和 `ends_at`。程序使用 `mode=batch`，填写 `command`，运行至命令结束。`image` 选择镜像，`source_environment` 选择本人运行中的开发环境，支持带 GPU 的环境。
 

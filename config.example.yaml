@@ -1,11 +1,12 @@
 platform:
+  role: controller
   namespace: gpu-platform
   workload_namespace: gpu-workloads
   build_namespace: gpu-builds
   public_host: gpu.example.edu
   https_origin: https://gpu.example.edu
   tls_secret: platform-tls
-  app_image: gpu-platform:0.2.0
+  app_image: gpu-platform:0.3.0
   app_image_archive: ''
   architecture: arm64
   node_ip: auto
@@ -23,6 +24,9 @@ platform:
     gpu: workspace-nvidia
   reserve_cpu: 4
   reserve_memory_gib: 16
+controller:
+  key_directory: /var/lib/gpu-platform/ssh-keys
+nodes: []
 network:
   https: false
   public_ports_approved: false

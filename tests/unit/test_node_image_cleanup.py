@@ -17,6 +17,17 @@ def load_agent():
 
 
 class NodeImageCleanupTests(TestCase):
+    def test_local_expiry_stops_due_interactive_pods_while_controller_is_offline(self):
+        pods = [{'metadata': {'name': name, 'annotations': annotation}} for name, annotation in (
+            ('expired', {'platform.ends-at': '2000-01-01T00:00:00+00:00'}),
+            ('future', {'platform.ends-at': '2100-01-01T00:00:00+00:00'}),
+            ('batch', {}))]
+        with patch.object(self.agent, 'kube', side_effect=[json.dumps({'items': pods}), '', '{"items":[]}']) as kube, \
+                patch.object(self.agent, 'observe'), patch.object(self.agent, 'retry_image_cleanup'):
+            self.agent.tick(self.cfg)
+        deletes = [call.args for call in kube.call_args_list if 'delete' in call.args]
+        self.assertEqual(deletes, [('-n', 'workloads', 'delete', 'pod', 'expired', '--wait=false', '--ignore-not-found')])
+
     def setUp(self):
         self.agent = load_agent()
         directory = tempfile.TemporaryDirectory()
