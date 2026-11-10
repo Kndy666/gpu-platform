@@ -66,3 +66,42 @@ class TimelineTests(TestCase):
         self.assertTrue(today['blocks'])
         self.assertTrue(all(block['open'] and block['end'] is None for block in today['blocks']))
         self.assertEqual(future['blocks'], [])
+
+    def test_batch_queue_with_no_start_time_is_visible_without_an_invented_interval(self):
+        req = task(self.user, self.image, mode='batch', starts_at=None, ends_at=None, status='queued')
+        self.workspace(req)
+        with patch('portal.timeline.timezone.now', return_value=self.start+timedelta(hours=6)):
+            result = allocation_timeline(self.user, '2026-11-03')
+        queued = result['groups'][0]['queued']
+        self.assertEqual([entry['id'] for entry in queued], [str(req.pk)])
+        self.assertEqual(queued[0]['status_label'], '排队中')
+        self.assertEqual(result['blocks'], [])
+        self.assertEqual(result['groups'][0]['entries'], [])
+
+    def test_queue_includes_preparation_and_startup_but_excludes_future_and_finished_work(self):
+        pending = []
+        for state in ('approved', 'preparing', 'queued', 'starting'):
+            req = task(self.user, self.image, mode='batch', starts_at=None, ends_at=None, status=state)
+            self.workspace(req)
+            pending.append(str(req.pk))
+        future = task(self.user, self.image, mode='batch', starts_at=self.start+timedelta(hours=12), ends_at=None, status='scheduled')
+        self.workspace(future)
+        finished = task(self.user, self.image, mode='batch', starts_at=None, ends_at=None, status='failed')
+        self.workspace(finished, ended_at=self.start+timedelta(hours=1))
+        expired = task(self.user, self.image, starts_at=self.start, ends_at=self.start+timedelta(hours=1), status='queued')
+        self.workspace(expired)
+        with patch('portal.timeline.timezone.now', return_value=self.start+timedelta(hours=6)):
+            result = allocation_timeline(self.user, '2026-11-03')
+            tomorrow = allocation_timeline(self.user, '2026-11-04')
+        self.assertEqual({entry['id'] for entry in result['groups'][0]['queued']}, set(pending))
+        self.assertEqual(tomorrow['groups'][0]['queued'], [])
+
+    def test_queue_keeps_other_users_task_names_private(self):
+        req = task(self.other, self.image, mode='batch', starts_at=None, ends_at=None, status='queued', purpose='private training')
+        self.workspace(req)
+        with patch('portal.timeline.timezone.now', return_value=self.start+timedelta(hours=6)):
+            result = allocation_timeline(self.user, '2026-11-03')
+        entry = result['groups'][0]['queued'][0]
+        self.assertEqual(entry['title'], '排队任务')
+        self.assertIsNone(entry['id'])
+        self.assertIsNone(entry['url'])

@@ -11,7 +11,7 @@
     <div><dt>可用内存</dt><dd>{% if node.resources %}{{ node.resources.memory_gib.available|floatformat:0 }}<small> GiB</small>{% else %}—{% endif %}</dd></div>
     <div><dt>可用存储</dt><dd>{% if node.storage_tib != None %}{{ node.storage_tib }}<small> TiB</small>{% else %}—{% endif %}</dd></div>
   </dl>
-  {% if node.gpus %}<details class="node-gpu-details"><summary>GPU 明细</summary><div class="node-gpus">{% for gpu in node.gpus %}<div class="gpu-tile{% if not gpu.ready %} unavailable{% endif %}"><div><span>GPU {{ gpu.index }}</span><strong>{{ gpu.available_compute_percent }}%</strong></div><div class="meter"><i style="width:{{ gpu.used_compute_percent }}%"></i></div><p>{{ gpu.available_memory_gib }} GiB <span>显存可用</span></p></div>{% endfor %}</div></details>{% endif %}
+  {% if node.gpus %}<details class="node-gpu-details"><summary>GPU 明细</summary><div class="node-gpus">{% for gpu in node.gpus %}<div class="capacity-gpu gpu-tile{% if not gpu.ready %} unavailable{% endif %}"><h3>GPU {{ gpu.index }}</h3><div><span>算力</span><strong>{{ gpu.available_compute_percent }}%</strong></div><div class="meter"><i style="width:{{ gpu.available_compute_percent }}%"></i></div><div><span>显存</span><strong>{{ gpu.available_memory_gib }} GiB</strong></div><div class="meter"><i style="width:{% widthratio gpu.available_memory_gib gpu.memory_total_gib 100 %}%"></i></div></div>{% endfor %}</div></details>{% endif %}
 </section>
 {% empty %}<div class="empty">等待节点资源同步</div>{% endfor %}
 </div>

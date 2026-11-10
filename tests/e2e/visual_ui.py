@@ -51,6 +51,9 @@ def main():
             if count==8:
                 worker_task=ResourceRequest.objects.create(node=worker,user=user,image=worker_image,purpose='训练实验 '+name,mode='batch',command='true',argv=['true'],gpu=1,gpu_requests=[{'compute_percent':50,'memory_gib':4}],cpu=4,memory_gib=8,status='running')
                 Workspace.objects.create(request=worker_task,object_name='preview-'+name,started_at=now-timedelta(hours=2),gpu_devices=[name+'-0'],gpu_allocations=[{'slot':0,'uuid':name+'-0','index':0,'sm_count':34}])
+        queue_node=ComputeNode.objects.get(name='8x30801')
+        queued=ResourceRequest.objects.create(node=queue_node,user=user,image=ImageArtifact.objects.filter(node=queue_node).first(),purpose='排队测试程序',mode='batch',command='true',argv=['true'],gpu=1,gpu_requests=[{'compute_percent':50,'memory_gib':4}],cpu=2,memory_gib=4,status='queued')
+        Workspace.objects.create(request=queued,object_name='preview-queue')
         server=subprocess.Popen([sys.executable,str(ROOT/'backend/manage.py'),'runserver','127.0.0.1:8765','--noreload'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         try:
             for _ in range(80):
@@ -67,7 +70,7 @@ def main():
                 errors=[];page.on('pageerror',lambda error:errors.append(str(error)))
                 records=[]
                 only=set(filter(None,os.environ.get('UI_PAGES','').split(',')))
-                for width,height in [(1920,1080),(1366,900),(768,1024),(390,844)]:
+                for width,height in [(2560,1440),(1920,1080),(1366,900),(768,1024),(390,844)]:
                     page.set_viewport_size({'width':width,'height':height})
                     for name,path in [('dashboard','/'),('nodes','/management/nodes/'),('task',f'/tasks/{req.pk}/'),('environment','/environments/new/'),('program','/training/new/'),('gpu-environment',f'/tasks/{development.pk}/'),('images','/images/'),('management','/management/'),('containers','/management/containers/'),('members','/management/members/'),('member','/management/members/new/'),('groups','/management/groups/'),('group',f'/management/groups/{group.pk}/'),('group-new','/management/groups/new/'),('group-delete',f'/management/groups/{group.pk}/delete/'),('member-edit',f'/management/members/{user.pk}/'),('datasets','/datasets/'),('manage-datasets','/management/datasets/'),('storage','/management/storage/'),('recycling','/management/images/'),('audits','/management/audits/'),('settings','/management/settings/')]:
                         if only and name not in only:continue
@@ -158,16 +161,21 @@ def main():
                             assert page.locator('.gpu-tile:visible').count()==0
                             assert page.locator('.timeline-node').count()==4
                             assert page.locator('.allocation-row:visible').count()==4
+                            assert page.locator('.timeline-queue-item').filter(has_text='排队测试程序').is_visible()
                             page.locator('.node-gpu-details summary').first.click()
                             assert page.locator('.gpu-tile:visible').count()==4
+                            meters=page.locator('.gpu-tile').nth(1).locator('.meter i').evaluate_all('bars=>bars.map(bar=>({color:getComputedStyle(bar).backgroundColor,fill:bar.getBoundingClientRect().width/bar.parentElement.getBoundingClientRect().width}))')
+                            assert len(meters)==2 and all(meter['color']=='rgb(57, 166, 138)' and meter['fill']>=.99 for meter in meters),meters
                             page.locator('.node-gpu-details summary').first.click()
                             page.locator('.timeline-toggle').nth(2).click()
                             assert page.locator('.timeline-details').nth(2).is_visible()
                             assert page.locator('.timeline-details').nth(2).locator('.allocation-row').count()==10
                             with page.expect_response(lambda response:'/timeline/?' in response.url):page.locator('[data-day="1"]').click()
+                            page.locator('.timeline-queue').wait_for(state='hidden')
                             assert page.locator('.timeline-toggle').nth(2).get_attribute('aria-expanded')=='true'
                             page.locator('.timeline-toggle').nth(2).click()
                             with page.expect_response(lambda response:'/timeline/?' in response.url):page.locator('[data-today]').click()
+                            page.locator('.timeline-queue').wait_for(state='visible')
                             if width==1920:
                                 page.locator('.timeline-toggle').nth(2).click()
                                 page.screenshot(path=str(out/'timeline-expanded-1920.png'),full_page=True)
@@ -177,13 +185,15 @@ def main():
                             assert len(boxes)==2 and all(box['width']==18 and box['height']==18 for box in boxes),boxes
                             first=page.locator('#id_name').bounding_box();second=page.locator('#id_transport').bounding_box()
                             assert (abs(first['y']-second['y'])<2) if width>=1366 else True
+                            editor=page.locator('.node-editor').bounding_box();table=page.locator('.table-wrap').bounding_box()
+                            assert abs(editor['width']-table['width'])<2,(width,editor,table)
                         if name in ('datasets','manage-datasets'):
                             search=page.locator('#dataset-search').bounding_box()
                             select=page.locator('#dataset-node').bounding_box()
                             assert search['width']>=180,(width,search)
                             if width>=1366:assert search['width']>select['width']*1.5
                             assert page.get_by_text('local 公用目录',exact=True).count()==0
-                        if width in (1920,390):page.screenshot(path=str(out/f'{name}-{width}.png'),full_page=True)
+                        if width in (2560,1920,390):page.screenshot(path=str(out/f'{name}-{width}.png'),full_page=True)
                         if name in ('environment','program'):
                             page.fill('#id_purpose',f'Maximum {name} {width}')
                             if name=='program':page.fill('#id_command','true')

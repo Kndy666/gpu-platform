@@ -246,7 +246,7 @@
       bar.addEventListener('focus', () => { const rect = bar.getBoundingClientRect(); showTooltip(rect.left, rect.bottom); });
       bar.addEventListener('blur', () => tooltip.hidden = true); track.append(bar);
     }
-    if (toggle && !blocks.length) track.append(node('span', 'allocation-empty', '空闲'));
+    if (toggle && !blocks.length) track.append(node('span', 'allocation-empty', label.queued.length ? '等待启动' : '空闲'));
     track.style.minHeight = Math.max(compact ? 43 : 58, lanes.length * 34 + 16) + 'px';
     if (data.now !== null) { const line = node('div', 'now-line'); line.style.left = data.now + '%'; track.append(line); }
     return element;
@@ -268,6 +268,18 @@
           if (details.hidden) expandedNodes.delete(group.id); else expandedNodes.add(group.id);
         });
         section.append(allocationRow(group, group.entries, data, false, toggle));
+        if (group.queued.length) {
+          const queue = node('div', 'timeline-queue'), items = node('div', 'timeline-queue-items');
+          queue.append(node('span', 'timeline-queue-label', '排队 ' + group.queued.length));
+          for (const task of group.queued) {
+            const item = node(task.url ? 'a' : 'div', 'timeline-queue-item');
+            if (task.url) item.href = task.url;
+            item.append(node('span', '', task.title), node('small', '', task.status_label));
+            item.title = `${task.title} · ${task.status_label} · ${task.gpu} GPU · ${task.cpu} 核 · ${task.memory_gib} GiB`;
+            items.append(item);
+          }
+          queue.append(items); section.append(queue);
+        }
         for (const row of group.rows) {
           const blocks = group.blocks.filter(block => block.row === row.id);
           if (row.id.startsWith('reservations') && !blocks.length) continue;

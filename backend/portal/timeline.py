@@ -31,7 +31,8 @@ def allocation_timeline(user, day=None, node=None):
         rows.extend({'id': row_id(kind, item.pk), 'node_id': item.pk, 'name': name, 'detail': detail}
                     for kind, name, detail in [('cpu', 'CPU', '核'), ('memory', '内存', 'GiB'), ('reservations', '预约', '等待启动')])
     blocks, entries = [], []
-    reservations = Q(workspace__started_at__isnull=True, mode='interactive', status__in=['approved', 'scheduled', 'queued', 'starting'])
+    waiting_states = ['approved', 'scheduled', 'preparing', 'queued', 'starting']
+    reservations = Q(workspace__started_at__isnull=True, mode='interactive', status__in=waiting_states)
     requests = ResourceRequest.objects.select_related('workspace', 'user').exclude(status='rejected').filter(
         Q(workspace__started_at__isnull=False) | reservations
     ).annotate(
@@ -44,7 +45,7 @@ def allocation_timeline(user, day=None, node=None):
         ws = getattr(req, 'workspace', None)
         if not ws: continue
         actual = ws.started_at
-        booked = not actual and req.mode == 'interactive' and req.status in {'approved', 'scheduled', 'queued', 'starting'}
+        booked = not actual and req.mode == 'interactive' and req.status in waiting_states
         if not actual and not booked: continue
         left = actual or req.starts_at
         right = ws.ended_at or req.ends_at or min(now, end)
@@ -72,8 +73,23 @@ def allocation_timeline(user, day=None, node=None):
                 blocks.append(dict(base, row=fallback, amount=str(req.gpu)+' 张'))
             blocks.append(dict(base, row=row_id('cpu', req.node_id), amount=str(req.cpu)+' 核'))
             blocks.append(dict(base, row=row_id('memory', req.node_id), amount=str(req.memory_gib)+' GiB'))
+    queued = []
+    if start <= now < end:
+        waiting = ResourceRequest.objects.select_related('user').filter(
+            workspace__isnull=False, workspace__started_at__isnull=True, workspace__ended_at__isnull=True,
+            status__in=waiting_states).filter(Q(starts_at__isnull=True) | Q(starts_at__lte=now)).filter(
+            Q(mode='batch') | Q(mode='interactive', ends_at__gt=now)).order_by('-priority', 'created_at', 'pk')
+        if node:
+            waiting = waiting.filter(node=node)
+        for req in waiting.defer('notes', 'command', 'argv', 'environment', 'review_reason'):
+            mine = user.is_staff or req.user_id == user.pk
+            queued.append({'node_id': req.node_id, 'id': str(req.pk) if mine else None,
+                'title': req.purpose if mine else '排队任务', 'url': '/tasks/' + str(req.pk) + '/' if mine else None,
+                'status': req.status, 'status_label': req.get_status_display(),
+                'gpu': req.gpu, 'cpu': req.cpu, 'memory_gib': req.memory_gib})
     groups = [{'id': item.pk, 'name': item.name, 'gpu_count': sum(device['node_id'] == item.pk for device in devices),
                'rows': [row for row in rows if row['node_id'] == item.pk],
                'blocks': [block for block in blocks if block['node_id'] == item.pk],
-               'entries': [entry for entry in entries if entry['node_id'] == item.pk]} for item in nodes]
+               'entries': [entry for entry in entries if entry['node_id'] == item.pk],
+               'queued': [entry for entry in queued if entry['node_id'] == item.pk]} for item in nodes]
     return {'date': date.isoformat(), 'rows': rows, 'blocks': blocks, 'groups': groups, 'now': (now-start).total_seconds()/864 if start <= now < end else None}
