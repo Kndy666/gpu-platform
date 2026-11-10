@@ -38,13 +38,13 @@ fi
 python3 - "${config_path}" "${project_root}" <<'PY'
 import importlib.util,sys,yaml
 from pathlib import Path
+sys.path.insert(0, str(Path(sys.argv[2])/'deploy'))
 spec=importlib.util.spec_from_file_location('platform_installer',Path(sys.argv[2])/'deploy/install.py')
 module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
 module.install_workspace_security()
 cfg=yaml.safe_load((Path(sys.argv[2])/'runtime/deploy/resolved-config.yaml').read_text())
 module.run(['k3s','kubectl','label','namespace',cfg['platform']['workload_namespace'],'pod-security.kubernetes.io/enforce=baseline','--overwrite'])
 module.install_node_agent(cfg)
-sys.path.insert(0, str(Path(sys.argv[2])/'deploy'))
 from node_services import install_node_services
 install_node_services(cfg, Path(sys.argv[2]))
 PY

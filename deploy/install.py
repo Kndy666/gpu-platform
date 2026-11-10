@@ -199,19 +199,8 @@ def storage_dependencies(cfg):
     run(['systemctl', 'daemon-reload'])
 
 def install_workspace_security():
-    profiles = ROOT / 'deploy/profiles'
-    seccomp = Path('/var/lib/kubelet/seccomp')
-    seccomp.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(profiles / 'workspace-seccomp.json', seccomp / 'gpu-platform-workspace.json')
-    apparmor = Path('/etc/apparmor.d/gpu-platform-workspace')
-    profile = (profiles / 'workspace-apparmor').read_text()
-    if Path('/proc/sys/kernel/apparmor_restrict_unprivileged_userns').exists():
-        profile = profile.replace('  capability,', '  capability,\n  userns,')
-        build_profile = Path('/etc/apparmor.d/gpu-platform-build')
-        build_profile.write_text('abi <abi/4.0>,\ninclude <tunables/global>\nprofile gpu-platform-build flags=(unconfined) {\n  userns,\n}\n')
-        run(['apparmor_parser', '-r', str(build_profile)])
-    apparmor.write_text(profile)
-    run(['apparmor_parser', '-r', str(apparmor)])
+    from workspace_security import install_security
+    install_security({'aarch64': 'arm64', 'x86_64': 'amd64'}[platform.machine()])
 
 def install_node_agent(cfg):
     agent_config = Path('/etc/rancher/k3s/platform-node-agent.yaml')

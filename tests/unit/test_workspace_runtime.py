@@ -6,9 +6,23 @@ from unittest import TestCase
 
 spec=importlib.util.spec_from_file_location('workspace_runtime',Path(__file__).resolve().parents[2]/'deploy/workspace-runtime.py')
 runtime=importlib.util.module_from_spec(spec);spec.loader.exec_module(runtime)
+spec=importlib.util.spec_from_file_location('workspace_security',runtime.ROOT/'deploy/workspace_security.py')
+security=importlib.util.module_from_spec(spec);spec.loader.exec_module(security)
 
 
 class WorkspaceRuntimeTests(TestCase):
+    def test_amd64_allows_glibc_thread_initialization_and_keeps_restrictions(self):
+        profile=security.seccomp_profile('amd64')
+        self.assertEqual(profile['architectures'],['SCMP_ARCH_X86_64','SCMP_ARCH_X86','SCMP_ARCH_X32'])
+        allowed={name for rule in profile['syscalls'] if rule['action']=='SCMP_ACT_ALLOW' for name in rule['names']}
+        self.assertIn('arch_prctl',allowed)
+        self.assertFalse({'keyctl','add_key','request_key'} & allowed)
+        self.assertEqual(profile['defaultAction'],'SCMP_ACT_ERRNO')
+
+    def test_arm64_retains_its_architecture_and_syscall_policy(self):
+        original=json.loads((runtime.ROOT/'deploy/profiles/workspace-seccomp.json').read_text())
+        self.assertEqual(security.seccomp_profile('arm64'),original)
+
     def test_keyrings_remain_blocked_with_runtime_supported_errno(self):
         profile=json.loads((runtime.ROOT/'deploy/profiles/workspace-seccomp.json').read_text())
         rules=[rule for rule in profile['syscalls'] if 'keyctl' in rule['names']]

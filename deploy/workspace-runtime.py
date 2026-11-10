@@ -78,14 +78,8 @@ def install(cfg):
     default = json.loads(run(['k3s', 'ctr', 'oci', 'spec'], capture_output=True, text=True).stdout)
     changed = write_changed(SPEC_PATH, json.dumps(workspace_spec(default), indent=2)+'\n')
     changed = write_changed(TEMPLATE_PATH, runtime_template(classes)) or changed
-    profiles = ROOT/'deploy/profiles'
-    for source, target in [('workspace-seccomp.json', '/var/lib/kubelet/seccomp/gpu-platform-workspace.json'),
-                           ('workspace-apparmor', '/etc/apparmor.d/gpu-platform-workspace')]:
-        content = (profiles/source).read_text()
-        if source == 'workspace-apparmor' and Path('/proc/sys/kernel/apparmor_restrict_unprivileged_userns').exists():
-            content = content.replace('  capability,', '  capability,\n  userns,')
-        write_changed(Path(target), content)
-    run(['apparmor_parser', '-r', '/etc/apparmor.d/gpu-platform-workspace'])
+    from workspace_security import install_security
+    install_security(cfg['platform']['architecture'])
     if changed:
         run(['systemctl', 'restart', 'k3s'])
     run(['k3s', 'kubectl', 'wait', '--for=condition=Ready', 'nodes', '--all', '--timeout=120s'])
