@@ -49,7 +49,11 @@ API 根路径为 `/api/v1`，网页地址由 `config.yaml` 的 `platform.https_o
 
 先通过 `GET /nodes` 查询节点 ID、架构、在线状态和维护状态。任务与构建正文的 `node` 指定执行节点；任务、镜像、构建和卷响应包含 `node_id`、`node_name`。
 
-`GET /tasks`、`/images`、`/builds`、`/volumes`、`/timeline` 支持 `?node=ID` 筛选，省略时返回所有节点。`/resources` 省略节点时汇总资源；`/gpus`、`/datasets` 和 `/datasets/download` 省略节点时选择本机。任务省略 `node` 时选本机；使用 `source_environment` 时自动沿用源环境节点。
+`GET /tasks`、`/images`、`/builds`、`/snapshots`、`/volumes`、`/timeline` 和管理端的 `/admin/containers`、`/admin/storage`、`/admin/images` 支持 `?node=ID` 筛选，省略时返回所有节点。环境保存记录按源环境归属筛选，响应含 `node_id`、`node_name`。`/resources` 省略节点时汇总资源；`/gpus`、`/datasets` 和 `/datasets/download` 省略节点时选择本机。任务省略 `node` 时选本机；使用 `source_environment` 时自动沿用源环境节点。
+
+`GET /resources` 的 `nodes[]` 与首页共用节点分组，包含节点状态、CPU、内存、逐卡 GPU 余量、可用 GPU 算力 `gpu_available` 和存储 `storage_tib`；`?node=ID` 同时筛选汇总值和节点分组。
+
+`GET /timeline` 的 `groups[]` 按节点包含 `rows`（资源行）、`blocks`（分配条）、`entries`（任务汇总）、`queued`（排队任务）。`queued` 只列当天已到启动时间的等待任务，按优先级和提交时间排序；其他日期为空。未来预约位于 `entries`，`state=reserved`。普通用户查看其他人的任务时，标题匿名且 `id`、`url` 为 `null`；管理员可见完整任务信息。
 
 镜像、个人卷、工作卷和公用目录归属节点。镜像选择与源环境须对应执行节点，账号配额跨节点汇总。管理员通过 `POST /nodes` 或 `PATCH /nodes/{id}` 管理 `name`、`transport`、`ssh_port`、`ssh_user`、`identity`、`architecture`、`enabled` 和 `maintenance`；主机标识使用固定的 `local`。
 
@@ -81,7 +85,7 @@ API 根路径为 `/api/v1`，网页地址由 `config.yaml` 的 `platform.https_o
 
 ## 管理员 SSH
 
-`GET /admin/containers` 按 `q`、`status`、`mode` 和分页查询全体容器。`GET /tasks/{id}/connection` 返回 SSH `command` 与 `config`，管理员响应包含 `administrator_access`：本人启用公钥的元数据、`ready` 状态和 sudo 能力。
+`GET /admin/containers` 按 `q`、`status`、`mode`、`node` 和分页查询全体容器。`GET /tasks/{id}/connection` 返回 SSH `command` 与 `config`，管理员响应包含 `administrator_access`：本人启用公钥的元数据、`ready` 状态和 sudo 能力。
 
 管理员使用本人密钥，以 `connection.user` 登录目标容器。公钥与角色变更同步至运行容器；挂载传播完成后影响新连接，已有会话继续运行。
 

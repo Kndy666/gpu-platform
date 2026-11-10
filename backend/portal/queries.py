@@ -52,14 +52,15 @@ def tasks_for_counts(node=None):
     return counts
 
 
-def node_resource_groups(overview):
+def node_resource_groups(overview, node=None):
     cutoff = timezone.now() - timedelta(minutes=2)
     observations = {row.node_id: row for row in SystemObservation.objects.filter(name='resources')}
     storage = {}
     for pool in StoragePool.objects.filter(healthy=True, observed_at__gte=cutoff).select_related('node'):
         storage[pool.node_id] = storage.get(pool.node_id, 0) + pool_available(pool)
     groups = []
-    for node in ComputeNode.objects.order_by('pk'):
+    nodes = ComputeNode.objects.filter(pk=node.pk) if node else ComputeNode.objects.order_by('pk')
+    for node in nodes:
         observation = observations.get(node.pk)
         fresh = bool(node.enabled and node.state != 'offline' and observation and observation.observed_at >= cutoff)
         devices = sorted(({**gpu, 'memory_total_gib': round(gpu.get('usable_memory_mib', gpu.get('memory_mib', 0)) / 1024, 1)}

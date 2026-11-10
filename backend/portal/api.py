@@ -26,7 +26,7 @@ from django.views.decorators.csrf import csrf_exempt
 
 from .api_auth import bearer_user, issue_token, list_tokens, revoke_token, get_token, token_id, TOKEN_SECONDS
 from .access import tasks_for, images_for, image_actions_for, volumes_for, capabilities
-from .queries import resource_overview, member_list, group_list, image_catalog, managed_image_list, image_summary, pool_list, audit_list, container_list
+from .queries import resource_overview, node_resource_groups, member_list, group_list, image_catalog, managed_image_list, image_summary, pool_list, audit_list, container_list
 from .configuration import config
 from .datasets import open_dataset_path, dataset_content
 from .forms import ImageBuildForm, RequestForm, ReviewForm, SSHKeyForm, request_defaults, default_image
@@ -175,10 +175,10 @@ def owned(request, model, pk, relation='user'):
     return get_object_or_404(query, pk=pk)
 
 
-def node_filter(request, query):
+def node_filter(request, query, field='node'):
     if request.GET.get('node'):
         from .nodes import selected_node
-        query = query.filter(node=selected_node(request.GET['node']))
+        query = query.filter(**{field: selected_node(request.GET['node'])})
     return query
 
 
@@ -251,6 +251,7 @@ def build_data(build, detail=True):
 
 def snapshot_data(snapshot):
     return {**{name: getattr(snapshot, name) for name in ['id', 'source_id', 'target_id', 'artifact_id', 'status', 'error', 'created_at']},
+            'node_id': snapshot.source.node_id, 'node_name': snapshot.source.node.name,
             'source_name': snapshot.source.purpose, 'artifact_name': snapshot.artifact.name if snapshot.artifact_id else None,
             'status_label': snapshot.get_status_display()}
 
@@ -340,7 +341,9 @@ def resources(request):
     default = default_image(request.user, node)
     from .queries import request_capacity
     overview=resource_overview(node if request.GET.get('node') else None)
-    return success({'now': timezone.now(), 'timezone': settings.TIME_ZONE, **overview,'request_capacity':request_capacity(request.user,overview),
+    return success({'now': timezone.now(), 'timezone': settings.TIME_ZONE, **overview,
+        'nodes': node_resource_groups(overview, node if request.GET.get('node') else None),
+        'request_capacity':request_capacity(request.user,overview),
         'default_image_id': default.pk if default else None, 'group': group_data(policy_for(request.user))})
 
 @endpoint('GET')
@@ -471,7 +474,7 @@ def connection(request, pk):
 
 @endpoint('GET',staff=True)
 def containers(request):
-    query=container_list(request.GET.get('q',''),request.GET.get('status',''),request.GET.get('mode',''))
+    query=node_filter(request, container_list(request.GET.get('q',''),request.GET.get('status',''),request.GET.get('mode','')))
     return page(request,query.defer('command','environment','notes','review_reason','argv','image_reference'),
                 lambda req:task_data(req,detail=False))
 
@@ -534,7 +537,7 @@ def save(request, pk):
 
 @endpoint('GET')
 def snapshots(request):
-    query = EnvironmentSnapshot.objects.filter(source__user=request.user).select_related('source', 'artifact').order_by('-created_at', '-pk')
+    query = node_filter(request, EnvironmentSnapshot.objects.filter(source__user=request.user), 'source__node').select_related('source__node', 'artifact').order_by('-created_at', '-pk')
     return page(request, query, snapshot_data)
 
 
@@ -745,9 +748,12 @@ def group(request, pk):
 
 @endpoint('GET', staff=True)
 def storage(request):
-    pools = [{name: getattr(pool, name) for name in ['id', 'node_id', 'name', 'capacity_gib', 'free_gib', 'available_gib',
-              'reserved_gib', 'healthy', 'observed_at', 'percent']} for pool in pool_list()]
-    query = volumes_for(request.user).exclude(state='deleted').order_by('user__username', 'kind')
+    from .nodes import selected_node
+    node = selected_node(request.GET['node']) if request.GET.get('node') else None
+    pools = [{**{name: getattr(pool, name) for name in ['id', 'node_id', 'name', 'capacity_gib', 'free_gib', 'available_gib',
+              'reserved_gib', 'healthy', 'observed_at', 'percent']}, 'node_name': pool.node.name}
+             for pool in pool_list() if node is None or pool.node_id == node.pk]
+    query = node_filter(request, volumes_for(request.user)).exclude(state='deleted').order_by('user__username', 'kind')
     response = page(request, query, volume_data, prepare=annotate_volume_usage)
     payload = json.loads(response.content)['data']
     return success({'pools': pools, 'volumes': payload})
@@ -755,7 +761,7 @@ def storage(request):
 
 @endpoint('GET', staff=True)
 def managed_images(request):
-    query = managed_image_list()
+    query = node_filter(request, managed_image_list())
     return page(request, query, image_data, extra={'summary': image_summary(query)})
 
 

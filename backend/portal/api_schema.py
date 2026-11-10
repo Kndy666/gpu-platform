@@ -65,7 +65,7 @@ SCHEMAS = {
     'GPUDevice': obj({'node_id': I, 'node_name': S, 'uuid':S,'index':{'type':'integer','minimum':0},'name':S,'pci':S,'sm_count':I,
         'memory_mib':I,'usable_memory_mib':I,'ready':B,
         **{k:{'type':'integer','minimum':0} for k in ['used_compute_percent','used_sm_count','used_memory_mib','available_compute_percent']},
-        **{k:{'type':'number','minimum':0} for k in ['available_memory_gib','used_memory_gib']}}),
+        **{k:{'type':'number','minimum':0} for k in ['available_memory_gib','used_memory_gib','memory_total_gib']}}),
     'GPUInventoryResponse': obj({'data':obj({'devices':{'type':'array','items':{'$ref':'#/components/schemas/GPUDevice'}},'fresh':B,
         'request_limits':{'$ref':'#/components/schemas/GPURequestLimits'}})},['data']),
     'CapacityMetric':{'type':'object','nullable':True,'properties':{
@@ -81,8 +81,44 @@ SCHEMAS = {
         'gpus':{'type':'array','items':obj({'node_id':I,'node_name':S,'index':{'type':'integer','minimum':0},'ready':B,
             'compute_percent':{'type':'number','minimum':0,'maximum':100},
             'memory_gib':{'type':'number','minimum':0},'memory_total_gib':{'type':'number','minimum':0}})}}),
+    'Node': obj({'id': I, 'name': S, 'architecture': {'type': 'string', 'enum': ['amd64', 'arm64']},
+        'transport': {'type': 'string', 'enum': ['local', 'ssh']}, 'enabled': B, 'maintenance': B,
+        'state': S, 'state_label': S, 'last_seen': {**DATE, 'nullable': True}, 'error': S,
+        'ssh_port': {**I, 'maximum': 65535, 'description': 'Administrator only.'},
+        'ssh_user': {**S, 'description': 'Administrator only.'}, 'identity': {**S, 'description': 'Administrator only; key filename.'}},
+        ['id', 'name', 'architecture', 'transport', 'enabled', 'maintenance', 'state', 'state_label', 'last_seen', 'error']),
+    'NodeResponse': obj({'data': {'$ref': '#/components/schemas/Node'}}, ['data']),
+    'NodeListResponse': obj({'data': obj({'items': {'type': 'array', 'items': {'$ref': '#/components/schemas/Node'}},
+        'count': {'type': 'integer', 'minimum': 0}, 'page': I, 'page_size': I, 'next_page': {**I, 'nullable': True}})}, ['data']),
+    'NodeResources': obj({'id': I, 'name': S, 'state': S, 'state_label': S,
+        'resources': {'type': 'object', 'nullable': True, 'additionalProperties': True},
+        'gpus': {'type': 'array', 'items': {'$ref': '#/components/schemas/GPUDevice'}},
+        'model': S, 'gpu_available': {'type': 'number', 'minimum': 0},
+        'storage_tib': {'type': 'number', 'minimum': 0, 'nullable': True}}),
     'ResourcesResponse':obj({'data':{'type':'object','properties':{
+        'nodes': {'type': 'array', 'items': {'$ref': '#/components/schemas/NodeResources'},
+                  'description': 'Dashboard resource groups; node=ID limits this list to that node.'},
         'request_capacity':{'$ref':'#/components/schemas/RequestCapacity'}},'additionalProperties':True}},['data']),
+    'TimelineRow': obj({'id': S, 'node_id': I, 'name': S, 'detail': S}),
+    'TimelineEntry': {'type': 'object', 'properties': {'node_id': I, 'id': {**U, 'nullable': True},
+        'title': S, 'url': {**S, 'nullable': True}, 'state': {'type': 'string', 'enum': ['reserved', 'running', 'finished']},
+        'start': DATE, 'end': {**DATE, 'nullable': True}, 'left': {'type': 'number'}, 'width': {'type': 'number'},
+        'gpu': {'type': 'integer', 'minimum': 0}, 'cpu': I, 'memory': I}, 'additionalProperties': True},
+    'TimelineQueuedTask': obj({'node_id': I, 'id': {**U, 'nullable': True}, 'title': S, 'url': {**S, 'nullable': True},
+        'status': S, 'status_label': S, 'gpu': {'type': 'integer', 'minimum': 0}, 'cpu': I, 'memory_gib': I},
+        ['node_id', 'id', 'title', 'url', 'status', 'status_label', 'gpu', 'cpu', 'memory_gib']),
+    'TimelineGroup': obj({'id': I, 'name': S, 'gpu_count': {'type': 'integer', 'minimum': 0},
+        'rows': {'type': 'array', 'items': {'$ref': '#/components/schemas/TimelineRow'}},
+        'blocks': {'type': 'array', 'items': {'$ref': '#/components/schemas/TimelineEntry'}},
+        'entries': {'type': 'array', 'items': {'$ref': '#/components/schemas/TimelineEntry'}},
+        'queued': {'type': 'array', 'items': {'$ref': '#/components/schemas/TimelineQueuedTask'},
+                   'description': 'Waiting tasks eligible to start now, ordered by priority then submission time. Empty on other dates. Other users see anonymous IDs and titles.'}},
+        ['id', 'name', 'gpu_count', 'rows', 'blocks', 'entries', 'queued']),
+    'TimelineResponse': obj({'data': obj({'date': {'type': 'string', 'format': 'date'},
+        'now': {'type': 'number', 'nullable': True, 'description': 'Current time as a percentage of the selected day.'},
+        'rows': {'type': 'array', 'items': {'$ref': '#/components/schemas/TimelineRow'}},
+        'blocks': {'type': 'array', 'items': {'$ref': '#/components/schemas/TimelineEntry'}},
+        'groups': {'type': 'array', 'items': {'$ref': '#/components/schemas/TimelineGroup'}}})}, ['data']),
     'TaskGPUResources': {'type':'object','properties':{
         'gpu':{'type':'integer','minimum':0},'gpu_requests':{'type':'array','items':{'$ref':'#/components/schemas/ResolvedGPURequest'}},
         'gpu_compute_total':{'type':'integer','minimum':0},
@@ -127,11 +163,12 @@ def openapi(request):
             queries = {'tasks': ['mode', 'status', 'purpose', 'scope'], 'images': ['available', 'kind'], 'timeline': ['date'],
                        'logs': ['tail'], 'datasets': ['path', 'q'], 'download': ['path'], 'members': ['q'], 'audits': ['action'],
                        'containers':['q','status','mode']}
-            if view.__name__ in {'resources', 'gpus', 'timeline', 'tasks', 'images', 'builds', 'volumes', 'datasets', 'download'}:
+            if view.__name__ in {'resources', 'gpus', 'timeline', 'tasks', 'images', 'builds', 'snapshots', 'volumes', 'datasets', 'download', 'containers', 'storage', 'managed_images'}:
                 queries.setdefault(view.__name__, []).append('node')
             if method == 'GET':
-                op['parameters'] += [{'name': name, 'in': 'query', 'schema': S} for name in queries.get(view.__name__, [])]
-                response_schema={'resources':'ResourcesResponse','gpus':'GPUInventoryResponse','task':'TaskResponse','connection':'ConnectionResponse'}.get(view.__name__)
+                op['parameters'] += [{'name': name, 'in': 'query', 'schema': I if name == 'node' else S} for name in queries.get(view.__name__, [])]
+                response_schema={'resources':'ResourcesResponse','gpus':'GPUInventoryResponse','task':'TaskResponse','connection':'ConnectionResponse',
+                                 'nodes':'NodeListResponse','node':'NodeResponse','timeline':'TimelineResponse'}.get(view.__name__)
                 if response_schema:
                     op['responses']['200']['content']['application/json']['schema']={'$ref':'#/components/schemas/'+response_schema}
             if view.api_idempotent and method in {'POST', 'PATCH', 'DELETE'} and method not in view.api_public:
@@ -140,7 +177,7 @@ def openapi(request):
             if use_schema:
                 op['requestBody'] = {'required': use_schema not in {'EmptyRequest', 'GroupDelete', 'TokenIssueRequest'},
                                      'content': {'application/json': {'schema': {'$ref': '#/components/schemas/'+use_schema}}}}
-            if method == 'POST' and view.__name__ in {'tasks', 'keys', 'builds', 'members', 'groups', 'token', 'tokens'}:
+            if method == 'POST' and view.__name__ in {'tasks', 'keys', 'builds', 'members', 'groups', 'token', 'tokens', 'nodes'}:
                 op['responses']['201'] = {'description': 'Created'}
             if method == 'POST' and view.__name__ in {'stop', 'save'} or method == 'DELETE' and view.__name__ in {'image', 'volume'}:
                 op['responses']['202'] = {'description': 'Asynchronous operation accepted'}

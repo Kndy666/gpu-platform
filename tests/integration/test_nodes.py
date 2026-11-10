@@ -12,7 +12,8 @@ from django.utils import timezone
 
 from portal.configuration import config
 from portal.forms import RequestForm
-from portal.models import ComputeNode, ImageArtifact, ResourceRequest, StoragePool, VolumeAllocation, Workspace
+from portal.models import (ComputeNode, EnvironmentSnapshot, ImageArtifact, ResourceRequest, StoragePool,
+                           SystemObservation, VolumeAllocation, Workspace)
 from portal.node_context import using_node
 from portal.node_transport import NodeUnavailable, encode_message, read_message
 from portal.nodes import NodeForm
@@ -275,6 +276,140 @@ class NodeIsolationTests(TestCase):
                         extend(req.pk, self.admin, new_end + timedelta(hours=1), 'continue')
                 req.refresh_from_db()
                 self.assertEqual(req.ends_at, new_end)
+
+
+class NodeAPITests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.admin, cls.alice, cls.bob, cls.image = fixtures()
+        cls.local = cls.image.node
+        cls.worker = ComputeNode.objects.create(name='worker-a', transport='ssh', ssh_port=2201,
+            identity='worker-a', architecture='amd64', state='online', last_seen=timezone.now())
+        cls.remote_image = ImageArtifact.objects.create(node=cls.worker, name='Ubuntu AMD64', size_bytes=1234,
+            architecture='amd64', reference='test/amd64:1', digest='sha256:'+'b'*64, verified=True, shared=True)
+        StoragePool.objects.create(node=cls.worker, name='test', path='/test', storage_class='rawfile-test',
+            capacity_gib=2000, free_gib=2000, healthy=True, observed_at=timezone.now())
+
+    def setUp(self):
+        self.authenticate(self.alice)
+
+    def authenticate(self, user):
+        from portal.api_auth import issue_token
+        self.client.defaults['HTTP_AUTHORIZATION'] = 'Bearer ' + issue_token(user)['token']
+
+    def requests_on_both_nodes(self):
+        local = task(self.alice, self.image)
+        remote = task(self.alice, self.remote_image, node=self.worker)
+        for req in (local, remote):
+            approve(req.pk, self.admin)
+        return local, remote
+
+    def test_resources_expose_dashboard_groups_and_filter_one_node(self):
+        for node, cpu, count in ((self.local, 88, 4), (self.worker, 64, 8)):
+            SystemObservation.objects.create(node=node, name='resources', data={
+                'cpu': {'total': cpu, 'available': cpu, 'used': 0}})
+            SystemObservation.objects.create(node=node, name='gpu_inventory', data={'devices': [
+                {'index': index, 'uuid': node.name + str(index), 'name': 'NVIDIA GeForce RTX 3080', 'memory_mib': 10240}
+                for index in range(count)]})
+        data = self.client.get('/api/v1/resources').json()['data']
+        self.assertEqual([group['id'] for group in data['nodes']], [self.local.pk, self.worker.pk])
+        self.assertEqual([group['resources']['cpu']['available'] for group in data['nodes']], [88, 64])
+        self.assertEqual([len(group['gpus']) for group in data['nodes']], [4, 8])
+        selected = self.client.get('/api/v1/resources', {'node': self.worker.pk}).json()['data']
+        self.assertEqual(selected['nodes'], [data['nodes'][1]])
+        self.assertEqual(selected['resources']['cpu']['total'], 64)
+        self.assertEqual(selected['default_image_id'], str(self.remote_image.pk))
+
+    def test_snapshot_node_filter_preserves_ownership_and_identifies_node(self):
+        local, remote = self.requests_on_both_nodes()
+        private = task(self.bob, self.remote_image, node=self.worker)
+        for req in (local, remote, private):
+            EnvironmentSnapshot.objects.create(source=req)
+        self.assertEqual(self.client.get('/api/v1/snapshots').json()['data']['count'], 2)
+        data = self.client.get('/api/v1/snapshots', {'node': self.worker.pk}).json()['data']
+        self.assertEqual(data['count'], 1)
+        record = data['items'][0]
+        self.assertEqual(record['source_id'], str(remote.pk))
+        self.assertEqual((record['node_id'], record['node_name']), (self.worker.pk, self.worker.name))
+        self.assertEqual(self.client.get('/api/v1/snapshots/' + record['id']).json()['data'], record)
+        self.authenticate(self.admin)
+        self.assertEqual(self.client.get('/api/v1/snapshots', {'node': self.worker.pk}).json()['data']['count'], 0)
+
+    def test_admin_node_filter_applies_to_pools_volumes_containers_and_image_totals(self):
+        local, remote = self.requests_on_both_nodes()
+        self.authenticate(self.admin)
+        containers = self.client.get('/api/v1/admin/containers', {'node': self.worker.pk}).json()['data']
+        self.assertEqual([item['id'] for item in containers['items']], [str(remote.pk)])
+        images = self.client.get('/api/v1/admin/images', {'node': self.worker.pk}).json()['data']
+        self.assertEqual([item['id'] for item in images['items']], [str(self.remote_image.pk)])
+        self.assertEqual(images['summary']['ready_bytes'], 1234)
+        storage = self.client.get('/api/v1/admin/storage', {'node': self.worker.pk}).json()['data']
+        self.assertEqual(len(storage['pools']), 1)
+        self.assertEqual(storage['pools'][0]['node_name'], self.worker.name)
+        self.assertEqual(storage['volumes']['count'], 2)
+        self.assertTrue(all(item['node_id'] == self.worker.pk for item in storage['volumes']['items']))
+        self.assertEqual(self.client.get('/api/v1/admin/storage').json()['data']['volumes']['count'], 4)
+
+    def test_new_node_filters_reject_unknown_nodes_and_keep_staff_permissions(self):
+        paths = ('snapshots', 'admin/containers', 'admin/images', 'admin/storage')
+        for path in paths[1:]:
+            self.assertEqual(self.client.get('/api/v1/' + path, {'node': self.worker.pk}).status_code, 403)
+        self.authenticate(self.admin)
+        for path in paths:
+            for node in ('bad', 999999):
+                with self.subTest(path=path, node=node):
+                    self.assertEqual(self.client.get('/api/v1/' + path, {'node': node}).status_code, 404)
+
+    def test_node_registration_and_maintenance_via_api(self):
+        self.authenticate(self.admin)
+        response = self.client.post('/api/v1/nodes', data=json.dumps({'name': 'worker-b', 'transport': 'ssh',
+            'ssh_port': 2202, 'ssh_user': 'gpu-platform', 'identity': 'worker-b', 'architecture': 'amd64',
+            'enabled': True, 'maintenance': False}), content_type='application/json')
+        self.assertEqual(response.status_code, 201, response.content)
+        node = response.json()['data']
+        response = self.client.patch('/api/v1/nodes/' + str(node['id']), data=json.dumps({'maintenance': True}),
+            content_type='application/json')
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertTrue(response.json()['data']['maintenance'])
+        self.assertTrue(response.json()['data']['enabled'])
+        self.authenticate(self.alice)
+        visible = self.client.get('/api/v1/nodes/' + str(node['id'])).json()['data']
+        self.assertNotIn('identity', visible)
+        self.assertNotIn('ssh_user', visible)
+        self.assertEqual(self.client.patch('/api/v1/nodes/' + str(node['id']), data='{}', content_type='application/json').status_code, 403)
+
+    def test_timeline_api_exposes_queued_tasks_per_node_with_privacy(self):
+        for user, image, node, purpose in ((self.alice, self.image, self.local, 'local'),
+                (self.alice, self.remote_image, self.worker, 'my program'),
+                (self.bob, self.remote_image, self.worker, 'private program')):
+            req = task(user, image, node=node, purpose=purpose, mode='batch', status='queued', starts_at=None, ends_at=None)
+            Workspace.objects.create(request=req, object_name=str(req.pk))
+        data = self.client.get('/api/v1/timeline', {'node': self.worker.pk}).json()['data']
+        self.assertEqual([group['id'] for group in data['groups']], [self.worker.pk])
+        queued = data['groups'][0]['queued']
+        self.assertEqual(len(queued), 2)
+        self.assertEqual([entry['title'] for entry in queued], ['my program', '排队任务'])
+        self.assertIsNone(queued[1]['id'])
+        self.assertIsNone(queued[1]['url'])
+        self.assertEqual(data['blocks'], [])
+        self.authenticate(self.admin)
+        queued = self.client.get('/api/v1/timeline', {'node': self.worker.pk}).json()['data']['groups'][0]['queued']
+        self.assertEqual(queued[1]['title'], 'private program')
+
+    def test_openapi_discovers_grouped_resources_queue_and_all_node_filters(self):
+        schema = self.client.get('/api/v1/openapi.json').json()
+        for path in ('resources', 'gpus', 'timeline', 'tasks', 'images', 'builds', 'snapshots', 'volumes',
+                     'datasets', 'datasets/download', 'admin/containers', 'admin/storage', 'admin/images'):
+            parameters = schema['paths']['/' + path]['get']['parameters']
+            parameter = next(item for item in parameters if item['name'] == 'node')
+            self.assertEqual(parameter['schema']['type'], 'integer')
+        self.assertIn('201', schema['paths']['/nodes']['post']['responses'])
+        self.assertEqual(schema['paths']['/nodes/{pk}']['patch']['x-required-role'], 'staff')
+        for path, expected in (('nodes', 'NodeListResponse'), ('nodes/{pk}', 'NodeResponse'), ('timeline', 'TimelineResponse')):
+            self.assertEqual(schema['paths']['/' + path]['get']['responses']['200']['content']['application/json']['schema']['$ref'],
+                '#/components/schemas/' + expected)
+        self.assertIn('nodes', schema['components']['schemas']['ResourcesResponse']['properties']['data']['properties'])
+        self.assertIn('queued', schema['components']['schemas']['TimelineGroup']['properties'])
 
 
 class WorkerProtocolTests(SimpleTestCase):

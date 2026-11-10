@@ -12,8 +12,8 @@
 | `/me` | GET | 账号、用户组、配额、当前占用 |
 | `/nodes`、`/nodes/{id}` | GET | 节点 ID、架构、在线状态、维护状态 |
 | `/me/password` | POST | 使用 old_password、new_password1、new_password2 修改密码 |
-| `/resources` | GET | 资源余量、默认镜像、服务器时间与时区 |
-| `/timeline?date=YYYY-MM-DD` | GET | 当天具体资源分配 |
+| `/resources` | GET | 资源余量、nodes 节点分组、默认镜像、服务器时间与时区 |
+| `/timeline?date=YYYY-MM-DD` | GET | groups 按节点返回运行、预约及排队任务 |
 | `/keys` | GET / POST | 查看或添加公钥，字段 name、public_key |
 | `/keys/{id}` | PATCH / DELETE | 修改名称或 enabled / 停用公钥 |
 | `/tasks` | GET / POST | 列表或申请资源；管理员可 scope=all |
@@ -41,7 +41,20 @@
 
 示例日期需按用户实际要求替换。省略 image 会使用共享默认镜像。图形界面的 GiB 与 API 字段 memory_gib、workspace_gib 一致。
 
-任务和构建正文的 `node` 是执行节点数字 ID，省略时选本机；从 `source_environment` 运行时自动沿用源节点。资源、GPU、镜像、任务、构建、卷、时间轴及公用目录支持 `?node=ID`。列表省略节点时跨节点返回；GPU 和公用目录省略时选本机。镜像、个人卷、工作卷和公用目录归属节点，任务及镜像等响应包含 `node_id`、`node_name`。账号配额跨节点计算。
+任务和构建正文的 `node` 是执行节点数字 ID，省略时选本机；从 `source_environment` 运行时自动沿用源节点。资源、GPU、镜像、任务、构建、环境保存记录、卷、时间轴及公用目录支持 `?node=ID`。列表省略节点时跨节点返回；GPU 和公用目录省略时选本机。镜像、个人卷、工作卷和公用目录归属节点，任务、镜像、构建、保存记录和卷等响应包含 `node_id`、`node_name`。账号配额跨节点计算。
+
+`/resources` 的 `nodes[]` 与首页节点卡片共用数据：`id`、`name`、`state`、`state_label`、`resources`（CPU 和内存）、`gpus`（逐卡可用算力与显存）、`gpu_available`（可用 GPU 算力总和，以整卡为单位）、`storage_tib`。`?node=ID` 同时筛选汇总值和 `nodes`。
+
+`/timeline` 的 `groups[]` 包含节点 `id`、`name`、`gpu_count`，以及 `rows` 资源行、`blocks` 分配条、`entries` 任务汇总、`queued` 排队任务。`queued` 按优先级和提交时间排列，包含 `id`、`title`、`url`、`status`、`status_label`、`gpu`、`cpu`、`memory_gib`；它只列当天已到启动时间的等待任务，查看其他日期时为空。未来预约见 `entries` 的 `state=reserved`。普通用户查看其他人的任务时，`id`、`url` 为 `null`，标题匿名；管理员可见完整任务信息。
+
+```bash
+python3 scripts/client.py request GET /api/v1/nodes
+python3 scripts/client.py request GET /api/v1/resources --query node=3
+python3 scripts/client.py request GET /api/v1/timeline --query node=3
+python3 scripts/client.py request GET /api/v1/datasets --query node=3 --query q=数据集名称
+```
+
+示例节点 ID 以 `/nodes` 返回的实际值为准。
 
 从已配置的开发容器运行：
 
@@ -59,12 +72,12 @@
 
 - `GET /admin/overview`：管理计数。
 - `POST /nodes`、`PATCH /nodes/{id}`：登记或修改 name、transport、ssh_port、ssh_user、identity、architecture、enabled、maintenance；identity 为主控密钥目录内的私钥文件名。维护模式暂停新任务派发，保留已有任务同步。
-- `GET /admin/containers?q=...&status=...&mode=...`：全体容器，可按名称、所属用户、容器编号和状态筛选；管理员通过 `GET /tasks/{id}/connection` 的 command/config，以目标容器用户名和本人密钥登录。`administrator_access` 返回本人启用公钥的元数据与 ready 状态；可在容器内 sudo。
+- `GET /admin/containers?q=...&status=...&mode=...&node=ID`：全体容器，可按名称、所属用户、容器编号、状态和节点筛选；管理员通过 `GET /tasks/{id}/connection` 的 command/config，以目标容器用户名和本人密钥登录。`administrator_access` 返回本人启用公钥的元数据与 ready 状态；可在容器内 sudo。
 - `POST /tasks/{id}/review`：action 为 approve、reject、stop、extend；priority 为 0 或 100，拒绝带 reason，延期带 ends_at 和 reason。
 - `GET/POST /admin/members`，`GET/PATCH /admin/members/{id}`：账号创建与编辑。group 为用户组数字 ID，home_quota_gib 为个人卷额度。新账号需要 username、password；停用账号使用 is_active=false。
 - `GET/POST /admin/groups`，`GET/PATCH/DELETE /admin/groups/{id}`：用户组。unlimited=true 表示不限组额度，此时清空并省略全部配额字段；改回限额组时须填写完整额度。make_default=true 设置默认组。删除有成员的组时用 JSON `{"destination":目标组ID}` 转移成员。
-- `GET /admin/storage`：存储池和所有使用中的卷。
-- `GET /admin/images`：所有尚未回收的镜像。
+- `GET /admin/storage?node=ID`：节点的存储池和使用中的卷，存储池含 node_id、node_name；省略节点时返回全部。
+- `GET /admin/images?node=ID`：节点内尚未回收的镜像及容量统计；省略节点时返回全部。
 - `GET /admin/audits?action=...`：审计事件。
 - `GET/PATCH /admin/settings`：workspace_retention_days、snapshot_hours、failed_snapshot_hours。地址和端口范围只读。
 
