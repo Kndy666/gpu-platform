@@ -45,6 +45,7 @@ class InstallerSimulationTests(TestCase):
             unit = (installed/'etc/systemd/system/gpu-platform-worker.service').read_text()
             self.assertIn(str(library/'worker-rpc.py'), unit)
             self.assertNotIn(str(source), unit)
+            self.assertIn('RuntimeDirectoryPreserve=yes', unit)
             result = subprocess.run([sys.executable, str(library/'worker-rpc.py'), '--help'],
                                     capture_output=True, text=True, timeout=10, env={**os.environ, 'PYTHONPATH': ''})
             self.assertEqual(result.returncode, 0, result.stderr)

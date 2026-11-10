@@ -46,7 +46,7 @@ def install_node_services(cfg, root):
     unit.write_text('[Unit]\nDescription=GPU platform node connection service\nAfter=network-online.target k3s.service\n'
                     'Wants=network-online.target\n[Service]\nType=simple\nExecStart=' + command + '\n'
                     'Restart=on-failure\nRestartSec=3\nKillMode=control-group\nUMask=0077\n'
-                    'RuntimeDirectory=gpu-platform\nRuntimeDirectoryMode=0755\n'
+                    'RuntimeDirectory=gpu-platform\nRuntimeDirectoryMode=0755\nRuntimeDirectoryPreserve=yes\n'
                     '[Install]\nWantedBy=multi-user.target\n')
     subprocess.run(['systemctl', 'daemon-reload'], check=True)
     subprocess.run(['systemctl', 'enable', '--now', name], check=True)
