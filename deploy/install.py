@@ -255,8 +255,8 @@ def apply(cfg, facts, out):
     run([sys.executable, ROOT/'deploy/resource-view.py', '--config-stdin'], input=yaml.safe_dump(cfg))
     run([sys.executable, ROOT/'deploy/workspace-runtime.py', '--config', out/'resolved-config.yaml'])
     ver = locked_versions()
-    download([f"https://github.com/openebs/rawfile-localpv/releases/download/v{ver['rawfile_localpv']}/rawfile-localpv-{ver['rawfile_localpv']}.tgz"],
-             cache/'rawfile.tgz', ver['rawfile_chart_sha256'])
+    rawfile_url = f"https://github.com/openebs/rawfile-localpv/releases/download/v{ver['rawfile_localpv']}/rawfile-localpv-{ver['rawfile_localpv']}.tgz"
+    download(['https://ghfast.top/' + rawfile_url, rawfile_url], cache/'rawfile.tgz', ver['rawfile_chart_sha256'])
     h(['upgrade', '--install', 'rawfile', cache/'rawfile.tgz', '-n', 'openebs', '-f', out/'rawfile-values.yaml', '--wait', '--timeout', '10m'])
     kueue_chart = cache / f"kueue-{ver['kueue']}.tgz"
     if not kueue_chart.exists():

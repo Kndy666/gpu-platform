@@ -9,14 +9,30 @@ import shutil
 import stat
 import subprocess
 import sys
+import time
 import yaml
 
 SERVICE = '[Service]\nExecStart=\nExecStart=/usr/bin/lxcfs -f --enable-cfs --enable-loadavg --enable-pidfd /var/lib/lxcfs\nRestart=on-failure\n'
 ROOT = Path(__file__).resolve().parents[1]
+RESOURCE_VIEW_ROOT = Path('/var/lib/lxcfs')
+RESOURCE_VIEW_PATHS = ('proc/cpuinfo', 'proc/meminfo', 'proc/stat', 'sys/devices/system/cpu/online')
 
 
 def run(args, **kwargs):
     return subprocess.check_output([str(value) for value in args], text=True, **kwargs)
+
+
+def wait_for_resource_views(timeout=30):
+    # A Type=simple service can be active before its FUSE mount is ready.
+    deadline = time.monotonic() + timeout
+    while True:
+        missing = [path for path in RESOURCE_VIEW_PATHS if not (RESOURCE_VIEW_ROOT / path).is_file()]
+        if not missing:
+            return
+        if time.monotonic() >= deadline:
+            raise RuntimeError('LXCFS resource views not ready after waiting: ' + ', '.join(missing)
+                               + '; check journalctl -u lxcfs')
+        time.sleep(0.25)
 
 
 def require_idle_views(cfg):
@@ -66,9 +82,7 @@ def configure(cfg, claims_only=False, dry_run=False):
         run(['systemctl', 'enable', 'lxcfs'])
         run(['systemctl', 'restart' if changed else 'start', 'lxcfs'])
     run(['systemctl', 'is-active', 'lxcfs'])
-    for path in ['proc/cpuinfo', 'proc/meminfo', 'proc/stat', 'sys/devices/system/cpu/online']:
-        if not (Path('/var/lib/lxcfs') / path).is_file():
-            raise RuntimeError('Resource view missing: ' + path)
+    wait_for_resource_views()
     nodes = json.loads(run(['k3s', 'kubectl', 'get', 'nodes', '-o', 'json']))['items']
     if len(nodes) != 1:
         raise RuntimeError('A single resource-view node is required')

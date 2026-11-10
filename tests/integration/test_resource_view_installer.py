@@ -13,6 +13,34 @@ spec.loader.exec_module(installer)
 
 
 class ResourceViewInstallerTests(TestCase):
+    def test_waits_for_delayed_fuse_mount(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            def mount_views(_):
+                for path in installer.RESOURCE_VIEW_PATHS:
+                    view = root / path
+                    view.parent.mkdir(parents=True, exist_ok=True)
+                    view.touch()
+            with patch.object(installer, 'RESOURCE_VIEW_ROOT', root), \
+                    patch.object(installer.time, 'monotonic', side_effect=[0, 0.1]), \
+                    patch.object(installer.time, 'sleep', side_effect=mount_views) as sleep:
+                installer.wait_for_resource_views()
+            sleep.assert_called_once()
+
+    def test_partial_mount_times_out_with_missing_paths(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'proc').mkdir()
+            (root / 'proc/cpuinfo').touch()
+            with patch.object(installer, 'RESOURCE_VIEW_ROOT', root), \
+                    patch.object(installer.time, 'monotonic', side_effect=[0, 31]):
+                with self.assertRaises(RuntimeError) as error:
+                    installer.wait_for_resource_views()
+            self.assertIn('proc/meminfo', str(error.exception))
+            self.assertIn('proc/stat', str(error.exception))
+            self.assertIn('sys/devices/system/cpu/online', str(error.exception))
+            self.assertNotIn('proc/cpuinfo', str(error.exception))
+
     def test_installed_fix_is_left_running(self):
         with patch.object(installer, 'run', return_value='5.0.0-0ubuntu2+platform2') as run:
             installer.install_lxcfs({'platform': {'workload_namespace': 'gpu-workloads'}})

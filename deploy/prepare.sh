@@ -20,11 +20,10 @@ nerdctl_version="$(awk -F= '$1 == "nerdctl" {print $2}' "${project_root}/deploy/
 if [[ ! -x "${project_root}/.tools/nerdctl" ]]; then
   asset="nerdctl-${nerdctl_version}-linux-${target_arch}.tar.gz"
   release="https://github.com/containerd/nerdctl/releases/download/v${nerdctl_version}"
-  curl -fsSL --connect-timeout 10 --max-time 120 "${release}/SHA256SUMS" -o "${download_dir}/checksums"
-  curl -fsSL --connect-timeout 10 --max-time 180 "https://ghfast.top/${release}/${asset}" -o "${download_dir}/${asset}" || \
-    curl -fsSL --connect-timeout 10 --max-time 180 "${release}/${asset}" -o "${download_dir}/${asset}"
-  expected="$(awk -v name="${asset}" '$2 == name {print $1}' "${download_dir}/checksums")"
-  [[ "${expected}" =~ ^[a-f0-9]{64}$ ]]
+  expected="$(awk -F= -v key="nerdctl_${target_arch}_sha256" '$1 == key {print $2}' "${project_root}/deploy/vendor-versions.lock")"
+  [[ "${expected}" =~ ^[a-f0-9]{64}$ ]] || { echo "Missing locked checksum for ${asset}" >&2; exit 1; }
+  curl -fsSL --retry 2 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 180 "https://ghfast.top/${release}/${asset}" -o "${download_dir}/${asset}" || \
+    curl -fsSL --retry 2 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 180 "${release}/${asset}" -o "${download_dir}/${asset}"
   printf '%s  %s\n' "${expected}" "${asset}" > "${download_dir}/checksum"
   (cd "${download_dir}" && sha256sum -c checksum)
   tar xzf "${download_dir}/${asset}" -C "${download_dir}" nerdctl
