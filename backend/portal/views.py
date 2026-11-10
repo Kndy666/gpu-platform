@@ -33,7 +33,9 @@ def history_page(request, queryset, parameter='page', size=20):
 @login_required
 def dashboard(request):
     tasks = ResourceRequest.objects.filter(user=request.user).select_related('user', 'workspace')[:8]
-    return render(request, 'portal/dashboard.html', {**resource_overview(), 'tasks': tasks})
+    from .queries import node_resource_groups
+    overview = resource_overview()
+    return render(request, 'portal/dashboard.html', {**overview, 'node_groups': node_resource_groups(overview), 'tasks': tasks})
 
 @login_required
 def keys(request):

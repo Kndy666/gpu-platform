@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.db.models import Count, Q, Sum
 from django.utils import timezone
 from .access import images_for
-from .models import AuditLog, ImageArtifact, ResourceRequest, StoragePool, SystemObservation, UserGroup
+from .models import AuditLog, ComputeNode, ImageArtifact, ResourceRequest, StoragePool, SystemObservation, UserGroup
 from .services import ACTIVE, pool_available
 
 
@@ -50,6 +50,27 @@ def tasks_for_counts(node=None):
         running_count=Count('pk', filter=Q(status='running')),
         queued_count=Count('pk', filter=Q(status__in=ACTIVE-{'running'})))
     return counts
+
+
+def node_resource_groups(overview):
+    cutoff = timezone.now() - timedelta(minutes=2)
+    observations = {row.node_id: row for row in SystemObservation.objects.filter(name='resources')}
+    storage = {}
+    for pool in StoragePool.objects.filter(healthy=True, observed_at__gte=cutoff).select_related('node'):
+        storage[pool.node_id] = storage.get(pool.node_id, 0) + pool_available(pool)
+    groups = []
+    for node in ComputeNode.objects.order_by('pk'):
+        observation = observations.get(node.pk)
+        fresh = bool(node.enabled and node.state != 'offline' and observation and observation.observed_at >= cutoff)
+        devices = sorted((gpu for gpu in overview['gpus'] if gpu['node_id'] == node.pk), key=lambda gpu: gpu['index'])
+        models = list(dict.fromkeys(gpu['name'].removeprefix('NVIDIA ').removeprefix('GeForce ') for gpu in devices))
+        state = 'maintenance' if node.maintenance else 'disabled' if not node.enabled else 'online' if fresh else 'offline'
+        groups.append({'id': node.pk, 'name': node.name, 'state': state,
+            'state_label': {'maintenance': '维护中', 'disabled': '已停用', 'online': '在线', 'offline': '等待同步'}[state],
+            'resources': observation.data if fresh else None, 'gpus': devices, 'model': ' / '.join(models),
+            'gpu_available': sum(gpu['available_compute_percent'] for gpu in devices) / 100,
+            'storage_tib': round(storage.get(node.pk, 0) / 1024, 1) if fresh else None})
+    return groups
 
 
 def request_capacity(user,overview=None,node=None):

@@ -216,6 +216,46 @@ class NodeIsolationTests(TestCase):
         ids = {block['id'] for block in result['blocks']}
         self.assertEqual(ids, {str(ResourceRequest.objects.get(node=self.worker).pk)})
 
+    def test_timeline_groups_entries_and_resource_rows_by_node(self):
+        from portal.timeline import allocation_timeline
+        for image, node in ((self.image, self.local), (self.remote_image, self.worker)):
+            req = task(self.alice, image, node=node)
+            approve(req.pk, self.admin)
+            Workspace.objects.filter(pk=req.pk).update(started_at=timezone.now())
+        result = allocation_timeline(self.alice)
+        self.assertEqual([group['id'] for group in result['groups']], [self.local.pk, self.worker.pk])
+        for group in result['groups']:
+            self.assertEqual(len(group['entries']), 1)
+            self.assertTrue(all(row['node_id'] == group['id'] for row in group['rows']))
+            self.assertTrue(all(block['node_id'] == group['id'] for block in group['blocks']))
+        row_ids = [row['id'] for row in result['rows']]
+        self.assertEqual(len(row_ids), len(set(row_ids)))
+
+    def test_grouped_timeline_preserves_other_users_task_privacy(self):
+        from portal.timeline import allocation_timeline
+        req = task(self.bob, self.remote_image, node=self.worker, purpose='private experiment')
+        Workspace.objects.create(request=req, object_name='private', started_at=timezone.now())
+        group = next(group for group in allocation_timeline(self.alice)['groups'] if group['id'] == self.worker.pk)
+        self.assertEqual(len(group['entries']), 1)
+        self.assertIsNone(group['entries'][0]['id'])
+        self.assertIsNone(group['entries'][0]['url'])
+        self.assertEqual(group['entries'][0]['title'], '已分配')
+
+    def test_dashboard_keeps_each_nodes_resource_summary_and_gpu_inventory_together(self):
+        from portal.models import SystemObservation
+        for node, cpu, count in ((self.local, 88, 4), (self.worker, 64, 8)):
+            SystemObservation.objects.create(node=node, name='resources', data={'cpu': {'total': cpu, 'available': cpu, 'used': 0}})
+            SystemObservation.objects.create(node=node, name='gpu_inventory', data={'devices': [
+                {'index': index, 'uuid': node.name + str(index), 'name': 'NVIDIA GeForce RTX 3080', 'memory_mib': 10240}
+                for index in range(count)]})
+        self.client.force_login(self.alice)
+        response = self.client.get('/')
+        groups = response.context['node_groups']
+        self.assertEqual([group['resources']['cpu']['available'] for group in groups], [88, 64])
+        self.assertEqual([len(group['gpus']) for group in groups], [4, 8])
+        self.assertContains(response, 'class="node-card"', count=2)
+        self.assertNotContains(response, 'SM</dd>')
+
     def test_extension_reaches_local_or_remote_execution_node(self):
         from datetime import timedelta
         from portal.services import extend

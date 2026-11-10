@@ -1,3 +1,21 @@
-{% extends 'portal/base.html' %}{% block content %}<div class="page-heading"><div><h1>资源概览</h1><p>{{ running_count }} 个任务运行中 · {{ queued_count }} 个等待启动</p></div><div class="actions"><a class="button secondary" href="{% url 'new_request' %}">新建开发环境</a><a class="button" href="{% url 'new_training' %}"><svg><use href="#i-play"/></svg>提交运行</a></div></div>
-{% if resources %}<div class="metrics"><article class="metric"><span>可用 GPU 算力</span><strong>{{ resources.gpu.available|floatformat:2 }}<em>/ {{ resources.gpu.total|floatformat:0 }}</em></strong><div class="meter"><i style="width:{{ resources.gpu.used_percent }}%"></i></div></article><article class="metric"><span>可用 CPU</span><strong>{{ resources.cpu.available|floatformat:0 }}<em>核</em></strong><div class="meter"><i style="width:{{ resources.cpu.used_percent }}%"></i></div></article><article class="metric"><span>可用内存</span><strong>{{ resources.memory_gib.available|floatformat:0 }}<em>GiB</em></strong><div class="meter"><i style="width:{{ resources.memory_gib.used_percent }}%"></i></div></article><article class="metric"><span>可用存储</span><strong>{{ storage_tib }}<em>TiB</em></strong><div class="disk-bars"><i></i><i></i><i></i></div></article></div>{% endif %}
-<div class="gpu-grid">{% for gpu in gpus %}<article class="panel gpu-card"><div class="section-heading"><h2>{{ gpu.node_name }} · GPU {{ gpu.index }}</h2><strong>{{ gpu.available_compute_percent }}%</strong></div><div class="meter"><i style="width:{{ gpu.used_compute_percent }}%"></i></div><dl><dt>可用显存</dt><dd>{{ gpu.available_memory_gib }} GiB</dd><dt>已分配计算</dt><dd>{{ gpu.used_sm_count }} / {{ gpu.sm_count }} SM</dd></dl></article>{% endfor %}</div>{% include 'portal/timeline.html' %}<div class="section-heading"><h2>最近任务</h2><a href="{% url 'tasks' %}">查看全部 →</a></div>{% include 'portal/task_table.html' %}{% endblock %}
+{% extends 'portal/base.html' %}
+{% block content %}
+<div class="page-heading"><div><h1>资源概览</h1><p>{{ node_groups|length }} 个节点 · {{ gpus|length }} 张 GPU · {{ running_count }} 个任务运行中{% if queued_count %} · {{ queued_count }} 个等待启动{% endif %}</p></div><div class="actions"><a class="button secondary" href="{% url 'new_request' %}">新建开发环境</a><a class="button" href="{% url 'new_training' %}"><svg><use href="#i-play"/></svg>提交运行</a></div></div>
+<div class="node-grid">
+{% for node in node_groups %}
+<section class="node-card" aria-labelledby="node-title-{{ node.id }}">
+  <header class="node-card-heading"><div><h2 id="node-title-{{ node.id }}">{{ node.name }}</h2><p>{{ node.gpus|length }} 张 GPU{% if node.model %} · {{ node.model }}{% endif %}</p></div><span class="node-state {{ node.state }}">{{ node.state_label }}</span></header>
+  <dl class="node-metrics">
+    <div><dt>可用 GPU 算力</dt><dd>{{ node.gpu_available|floatformat:-2 }}<small> / {{ node.gpus|length }}</small></dd></div>
+    <div><dt>可用 CPU</dt><dd>{% if node.resources %}{{ node.resources.cpu.available|floatformat:0 }}<small> 核</small>{% else %}—{% endif %}</dd></div>
+    <div><dt>可用内存</dt><dd>{% if node.resources %}{{ node.resources.memory_gib.available|floatformat:0 }}<small> GiB</small>{% else %}—{% endif %}</dd></div>
+    <div><dt>可用存储</dt><dd>{% if node.storage_tib != None %}{{ node.storage_tib }}<small> TiB</small>{% else %}—{% endif %}</dd></div>
+  </dl>
+  {% if node.gpus %}<details class="node-gpu-details"><summary>GPU 明细</summary><div class="node-gpus">{% for gpu in node.gpus %}<div class="gpu-tile{% if not gpu.ready %} unavailable{% endif %}"><div><span>GPU {{ gpu.index }}</span><strong>{{ gpu.available_compute_percent }}%</strong></div><div class="meter"><i style="width:{{ gpu.used_compute_percent }}%"></i></div><p>{{ gpu.available_memory_gib }} GiB <span>显存可用</span></p></div>{% endfor %}</div></details>{% endif %}
+</section>
+{% empty %}<div class="empty">等待节点资源同步</div>{% endfor %}
+</div>
+{% include 'portal/timeline.html' %}
+<div class="section-heading"><h2>最近任务</h2><a href="{% url 'tasks' %}">查看全部 →</a></div>
+{% include 'portal/task_table.html' %}
+{% endblock %}

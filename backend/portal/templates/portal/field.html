@@ -1,1 +1,1 @@
-<div class="field {% if field.errors %}invalid{% endif %}"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{{ field.errors }}</div>
+{% if field.field.widget.input_type == 'checkbox' %}<div class="field check-field {% if field.errors %}invalid{% endif %}"><label for="{{ field.id_for_label }}">{{ field }}<span>{{ field.label }}</span></label>{{ field.errors }}</div>{% else %}<div class="field {% if field.errors %}invalid{% endif %}"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{{ field.errors }}</div>{% endif %}

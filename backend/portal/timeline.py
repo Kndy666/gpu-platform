@@ -17,15 +17,20 @@ def allocation_timeline(user, day=None, node=None):
     observations = SystemObservation.objects.filter(name='gpu_inventory').select_related('node')
     if node:
         observations = observations.filter(node=node)
-    devices = [{**device, 'node_name': observation.node.name} for observation in observations for device in observation.data.get('devices', [])]
-    nodes = [node] if node else list(ComputeNode.objects.all())
+    devices = [{**device, 'node_id': observation.node_id} for observation in observations for device in observation.data.get('devices', [])]
+    nodes = [node] if node else list(ComputeNode.objects.order_by('pk'))
     multiple = len(nodes) > 1
-    rows = [{'id': d['uuid'], 'name': (d['node_name']+' · ' if multiple else '')+'GPU '+str(d['index']), 'detail': d['name']} for d in devices]
-    rows += [{'id': 'gpu', 'name': 'GPU', 'detail': '设备信息同步中'}] if not devices else []
-    for node in nodes:
-        rows += [{'id': 'cpu-'+str(node.pk) if multiple else 'cpu', 'name': node.name+' CPU' if multiple else 'CPU', 'detail': '核'},
-                 {'id': 'memory-'+str(node.pk) if multiple else 'memory', 'name': node.name+' 内存' if multiple else '内存', 'detail': 'GiB'}]
-    blocks = []
+    def row_id(kind, node_id):
+        return kind + '-' + str(node_id) if multiple else kind
+    rows = []
+    for item in nodes:
+        inventory = sorted((device for device in devices if device['node_id'] == item.pk), key=lambda device: device['index'])
+        rows.extend({'id': device['uuid'], 'node_id': item.pk, 'name': 'GPU ' + str(device['index']), 'detail': ''} for device in inventory)
+        if not inventory:
+            rows.append({'id': row_id('gpu', item.pk), 'node_id': item.pk, 'name': 'GPU', 'detail': '设备同步中'})
+        rows.extend({'id': row_id(kind, item.pk), 'node_id': item.pk, 'name': name, 'detail': detail}
+                    for kind, name, detail in [('cpu', 'CPU', '核'), ('memory', '内存', 'GiB'), ('reservations', '预约', '等待启动')])
+    blocks, entries = [], []
     reservations = Q(workspace__started_at__isnull=True, mode='interactive', status__in=['approved', 'scheduled', 'queued', 'starting'])
     requests = ResourceRequest.objects.select_related('workspace', 'user').exclude(status='rejected').filter(
         Q(workspace__started_at__isnull=False) | reservations
@@ -45,24 +50,30 @@ def allocation_timeline(user, day=None, node=None):
         right = ws.ended_at or req.ends_at or min(now, end)
         if left >= end or right <= start: continue
         mine = user.is_staff or req.user_id == user.pk
-        base = {'id': str(req.pk) if mine else None, 'title': req.purpose if mine else '已分配', 'owner': req.user.username if user.is_staff else '',
+        base = {'node_id': req.node_id, 'id': str(req.pk) if mine else None, 'title': req.purpose if mine else '已分配', 'owner': req.user.username if user.is_staff else '',
                 'url': '/tasks/'+str(req.pk)+'/' if mine else None,
                 'left': max(0, (max(left, start)-start).total_seconds()/864), 'width': max(.3, (min(right, end)-max(left, start)).total_seconds()/864),
                 'start': timezone.localtime(left).isoformat(), 'end': timezone.localtime(right).isoformat() if ws.ended_at or req.ends_at else None,
                 'state': 'reserved' if booked else ('running' if not ws.ended_at else 'finished'), 'open': not ws.ended_at and req.mode == 'batch',
                 'gpu': req.gpu, 'gpu_requests':req.gpu_requests,'gpu_compute_total':req.gpu_compute_total,
                 'gpu_memory_total_gib':req.gpu_memory_total_gib,'cpu': req.cpu, 'memory': req.memory_gib}
+        entries.append(dict(base, amount=f'{req.gpu} GPU · {req.cpu} 核'))
         if booked:
-            blocks.append(dict(base, row='reservations', amount=f'{req.gpu} GPU · {req.cpu} 核 · {req.memory_gib} GiB'))
+            blocks.append(dict(base, row=row_id('reservations', req.node_id), amount=f'{req.gpu} GPU · {req.cpu} 核 · {req.memory_gib} GiB'))
         else:
             for allocation in ws.gpu_allocations:
                 slot=allocation['slot'];spec=req.gpu_requests[slot]
                 blocks.append(dict(base,row=allocation['uuid'],gpu_slot=slot,compute_percent=spec['compute_percent'],
                     memory_gib=spec['memory_gib'],amount=f"{spec['compute_percent']}% · {spec['memory_gib']} GiB"))
             if req.gpu and not ws.gpu_devices:
-                if not any(r['id'] == 'gpu' for r in rows): rows.insert(len(devices), {'id': 'gpu', 'name': 'GPU', 'detail': '设备同步中'})
-                blocks.append(dict(base, row='gpu', amount=str(req.gpu)+' 张'))
-            blocks.append(dict(base, row='cpu-'+str(req.node_id) if multiple else 'cpu', amount=str(req.cpu)+' 核'))
-            blocks.append(dict(base, row='memory-'+str(req.node_id) if multiple else 'memory', amount=str(req.memory_gib)+' GiB'))
-    rows.append({'id': 'reservations', 'name': '预约', 'detail': '等待启动'})
-    return {'date': date.isoformat(), 'rows': rows, 'blocks': blocks, 'now': (now-start).total_seconds()/864 if start <= now < end else None}
+                fallback = row_id('gpu', req.node_id)
+                if not any(row['id'] == fallback for row in rows):
+                    rows.append({'id': fallback, 'node_id': req.node_id, 'name': 'GPU', 'detail': '设备同步中'})
+                blocks.append(dict(base, row=fallback, amount=str(req.gpu)+' 张'))
+            blocks.append(dict(base, row=row_id('cpu', req.node_id), amount=str(req.cpu)+' 核'))
+            blocks.append(dict(base, row=row_id('memory', req.node_id), amount=str(req.memory_gib)+' GiB'))
+    groups = [{'id': item.pk, 'name': item.name, 'gpu_count': sum(device['node_id'] == item.pk for device in devices),
+               'rows': [row for row in rows if row['node_id'] == item.pk],
+               'blocks': [block for block in blocks if block['node_id'] == item.pk],
+               'entries': [entry for entry in entries if entry['node_id'] == item.pk]} for item in nodes]
+    return {'date': date.isoformat(), 'rows': rows, 'blocks': blocks, 'groups': groups, 'now': (now-start).total_seconds()/864 if start <= now < end else None}

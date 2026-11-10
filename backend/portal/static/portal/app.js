@@ -213,35 +213,67 @@
   const node = (tag, className, text) => { const el = document.createElement(tag); if (className) el.className = className; if (text !== undefined) el.textContent = text; return el; };
   const formatTime = iso => iso ? new Intl.DateTimeFormat('zh-CN', {timeZone: 'Asia/Shanghai', hour: '2-digit', minute: '2-digit'}).format(new Date(iso)) : '结束待定';
   let controller;
+  const expandedNodes = new Set();
+  function allocationRow(label, blocks, data, compact = false, toggle = null) {
+    const element = node('div', 'allocation-row' + (toggle ? ' node-timeline-summary' : ''));
+    const title = toggle || node('div', 'allocation-label', label.name);
+    if (!toggle && label.detail) title.append(node('small', '', label.detail));
+    element.append(title);
+    const track = node('div', 'allocation-track'); element.append(track);
+    const lanes = [];
+    for (const block of [...blocks].sort((a, b) => a.left - b.left)) {
+      let lane = lanes.findIndex(end => end <= block.left); if (lane < 0) lane = lanes.length;
+      lanes[lane] = block.left + block.width;
+      const bar = node(block.url ? 'a' : 'div', 'allocation-block ' + block.state + (block.open ? ' open' : ''));
+      if (block.url) bar.href = block.url;
+      bar.style.left = block.left + '%'; bar.style.width = block.width + '%'; bar.style.top = (8 + lane * 34) + 'px';
+      bar.append(node('span', '', block.title));
+      if (compact && block.amount) bar.append(node('b', '', block.amount));
+      const gpuDetails = (block.gpu_requests || []).map((spec, index) => `第 ${index + 1} 张 ${spec.compute_percent}% · ${spec.memory_gib} GiB`).join(' / ');
+      const detail = `${block.title}${block.owner ? ' · ' + block.owner : ''}\n${formatTime(block.start)} → ${formatTime(block.end)}\n${gpuDetails || '0 GPU'} · ${block.cpu} 核 · ${block.memory} GiB`;
+      bar.setAttribute('aria-label', detail.replaceAll('\n', ' '));
+      if (block.open && data.now !== null) {
+        const tail = node('div', 'allocation-tail'); tail.style.left = (block.left + block.width) + '%';
+        tail.style.width = Math.max(0, 100 - block.left - block.width) + '%'; tail.style.top = (22 + lane * 34) + 'px'; track.append(tail);
+      }
+      const showTooltip = (x, y) => {
+        tooltip.textContent = detail; tooltip.hidden = false;
+        tooltip.style.left = Math.max(8, Math.min(x + 14, innerWidth - 310)) + 'px';
+        tooltip.style.top = Math.max(8, Math.min(y + 14, innerHeight - 120)) + 'px';
+      };
+      bar.addEventListener('pointermove', event => showTooltip(event.clientX, event.clientY));
+      bar.addEventListener('pointerleave', () => tooltip.hidden = true);
+      bar.addEventListener('focus', () => { const rect = bar.getBoundingClientRect(); showTooltip(rect.left, rect.bottom); });
+      bar.addEventListener('blur', () => tooltip.hidden = true); track.append(bar);
+    }
+    if (toggle && !blocks.length) track.append(node('span', 'allocation-empty', '空闲'));
+    track.style.minHeight = Math.max(compact ? 43 : 58, lanes.length * 34 + 16) + 'px';
+    if (data.now !== null) { const line = node('div', 'now-line'); line.style.left = data.now + '%'; track.append(line); }
+    return element;
+  }
   async function load() {
     controller?.abort(); controller = new AbortController();
     try {
       const response = await fetch(panel.dataset.timeline + '?date=' + dateInput.value, {signal: controller.signal}); if (!response.ok) return;
       const data = await response.json();
-      $('.allocation-axis>div', panel).replaceChildren(...[0,4,8,12,16,20,24].map(hour => node('span', '', String(hour).padStart(2,'0') + ':00')));
-      const container = $('[data-timeline-rows]', panel); container.replaceChildren();
-      for (const row of data.rows) {
-        const element = node('div','allocation-row'), label = node('div','allocation-label',row.name);
-        label.append(node('small','',row.detail)); element.append(label);
-        const track = node('div','allocation-track'); element.append(track);
-        const lanes = [];
-        for (const block of data.blocks.filter(b => b.row === row.id).sort((a,b) => a.left-b.left)) {
-          let lane = lanes.findIndex(end => end <= block.left); if (lane < 0) lane = lanes.length;
-          lanes[lane] = block.left + block.width;
-          const bar = node(block.url ? 'a':'div','allocation-block ' + block.state + (block.open?' open':''));
-          if (block.url) bar.href = block.url;
-          bar.style.left = block.left+'%'; bar.style.width = block.width+'%'; bar.style.top = (10+lane*35)+'px';
-          bar.append(node('span','',block.title)); if (block.amount) bar.append(node('b','',block.amount));
-          const gpuDetails=(block.gpu_requests || []).map((spec,index)=>`第 ${index+1} 张 ${spec.compute_percent}% · ${spec.memory_gib} GiB`).join(' / ');
-          const detail = `${block.title}${block.owner ? ' · '+block.owner : ''}\n${formatTime(block.start)} → ${formatTime(block.end)}\n${gpuDetails || '0 GPU'} · ${block.cpu} 核 · ${block.memory} GiB`;
-          bar.setAttribute('aria-label',detail.replaceAll('\n',' '));
-          if(block.open && data.now!==null){const tail=node('div','allocation-tail');tail.style.left=(block.left+block.width)+'%';tail.style.width=Math.max(0,100-block.left-block.width)+'%';tail.style.top=(24+lane*35)+'px';track.append(tail);}
-          bar.addEventListener('pointermove', event => { tooltip.textContent = detail; tooltip.hidden = false; tooltip.style.left = Math.min(event.clientX+14, innerWidth-290)+'px'; tooltip.style.top = Math.max(8,Math.min(event.clientY+14,innerHeight-120))+'px'; });
-          bar.addEventListener('pointerleave', () => tooltip.hidden = true); track.append(bar);
+      const container = $('[data-timeline-rows]', panel); container.replaceChildren(); tooltip.hidden = true;
+      for (const group of data.groups) {
+        const section = node('div', 'timeline-node'); section.dataset.node = group.id;
+        const toggle = node('button', 'allocation-label timeline-toggle', group.name); toggle.type = 'button';
+        const details = node('div', 'timeline-details'); details.id = 'timeline-node-' + group.id;
+        details.hidden = !expandedNodes.has(group.id);
+        toggle.setAttribute('aria-expanded', String(!details.hidden)); toggle.setAttribute('aria-controls', details.id);
+        toggle.addEventListener('click', () => {
+          details.hidden = !details.hidden; toggle.setAttribute('aria-expanded', String(!details.hidden));
+          if (details.hidden) expandedNodes.delete(group.id); else expandedNodes.add(group.id);
+        });
+        section.append(allocationRow(group, group.entries, data, false, toggle));
+        for (const row of group.rows) {
+          const blocks = group.blocks.filter(block => block.row === row.id);
+          if (row.id.startsWith('reservations') && !blocks.length) continue;
+          details.append(allocationRow(row, blocks, data, true));
         }
-        track.style.minHeight = Math.max(57,lanes.length*35+20)+'px';
-        if (data.now !== null) {const line=node('div','now-line');line.style.left=data.now+'%';track.append(line);}
-        container.append(element);
+        section.append(details); container.append(section);
       }
     } catch (error) { if (error.name !== 'AbortError') console.debug('Timeline refresh delayed'); }
   }
@@ -252,3 +284,5 @@
 })();
 
 document.querySelectorAll('[data-node-select=request]').forEach(select => select.addEventListener('change', () => { const url = new URL(location.href); url.searchParams.set('node', select.value); url.searchParams.delete('image'); url.searchParams.delete('source'); location.assign(url); }));
+
+document.querySelectorAll('[data-dataset-node]').forEach(select => select.addEventListener('change', () => { select.form.elements.path.value = ''; select.form.requestSubmit(); }));
