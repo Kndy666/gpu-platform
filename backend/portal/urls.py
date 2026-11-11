@@ -7,6 +7,8 @@ urlpatterns = [path('', views.dashboard, name='dashboard'), path('keys/', views.
     path('api/tokens/<uuid:pk>/delete/', views.delete_api_token, name='delete_api_token'),
     path('management/containers/', manage.containers, name='manage_containers'),
     path('management/nodes/', manage.nodes, name='manage_nodes'),
+    path('management/performance/', manage.performance, name='manage_performance'),
+    path('management/performance/data/', manage.performance_data, name='manage_performance_data'),
     path('management/nodes/<int:pk>/', manage.nodes, name='manage_node'),
     path('management/members/', manage.members, name='manage_members'),
     path('management/members/new/', manage.member_edit, name='manage_member_new'),

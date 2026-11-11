@@ -683,6 +683,14 @@ def node(request, pk):
 
 
 @endpoint('GET', staff=True)
+def performance(request):
+    from .nodes import selected_node
+    from .performance import performance_nodes
+    node = selected_node(request.GET['node']) if request.GET.get('node') else None
+    return success({'nodes': performance_nodes(node), 'refresh_seconds': 5})
+
+
+@endpoint('GET', staff=True)
 def overview(request):
     return success({'pending': ResourceRequest.objects.filter(status='submitted').count(),
         'active': ResourceRequest.objects.filter(status__in=ACTIVE).count(), 'members': get_user_model().objects.count(),

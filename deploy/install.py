@@ -210,6 +210,8 @@ def install_node_agent(cfg):
     run(['systemctl', 'daemon-reload'])
     run(['systemctl', 'enable', '--now', 'gpu-platform-node.service'])
     run(['systemctl', 'restart', 'gpu-platform-node.service'])
+    from metrics_service import install_metrics
+    install_metrics(ROOT, agent_config)
 
 def apply(cfg, facts, out):
     if os.geteuid() != 0: raise RuntimeError('Installation requires sudo')

@@ -17,6 +17,7 @@ ACTION_LABELS = {
     'base_image_updated': '更新基础镜像', 'user_test_cleanup': '清理测试环境',
     'ssh_access_updated':'更新容器 SSH 权限',
     'workspace_copied':'调整工作卷容量',
+    'task_deleted': '删除任务记录',
 }
 
 
@@ -25,6 +26,7 @@ DETAIL_LABELS = {
     'remaining_accounts': '当前账号数', 'remaining_requests': '当前任务数', 'production_shared_images': '共享镜像数',
     'removed_test_image_tags': '已移除测试镜像版本', 'images_removed': '已移除镜像', 'pvc_names': '数据卷',
     'name': '名称', 'username': '用户名', 'role': '用户组', 'group': '用户组',
+    'purpose': '任务名称', 'node': '节点', 'work_volume_id': '工作卷',
     'enabled': '启用账号', 'administrator': '管理员', 'reason': '原因', 'message': '说明',
     'status': '状态', 'exit_code': '退出码', 'error': '错误', 'priority': '优先级',
     'size_gib': '容量 GiB', 'size_bytes': '大小（字节）', 'reference': '镜像地址', 'digest': '内容指纹',

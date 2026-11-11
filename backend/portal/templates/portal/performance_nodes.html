@@ -1,0 +1,24 @@
+<div class="performance-grid">
+{% for node in nodes %}
+<section class="panel performance-card{% if not node.fresh %} performance-stale{% endif %}">
+  <header class="performance-heading"><div><h2>{{ node.name }}</h2><p>{{ node.architecture|upper }}{% if node.sampled_at %} · 采样 {{ node.sampled_at|date:'H:i:s' }}{% endif %}</p></div><span class="badge {% if node.fresh %}running{% else %}scheduled{% endif %}">{{ node.status_label }}</span></header>
+  {% if node.metrics %}{% with metrics=node.metrics %}
+  <div class="performance-summary">
+    <div class="performance-metric"><span>CPU 使用率</span><strong>{{ metrics.cpu.percent|floatformat:1|default:'—' }}<small>%</small></strong><div class="performance-bar"><i style="width:{{ metrics.cpu.percent|default_if_none:0 }}%"></i></div><p>{{ metrics.cpu.cores }} 核 · 负载 {{ metrics.cpu.load.0 }} / {{ metrics.cpu.load.1 }} / {{ metrics.cpu.load.2 }}</p><p class="performance-temperature">CPU 温度 {% if metrics.cpu.temperature_c != None %}<b>{{ metrics.cpu.temperature_c|floatformat:1 }} °C</b>{% else %}暂不可用{% endif %}</p></div>
+    <div class="performance-metric"><span>内存使用率</span><strong>{{ metrics.memory.percent|floatformat:1 }}<small>%</small></strong><div class="performance-bar memory"><i style="width:{{ metrics.memory.percent }}%"></i></div><p>{{ metrics.memory.used_gib|floatformat:1 }} / {{ metrics.memory.total_gib|floatformat:1 }} GiB</p></div>
+  </div>
+  {% if metrics.gpus %}<div class="performance-gpus">
+    {% for gpu in metrics.gpus %}<div class="performance-gpu">
+      <div class="performance-gpu-heading"><strong>GPU {{ gpu.index }}</strong><span>{{ gpu.name|cut:'NVIDIA GeForce '|cut:'NVIDIA ' }}</span><b>{{ gpu.utilization_percent|floatformat:0|default:'—' }}%</b></div>
+      <div class="performance-bar"><i style="width:{{ gpu.utilization_percent|default_if_none:0 }}%"></i></div>
+      <div class="performance-gpu-details"><span>显存 {{ gpu.memory_used_mib|floatformat:0|default:'—' }} / {{ gpu.memory_total_mib|floatformat:0|default:'—' }} MiB</span><span>{{ gpu.temperature_c|floatformat:0|default:'—' }} °C</span><span>{{ gpu.power_w|floatformat:0|default:'—' }} W</span></div>
+      <div class="performance-bar memory"><i style="width:{{ gpu.memory_percent|default_if_none:0 }}%"></i></div>
+    </div>{% endfor %}
+  </div>{% endif %}
+  {% if metrics.disks %}<div class="performance-disks">{% for disk in metrics.disks %}<div><div><span>{{ disk.name }}</span><span>{{ disk.used_gib|floatformat:0 }} / {{ disk.total_gib|floatformat:0 }} GiB · {{ disk.percent }}%</span></div><div class="performance-bar disk"><i style="width:{{ disk.percent }}%"></i></div></div>{% endfor %}</div>{% endif %}
+  {% if metrics.network %}<div class="performance-network">{% for interface in metrics.network %}<div><span>{{ interface.name }}</span><span>↓ {{ interface.rx_mib_s|floatformat:2|default:'—' }} <span class="muted">MiB/s</span>　↑ {{ interface.tx_mib_s|floatformat:2|default:'—' }} <span class="muted">MiB/s</span></span></div>{% endfor %}</div>{% endif %}
+  {% for error in metrics.errors %}<p class="performance-error">{{ error }}</p>{% endfor %}
+  {% endwith %}{% else %}<p class="performance-empty">等待节点上传性能数据</p>{% endif %}
+</section>
+{% endfor %}
+</div>

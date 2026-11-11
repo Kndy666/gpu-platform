@@ -1,6 +1,52 @@
 (() => {
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+  const performancePanel = $('[data-performance-url]');
+  if (performancePanel) {
+    const input = $('[data-performance-interval]'), status = $('[data-performance-status]');
+    const manual = $('[data-performance-refresh]'), pause = $('[data-performance-pause]');
+    let seconds = 5, timer = null, busy = false, paused = false;
+    try {
+      const saved = Number(localStorage.getItem('performance-refresh-seconds'));
+      if (Number.isInteger(saved) && saved >= 1 && saved <= 3600) seconds = saved;
+    } catch (_) {}
+    input.value = String(seconds);
+    const schedule = () => {
+      clearTimeout(timer);
+      if (!paused && !document.hidden) timer = setTimeout(refresh, seconds * 1000);
+    };
+    const refresh = async () => {
+      if (busy || document.hidden) return;
+      clearTimeout(timer); busy = true; manual.disabled = true;
+      const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 10000);
+      try {
+        const response = await fetch(performancePanel.dataset.performanceUrl, {credentials:'same-origin', cache:'no-store', signal:controller.signal});
+        if (!response.ok || response.redirected || !response.headers.get('content-type')?.includes('application/json')) throw new Error('refresh');
+        const data = await response.json();
+        performancePanel.innerHTML = data.html;
+        status.textContent = paused ? '已暂停' : '自动刷新中';
+        performancePanel.classList.remove('performance-disconnected');
+      } catch (_) {
+        status.textContent = '刷新失败，请重试';
+        performancePanel.classList.add('performance-disconnected');
+      } finally {
+        clearTimeout(timeout); busy = false; manual.disabled = false; schedule();
+      }
+    };
+    input.addEventListener('change', () => {
+      if (!input.checkValidity() || !input.value) {input.reportValidity(); return;}
+      seconds = input.valueAsNumber;
+      try {localStorage.setItem('performance-refresh-seconds', String(seconds));} catch (_) {}
+      schedule();
+    });
+    pause.addEventListener('click', () => {
+      paused = !paused; pause.textContent = paused ? '继续' : '暂停';
+      pause.setAttribute('aria-pressed', String(paused)); status.textContent = paused ? '已暂停' : '自动刷新中'; schedule();
+    });
+    manual.addEventListener('click', refresh);
+    document.addEventListener('visibilitychange', schedule);
+    schedule();
+  }
   $$('[data-stop-form]').forEach(form => form.addEventListener('submit', () => {
     const button = $('button[type=submit]', form), pending = button.dataset.pendingLabel;
     button.disabled = true; button.title = pending; button.setAttribute('aria-label', pending);

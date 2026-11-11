@@ -77,6 +77,8 @@ class Reconciler:
     def observe(self):
         from .resources import resource_summary
         nodes = self.kube.list('nodes')
+        from .performance import record_performance
+        record_performance(nodes)
         import json
         inventory = []
         for node in nodes:

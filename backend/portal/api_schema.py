@@ -132,6 +132,24 @@ SCHEMAS = {
         'connection':{'allOf':[{'$ref':'#/components/schemas/SSHConnection'}],'nullable':True},
         'administrator_access':{'$ref':'#/components/schemas/AdministratorSSHAccess'}})},['data']),
     'GroupDelete': obj({'destination': I}),
+    'PerformanceMetrics': {'type': 'object', 'properties': {
+        'version': {'type': 'integer', 'enum': [1]}, 'sampled_at': DATE, 'interval_seconds': I,
+        'cpu': obj({'percent': {'type': 'number', 'minimum': 0, 'maximum': 100, 'nullable': True}, 'cores': I,
+            'load': {'type': 'array', 'items': {'type': 'number'}}, 'temperature_c': {'type': 'number', 'nullable': True},
+            'temperature_sensors': {'type': 'array', 'items': obj({'name': S, 'temperature_c': {'type': 'number'}})}}),
+        'memory': obj({key: {'type': 'number', 'minimum': 0} for key in ['total_gib', 'used_gib', 'available_gib', 'percent']}),
+        'gpus': {'type': 'array', 'items': obj({'index': {'type': 'integer', 'minimum': 0}, 'uuid': S, 'name': S,
+            **{key: {'type': 'number', 'minimum': 0, 'nullable': True} for key in ['utilization_percent', 'memory_used_mib',
+                'memory_total_mib', 'memory_percent', 'temperature_c', 'power_w', 'power_limit_w', 'fan_percent']}})},
+        'disks': {'type': 'array', 'items': obj({'name': S, **{key: {'type': 'number', 'minimum': 0}
+            for key in ['total_gib', 'used_gib', 'available_gib', 'percent']}})},
+        'network': {'type': 'array', 'items': obj({'name': S, 'rx_mib_s': {'type': 'number', 'minimum': 0, 'nullable': True},
+            'tx_mib_s': {'type': 'number', 'minimum': 0, 'nullable': True}})},
+        'errors': {'type': 'array', 'items': S}}, 'additionalProperties': False},
+    'PerformanceResponse': obj({'data': obj({'refresh_seconds': I, 'nodes': {'type': 'array', 'items': obj({
+        'id': I, 'name': S, 'architecture': S, 'state': S, 'fresh': B, 'status_label': S,
+        'sampled_at': {**DATE, 'nullable': True},
+        'metrics': {'allOf': [{'$ref': '#/components/schemas/PerformanceMetrics'}], 'nullable': True}})}})}, ['data']),
     'Response': {'type': 'object', 'required': ['data'], 'properties': {'data': {}}},
     'Error': {'type': 'object', 'required': ['error'], 'properties': {'error': obj({'code': S, 'message': S, 'fields': {'type': 'object'}}, ['code', 'message'])}},
 }
@@ -163,12 +181,12 @@ def openapi(request):
             queries = {'tasks': ['mode', 'status', 'purpose', 'scope'], 'images': ['available', 'kind'], 'timeline': ['date'],
                        'logs': ['tail'], 'datasets': ['path', 'q'], 'download': ['path'], 'members': ['q'], 'audits': ['action'],
                        'containers':['q','status','mode']}
-            if view.__name__ in {'resources', 'gpus', 'timeline', 'tasks', 'images', 'builds', 'snapshots', 'volumes', 'datasets', 'download', 'containers', 'storage', 'managed_images'}:
+            if view.__name__ in {'resources', 'gpus', 'timeline', 'tasks', 'images', 'builds', 'snapshots', 'volumes', 'datasets', 'download', 'containers', 'storage', 'managed_images', 'performance'}:
                 queries.setdefault(view.__name__, []).append('node')
             if method == 'GET':
                 op['parameters'] += [{'name': name, 'in': 'query', 'schema': I if name == 'node' else S} for name in queries.get(view.__name__, [])]
                 response_schema={'resources':'ResourcesResponse','gpus':'GPUInventoryResponse','task':'TaskResponse','connection':'ConnectionResponse',
-                                 'nodes':'NodeListResponse','node':'NodeResponse','timeline':'TimelineResponse'}.get(view.__name__)
+                                 'nodes':'NodeListResponse','node':'NodeResponse','timeline':'TimelineResponse','performance':'PerformanceResponse'}.get(view.__name__)
                 if response_schema:
                     op['responses']['200']['content']['application/json']['schema']={'$ref':'#/components/schemas/'+response_schema}
             if view.api_idempotent and method in {'POST', 'PATCH', 'DELETE'} and method not in view.api_public:

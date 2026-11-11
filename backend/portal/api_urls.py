@@ -39,6 +39,7 @@ ROUTES = [
     ('datasets', api.datasets, 'Browse public data', None),
     ('datasets/download', api.download, 'Download a public data file', None),
     ('admin/overview', api.overview, 'Management counts', None),
+    ('admin/performance', api.performance, 'Live CPU, memory, GPU, disk and network metrics by node', None),
     ('admin/members', api.members, 'List or create accounts', 'MemberRequest'),
     ('admin/members/<int:pk>', api.member, 'Read or edit an account', 'MemberRequest'),
     ('admin/groups', api.groups, 'List or create user groups', 'GroupRequest'),

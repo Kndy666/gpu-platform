@@ -39,4 +39,6 @@ GPU 申请使用 `gpu_requests` 数组，每个元素填写 `compute_percent`（
 
 获授权的管理员可用 `GET /admin/containers` 查询全体容器，再通过 `GET /tasks/{id}/connection` 获取接入配置。管理员使用本人账号下启用公钥对应的私钥，以响应中的容器用户名登录，进入后可 sudo；`administrator_access.ready` 表示已有启用公钥。公钥启停、账号启停和角色变化会同步至运行容器，挂载传播有延迟，已有 SSH 会话保持。
 
+管理员通过 `GET /admin/performance?node=ID` 查看各节点实际 CPU 使用率和温度、内存、GPU 利用率、显存、温度与功耗、磁盘及网络速率。省略 node 返回全部节点。先检查 fresh 和 sampled_at；采样过期时报告最后采样时间。温度或其他指标为 null 表示硬件未提供该读数。
+
 停止、回收镜像、删卷或调整成员与用户组时，按当前用户明确指定的对象与范围操作。卷删除由平台检查实际占用；镜像回收有保留期限。完整错误含 HTTP 状态和字段说明，按错误修正请求；权限不足时报告给用户。

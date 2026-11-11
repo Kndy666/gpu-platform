@@ -140,3 +140,15 @@ sudo k3s kubectl -n gpu-platform exec deploy/platform -- python manage.py bootst
 ```
 
 在主控执行，从“管理 → 节点”取得节点 ID。首次接入从机时自动创建基础镜像构建；失败后查看构建日志，再执行上述命令重试。
+## 节点性能
+
+管理 → 性能按节点显示实际负载，刷新间隔可手动输入，默认 5 秒。独立的 `gpu-platform-metrics.service` 每 5 秒读取 `/proc`、CPU 温度传感器和 NVIDIA `nvidia-smi` 查询结果，写入本机 Kubernetes 节点的 `platform.performance` 注解，再通过现有 SSH 同步链路汇总到主控。该服务只执行指标查询与节点注解更新。
+
+已有部署单独启用采集服务时，在每台节点的项目目录执行以下命令；配置路径使用该节点已有的 `/etc/rancher/k3s/platform-node-agent.yaml`：
+
+```bash
+sudo python3 -c 'import sys; from pathlib import Path; sys.path.insert(0, "deploy"); from metrics_service import install_metrics; install_metrics(Path.cwd(), Path("/etc/rancher/k3s/platform-node-agent.yaml"))'
+sudo systemctl status gpu-platform-metrics.service
+```
+
+CPU 温度缺失时检查 `/sys/class/hwmon` 和 `/sys/class/thermal` 是否提供 CPU 传感器；页面保留“暂不可用”状态。采样超过 30 秒会标记过期。

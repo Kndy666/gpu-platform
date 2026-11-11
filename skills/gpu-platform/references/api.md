@@ -71,6 +71,7 @@ python3 scripts/client.py request GET /api/v1/datasets --query node=3 --query q=
 `/me.permissions` 表示当前管理权限。不限额组只改变配额。管理员可管理他人任务、镜像和数据卷；公钥、令牌、构建记录和保存记录保持本人可见。
 
 - `GET /admin/overview`：管理计数。
+- `GET /admin/performance?node=ID`：各节点实际性能。nodes[] 含 fresh、sampled_at、metrics；metrics 含 cpu（使用率、负载、temperature_c 及温度传感器）、memory、gpus（利用率、显存、温度、功耗）、disks、network（rx_mib_s/tx_mib_s）。缺失的 CPU 温度为 null；fresh=false 表示采样超过 30 秒、节点离线或停用。省略 node 时返回全部节点。
 - `POST /nodes`、`PATCH /nodes/{id}`：登记或修改 name、transport、ssh_port、ssh_user、identity、architecture、enabled、maintenance；identity 为主控密钥目录内的私钥文件名。维护模式暂停新任务派发，保留已有任务同步。
 - `GET /admin/containers?q=...&status=...&mode=...&node=ID`：全体容器，可按名称、所属用户、容器编号、状态和节点筛选；管理员通过 `GET /tasks/{id}/connection` 的 command/config，以目标容器用户名和本人密钥登录。`administrator_access` 返回本人启用公钥的元数据与 ready 状态；可在容器内 sudo。
 - `POST /tasks/{id}/review`：action 为 approve、reject、stop、extend；priority 为 0 或 100，拒绝带 reason，延期带 ends_at 和 reason。

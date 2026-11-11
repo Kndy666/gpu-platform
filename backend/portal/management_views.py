@@ -5,6 +5,9 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404, redirect, render
+from django.http import JsonResponse
+from django.template.loader import render_to_string
+from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_POST
 
 from .configuration import config
@@ -20,6 +23,23 @@ from .queries import container_list
 from .ssh_access import administrator_access
 
 staff_required = user_passes_test(lambda user: user.is_active and user.is_staff)
+
+
+@staff_required
+@require_GET
+def performance(request):
+    from .performance import performance_nodes
+    return render(request, 'portal/manage_performance.html', {'section': 'performance', 'section_title': '节点性能',
+        'nodes': performance_nodes()})
+
+
+@staff_required
+@require_GET
+def performance_data(request):
+    from .performance import performance_nodes
+    response = JsonResponse({'html': render_to_string('portal/performance_nodes.html', {'nodes': performance_nodes()}, request)})
+    response['Cache-Control'] = 'no-store'
+    return response
 
 
 @staff_required

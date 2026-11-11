@@ -38,6 +38,7 @@ API 根路径为 `/api/v1`，网页地址由 `config.yaml` 的 `platform.https_o
 | 数据卷 | `GET /volumes`，`GET/DELETE /volumes/{id}`；删除使用管理员权限 |
 | 公用目录 | `GET /datasets`，`GET /datasets/download` |
 | 管理概览与容器 | `GET /admin/overview`，`GET /admin/containers` |
+| 节点实时性能 | `GET /admin/performance?node=ID`；管理员可读 CPU 使用率、温度、内存、逐卡 GPU、磁盘和网络速率 |
 | 成员 | `GET/POST /admin/members`，`GET/PATCH /admin/members/{id}` |
 | 用户组 | `GET/POST /admin/groups`，`GET/PATCH/DELETE /admin/groups/{id}` |
 | 存储、镜像、审计 | `GET /admin/storage`，`GET /admin/images`，`GET /admin/audits` |
@@ -84,6 +85,8 @@ API 根路径为 `/api/v1`，网页地址由 `config.yaml` 的 `platform.https_o
 不限额用户组返回 `unlimited: true`，配额字段省略；关闭不限额时填写完整额度。余量观测过期时 `fresh: false`，CPU、内存为 `null`，逐卡可用量归零。工作卷可用额度为 `null` 表示不限额。
 
 ## 管理员 SSH
+
+管理页面的“性能”按节点展示实时硬件数据。`GET /admin/performance` 返回 `nodes[]`，省略 `node` 时包含全部节点。每项包含 `fresh`、`sampled_at` 和 `metrics`；`metrics.cpu` 提供使用率、核心数、负载、最高 CPU 温度 `temperature_c` 及传感器列表，未检测到 CPU 传感器时温度为 `null`。`gpus` 提供实际利用率、显存、温度、功耗；`disks` 为实际磁盘占用，`network` 的上下行单位为 MiB/s。这些指标由独立主机采集服务每 5 秒采样，经现有节点同步写入观测记录；超过 30 秒或节点离线时 `fresh=false`，已有采样保留并标记过期。网页刷新间隔可手动输入秒数，默认 5 秒，支持暂停和立即刷新。
 
 `GET /admin/containers` 按 `q`、`status`、`mode`、`node` 和分页查询全体容器。`GET /tasks/{id}/connection` 返回 SSH `command` 与 `config`，管理员响应包含 `administrator_access`：本人启用公钥的元数据、`ready` 状态和 sudo 能力。
 
