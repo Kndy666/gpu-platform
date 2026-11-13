@@ -6,7 +6,9 @@ from datetime import timedelta
 from portal.models import UserGroup, StoragePool, ImageArtifact, SSHKey, ResourceRequest
 
 def fixtures():
-    UserGroup.objects.create(name='临时用户', is_default=True, gpu_compute_percent=400, cpu=80, memory_gib=192, concurrent_tasks=2)
+    UserGroup.objects.create(name='临时用户', is_default=True, gpu_compute_percent=400, gpu_memory_gib=48,
+        cpu=80, memory_gib=192, workspace_gib=500, home_gib=50, image_gib=50, concurrent_tasks=2,
+        interactive_hours=48, extension_limit=1, approval_mode='manual')
     U = get_user_model()
     admin = U.objects.create_user('admin', password='test-password-2938', is_staff=True, is_superuser=True)
     a = U.objects.create_user('alice', password='test-password-2938')

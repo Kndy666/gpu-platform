@@ -73,26 +73,36 @@ registry:
   base_image: docker.m.daocloud.io/library/ubuntu:22.04
 policies:
   temporary:
+    unlimited: false
+    gpu_compute_percent: 100
+    gpu_compute_per_card_percent: 100
+    gpu_memory_per_card_gib: 24
+    gpu_memory_gib: 24
+    cpu: 8
+    memory_gib: 12
+    workspace_gib: 300
+    home_gib: 200
+    image_gib: 200
+    concurrent_tasks: 1
+    interactive_hours: 120
+    extension_limit: 1
+    approval_mode: automatic
+  longterm:
+    unlimited: false
     gpu_compute_percent: 200
     gpu_compute_per_card_percent: 100
     gpu_memory_per_card_gib: 24
     gpu_memory_gib: 48
-    cpu: 32
-    memory_gib: 96
+    cpu: 16
+    memory_gib: 24
     workspace_gib: 500
-    home_gib: 50
-    image_gib: 50
+    home_gib: 500
+    image_gib: 400
     concurrent_tasks: 1
-    interactive_hours: 48
-  longterm:
-    gpu_compute_percent: 400
-    gpu_compute_per_card_percent: 100
-    gpu_memory_per_card_gib: 24
-    gpu_memory_gib: 96
-    cpu: 80
-    memory_gib: 192
-    workspace_gib: 2000
-    home_gib: 100
-    image_gib: 150
-    concurrent_tasks: 2
-    interactive_hours: 720
+    interactive_hours: 240
+    extension_limit: 1
+    approval_mode: automatic
+  管理员:
+    unlimited: true
+    extension_limit: 1
+    approval_mode: automatic

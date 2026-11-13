@@ -48,13 +48,13 @@ class ImageLifecycleTests(TestCase):
         ws.save()
         self.assertIsNone(prepare_collection(self.image.pk))
         self.image.refresh_from_db()
-        self.assertAlmostEqual((self.image.recycle_after-timezone.now()).total_seconds(), 24*3600, delta=5)
+        self.assertAlmostEqual((self.image.recycle_after-timezone.now()).total_seconds(), 12*3600, delta=5)
 
     def test_failed_program_gets_longer_retention(self):
         task(self.a, self.image, status='failed')
         prepare_collection(self.image.pk)
         self.image.refresh_from_db()
-        self.assertAlmostEqual((self.image.recycle_after-timezone.now()).total_seconds(), 72*3600, delta=5)
+        self.assertAlmostEqual((self.image.recycle_after-timezone.now()).total_seconds(), 36*3600, delta=5)
 
     def test_keep_converts_snapshot_to_permanent_image(self):
         self.expire()

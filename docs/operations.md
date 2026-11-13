@@ -99,7 +99,7 @@ Docker 镜像、缓存、容器可写层与命名卷位于 `/workspace/.docker`�
 | 数据 | 位置 | 保存方式 |
 | --- | --- | --- |
 | 个人文件 | `/home/<用户名>` | 同账号在同节点的任务共享，长期保留 |
-| 任务文件 | `/workspace` | 结束后默认保留 3 天，到期前一天通知 |
+| 任务文件 | `/workspace` | 结束后默认保留 1 天，到期前一天通知 |
 | 内层 Docker | `/workspace/.docker` | 随工作卷保留 |
 | 公用目录 | 主机 `storage.datasets`，容器 `/datasets` | 管理员通过服务器 SSH 上传，网页和容器只读 |
 

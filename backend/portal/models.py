@@ -66,19 +66,19 @@ class UserGroup(models.Model):
     name = models.CharField(max_length=80, unique=True, verbose_name='用户组名称')
     is_default = models.BooleanField(default=False, verbose_name='默认用户组')
     unlimited = models.BooleanField(default=False, verbose_name='资源不限额')
-    gpu_compute_percent = models.PositiveIntegerField(default=200, null=True, blank=True, verbose_name='总算力 %')
-    gpu_memory_gib = models.PositiveIntegerField(default=48, null=True, blank=True, verbose_name='总显存 GiB')
+    gpu_compute_percent = models.PositiveIntegerField(default=100, null=True, blank=True, verbose_name='总算力 %')
+    gpu_memory_gib = models.PositiveIntegerField(default=24, null=True, blank=True, verbose_name='总显存 GiB')
     gpu_compute_per_card_percent = models.PositiveIntegerField(default=100, null=True, blank=True, validators=[MaxValueValidator(100)],verbose_name='单卡算力上限 %')
     gpu_memory_per_card_gib = models.PositiveIntegerField(default=24, null=True, blank=True, verbose_name='单卡显存上限 GiB')
-    cpu = models.PositiveIntegerField(default=32, null=True, blank=True, verbose_name='CPU 核')
-    memory_gib = models.PositiveIntegerField(default=96, null=True, blank=True, verbose_name='内存 GiB')
-    workspace_gib = models.PositiveIntegerField(default=500, null=True, blank=True, verbose_name='工作卷 GiB')
-    home_gib = models.PositiveIntegerField(default=50, null=True, blank=True, verbose_name='个人卷上限 GiB')
-    image_gib = models.PositiveIntegerField(default=50, null=True, blank=True, verbose_name='镜像额度 GiB')
+    cpu = models.PositiveIntegerField(default=8, null=True, blank=True, verbose_name='CPU 核')
+    memory_gib = models.PositiveIntegerField(default=12, null=True, blank=True, verbose_name='内存 GiB')
+    workspace_gib = models.PositiveIntegerField(default=300, null=True, blank=True, verbose_name='工作卷 GiB')
+    home_gib = models.PositiveIntegerField(default=200, null=True, blank=True, verbose_name='个人卷上限 GiB')
+    image_gib = models.PositiveIntegerField(default=200, null=True, blank=True, verbose_name='镜像额度 GiB')
     concurrent_tasks = models.PositiveIntegerField(default=1, null=True, blank=True, verbose_name='并发任务数')
-    interactive_hours = models.PositiveIntegerField(default=48, null=True, blank=True, verbose_name='最长环境时段（小时）')
+    interactive_hours = models.PositiveIntegerField(default=120, null=True, blank=True, verbose_name='最长环境时段（小时）')
     extension_limit = models.PositiveIntegerField(default=1, verbose_name='每个环境可延期次数')
-    approval_mode = models.CharField(max_length=12, choices=APPROVAL_CHOICES, default='manual', verbose_name='审批方式')
+    approval_mode = models.CharField(max_length=12, choices=APPROVAL_CHOICES, default='automatic', verbose_name='审批方式')
 
     def clean(self):
         super().clean()
@@ -118,7 +118,7 @@ class UserProfile(models.Model):
     registry_secret = models.CharField(max_length=100, blank=True)
     resource_limits = models.JSONField(default=dict, verbose_name='成员资源额度')
     extension_limit = models.PositiveIntegerField(default=1, verbose_name='每个环境可延期次数')
-    approval_mode = models.CharField(max_length=12, choices=APPROVAL_CHOICES, default='manual', verbose_name='审批方式')
+    approval_mode = models.CharField(max_length=12, choices=APPROVAL_CHOICES, default='automatic', verbose_name='审批方式')
 
     class Meta:
         verbose_name = '用户与个人卷'
@@ -188,9 +188,9 @@ class ImageArtifact(models.Model):
 
 class PlatformSettings(models.Model):
     singleton = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
-    snapshot_hours = models.PositiveIntegerField(default=24, verbose_name='成功或取消后保留（小时）')
-    failed_snapshot_hours = models.PositiveIntegerField(default=72, verbose_name='失败后保留（小时）')
-    workspace_retention_days = models.PositiveIntegerField(default=3, verbose_name='工作卷保留（天）')
+    snapshot_hours = models.PositiveIntegerField(default=12, verbose_name='成功或取消后保留（小时）')
+    failed_snapshot_hours = models.PositiveIntegerField(default=36, verbose_name='失败后保留（小时）')
+    workspace_retention_days = models.PositiveIntegerField(default=1, verbose_name='工作卷保留（天）')
 
     @classmethod
     def load(cls):

@@ -48,11 +48,11 @@ class VolumeManagementTests(TestCase):
         Workspace.objects.filter(request=self.req).update(cleanup_complete=True)
 
     def test_default_and_configured_retention_apply_to_newly_finished_tasks(self):
-        self.assertEqual(PlatformSettings.load().workspace_retention_days, 3)
+        self.assertEqual(PlatformSettings.load().workspace_retention_days, 1)
         now = timezone.now()
         mark_finished(self.req, 'succeeded', ended_at=now)
         self.work.refresh_from_db()
-        self.assertEqual(self.work.retain_until, now + timedelta(days=3))
+        self.assertEqual(self.work.retain_until, now + timedelta(days=1))
         settings = PlatformSettings.load()
         settings.workspace_retention_days = 21
         settings.save()
@@ -61,7 +61,7 @@ class VolumeManagementTests(TestCase):
         mark_finished(other, 'succeeded', ended_at=now)
         self.assertEqual(VolumeAllocation.objects.get(request=other).retain_until, now + timedelta(days=21))
         self.work.refresh_from_db()
-        self.assertEqual(self.work.retain_until, now + timedelta(days=3))
+        self.assertEqual(self.work.retain_until, now + timedelta(days=1))
 
     def test_active_task_and_unreleased_resources_block_both_volumes(self):
         for volume in (self.work, self.home):
