@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 
 from django.test import SimpleTestCase
@@ -24,7 +25,7 @@ assert 'portal_extensionrequest' in connection.introspection.table_names()
 assert 'portal_notification' in connection.introspection.table_names()
 '''
         with tempfile.TemporaryDirectory(prefix='gpu-platform-init-test-') as directory:
-            result = subprocess.run(['.venv/bin/python', '-c', program], cwd=root, capture_output=True, text=True,
+            result = subprocess.run([sys.executable, '-c', program], cwd=root, capture_output=True, text=True,
                 timeout=30, env={**os.environ, 'DJANGO_SETTINGS_MODULE': 'config.settings', 'DJANGO_DEBUG': '1',
                                  'PLATFORM_DATA': directory, 'PYTHONPATH': str(root / 'backend')})
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

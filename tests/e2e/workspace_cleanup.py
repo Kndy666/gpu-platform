@@ -2,6 +2,8 @@
 import json
 import subprocess
 
+from environment import kubectl
+
 ACCOUNT_CLEANUP = '''import json,sys,time
 from django.contrib.auth import get_user_model
 from django.contrib.sessions.models import Session
@@ -22,7 +24,7 @@ if user:
   if time.monotonic()>deadline:raise RuntimeError('Test compute resources still active')
   time.sleep(2)
  for volume in VolumeAllocation.objects.filter(user=user).exclude(state='deleted'):
-  request_volume_deletion(volume.pk,get_user_model().objects.get(username='admin'))
+  request_volume_deletion(volume.pk,get_user_model().objects.filter(is_staff=True,is_superuser=True,is_active=True).first())
  ImageArtifact.objects.filter(owner=user).exclude(state='deleted').update(recycle_after=timezone.now(),cleanup_retry_at=None)
  deadline=time.monotonic()+180
  while VolumeAllocation.objects.filter(user=user).exclude(state='deleted').exists() or ImageArtifact.objects.filter(owner=user).exclude(state='deleted').exists():
@@ -61,7 +63,7 @@ def cleanup_account(app,cfg,username,credentials,prefix,*,docker_probe=False):
         app('import json,sys;from portal.models import UserGroup;d=json.load(sys.stdin);UserGroup.objects.filter(pk=d["id"],name=d["name"]).delete();print(json.dumps(True))',{'id':credentials['group'],'name':username})
     uid=credentials['user_id']
     for kind,name,namespace in [('clusterqueue','platform-u'+str(uid),None),('localqueue','user-'+str(uid),cfg['platform']['workload_namespace'])]:
-        command=['k3s','kubectl']+(['-n',namespace] if namespace else [])
+        command=kubectl()+(['-n',namespace] if namespace else [])
         found=subprocess.run([*command,'get',kind,name,'--ignore-not-found','-o','json'],text=True,capture_output=True,check=True)
         if found.stdout.strip():
             obj=json.loads(found.stdout)

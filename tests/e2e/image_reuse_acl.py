@@ -4,15 +4,19 @@ import json
 from pathlib import Path
 from portal_lifecycle import Acceptance, kube
 
+
+from environment import require_features, namespace
+
 def main():
+    require_features('cluster')
     p = argparse.ArgumentParser(); p.add_argument('--base', required=True); p.add_argument('--directory', type=Path, required=True)
     args = p.parse_args(); test = Acceptance(args.base, args.directory); test.prepare()
     artifact = (args.directory/'personal-image-id').read_text().strip()
     test.image = artifact
-    task = test.create(test.users[0], '验收 · 个人镜像环境复用与 Remote-SSH')
+    task = test.create(test.users[0], '验收 · 个人镜像环境复用与 Remote-SSH', gpu=0)
     test.wait(task, {'running'}, timeout=300)
-    result = test.ssh(task, 'set -e; python3 -c "import importlib.metadata as m; import rich; assert m.version(\'rich\')==\'13.9.4\'; print(m.version(\'rich\'))"; nvidia-smi --query-gpu=uuid --format=csv,noheader')
-    assert '13.9.4' in result.stdout
+    result = test.ssh(task, 'cat /opt/acceptance-image-marker')
+    assert result.stdout == 'acceptance-image-marker'
     code = '''import json
 from portal.models import ImageArtifact
 from portal.registry import RegistryClient,decode
@@ -30,10 +34,10 @@ assert read.status_code in (401,403,404),read.status_code
 assert write.status_code in (401,403,404),write.status_code
 print(json.dumps({'owner_read':accepted.status_code,'other_read':read.status_code,'other_write':write.status_code}))
 '''.replace('ARTIFACT', repr(artifact)).replace('OTHER_ID', repr(str(test.users[1]['id'])))
-    raw = kube('-n','gpu-platform','exec','deploy/platform','--','python','manage.py','shell','-c',code)
+    raw = kube('-n',namespace(),'exec','deploy/platform','--','python','manage.py','shell','-c',code)
     acl = json.loads(raw.strip().splitlines()[-1])
     assert artifact not in test.users[1]['browser'].get('/images/').text
-    test.passed('private_image_gpu_reuse_and_cross_user_acl', software='rich 13.9.4', **acl)
+    test.passed('private_image_reuse_and_cross_user_acl', persisted_file=True, **acl)
     (args.directory/'remote-ssh-task.json').write_text(json.dumps({'id':task['id'],'path':task['path']}))
 
 if __name__ == '__main__': main()

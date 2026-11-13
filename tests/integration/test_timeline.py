@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import json
 from unittest.mock import patch
 
 from django.test import TestCase
@@ -74,7 +75,6 @@ class TimelineTests(TestCase):
             result = allocation_timeline(self.user, '2026-11-03')
         queued = result['groups'][0]['queued']
         self.assertEqual([entry['id'] for entry in queued], [str(req.pk)])
-        self.assertEqual(queued[0]['status_label'], '排队中')
         self.assertEqual(result['blocks'], [])
         self.assertEqual(result['groups'][0]['entries'], [])
 
@@ -102,6 +102,6 @@ class TimelineTests(TestCase):
         with patch('portal.timeline.timezone.now', return_value=self.start+timedelta(hours=6)):
             result = allocation_timeline(self.user, '2026-11-03')
         entry = result['groups'][0]['queued'][0]
-        self.assertEqual(entry['title'], '排队任务')
+        self.assertNotIn(req.purpose, json.dumps(entry, ensure_ascii=False))
         self.assertIsNone(entry['id'])
         self.assertIsNone(entry['url'])

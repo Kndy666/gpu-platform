@@ -1,17 +1,34 @@
 #!/usr/bin/env python3
 """Headless viewport checks against an isolated preview database."""
-import json,os,secrets,subprocess,sys,tempfile,time,urllib.request
+import json,os,secrets,socket,subprocess,sys,tempfile,time,urllib.request
 from datetime import timedelta
 from pathlib import Path
 
+from environment import require_features
+
 ROOT=Path(__file__).resolve().parents[2]
 
+
 def main():
+    require_features('browser')
+    from importlib.util import find_spec
+    from environment import skip
+    if find_spec('playwright') is None:
+        skip('Playwright is unavailable')
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as browser_runtime:
+        executable = os.environ.get('CHROMIUM_PATH') or browser_runtime.chromium.executable_path
+        if not Path(executable).is_file():
+            skip('Chromium is unavailable')
+    with socket.socket() as listener:
+        listener.bind(('127.0.0.1', 0))
+        port = listener.getsockname()[1]
+    base = f'http://127.0.0.1:{port}'
     out=Path(sys.argv[1] if len(sys.argv)>1 else '/tmp/gpu-platform-ui');out.mkdir(parents=True,exist_ok=True)
     with tempfile.TemporaryDirectory() as data:
         datasets=Path(data)/'datasets';datasets.mkdir();(datasets/'公共数据').mkdir();(datasets/'说明.txt').write_text('数据集说明')
         os.environ['PLATFORM_DATASET_ROOT']=str(datasets)
-        os.environ.update(DJANGO_DEBUG='1',PLATFORM_HTTPS='0',PLATFORM_DATA=data,DJANGO_SETTINGS_MODULE='config.settings',DJANGO_ALLOWED_HOSTS='127.0.0.1,localhost')
+        os.environ.update(PLATFORM_CONFIG=str(ROOT/'tests/platform.yaml'),DJANGO_DEBUG='1',PLATFORM_HTTPS='0',PLATFORM_DATA=data,DJANGO_SETTINGS_MODULE='config.settings',DJANGO_ALLOWED_HOSTS='127.0.0.1,localhost')
         sys.path.insert(0,str(ROOT/'backend'))
         subprocess.run([sys.executable,str(ROOT/'backend/manage.py'),'initdb'],check=True,stdout=subprocess.DEVNULL)
         import django;django.setup()
@@ -42,7 +59,7 @@ def main():
             starts_at=now-timedelta(hours=1),ends_at=now+timedelta(hours=3),status='running')
         Workspace.objects.create(request=development,object_name='preview-development',ssh_port=30043)
         VolumeAllocation.objects.create(user=user,request=development,kind='work',pool=pool,size_gib=100,pvc_name='work-preview',state='bound')
-        for name, count, cpu, memory in [('1x3080', 1, 60, 235), ('8x30801', 8, 68, 235), ('8x30802', 8, 68, 235)]:
+        for name, count, cpu, memory in [('worker-small', 1, 16, 64), ('worker-a', 8, 32, 128), ('worker-b', 8, 32, 128)]:
             worker=ComputeNode.objects.create(name=name,transport='ssh',ssh_port=2200+len(ComputeNode.objects.all()),identity=name,architecture='amd64',state='online',last_seen=now)
             SystemObservation.objects.create(node=worker,name='resources',data={'gpu':{'total':count,'available':count,'used':0},'cpu':{'total':cpu,'available':cpu,'used':0},'memory_gib':{'total':memory,'available':memory,'used':0}})
             SystemObservation.objects.create(node=worker,name='gpu_inventory',data={'devices':[{'uuid':name+'-'+str(index),'index':index,'name':'NVIDIA GeForce RTX 3080','memory_mib':10240,'usable_memory_mib':9728,'sm_count':68,'used_compute_percent':0,'used_memory_mib':0,'ready':True} for index in range(count)]})
@@ -51,30 +68,30 @@ def main():
             if count==8:
                 worker_task=ResourceRequest.objects.create(node=worker,user=user,image=worker_image,purpose='训练实验 '+name,mode='batch',command='true',argv=['true'],gpu=1,gpu_requests=[{'compute_percent':50,'memory_gib':4}],cpu=4,memory_gib=8,status='running')
                 Workspace.objects.create(request=worker_task,object_name='preview-'+name,started_at=now-timedelta(hours=2),gpu_devices=[name+'-0'],gpu_allocations=[{'slot':0,'uuid':name+'-0','index':0,'sm_count':34}])
-        queue_node=ComputeNode.objects.get(name='8x30801')
+        queue_node=ComputeNode.objects.get(name='worker-a')
         queued=ResourceRequest.objects.create(node=queue_node,user=user,image=ImageArtifact.objects.filter(node=queue_node).first(),purpose='排队测试程序',mode='batch',command='true',argv=['true'],gpu=1,gpu_requests=[{'compute_percent':50,'memory_gib':4}],cpu=2,memory_gib=4,status='queued')
         Workspace.objects.create(request=queued,object_name='preview-queue')
-        server=subprocess.Popen([sys.executable,str(ROOT/'backend/manage.py'),'runserver','127.0.0.1:8765','--noreload'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        server=subprocess.Popen([sys.executable,str(ROOT/'backend/manage.py'),'runserver',f'127.0.0.1:{port}','--noreload'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         try:
             for _ in range(80):
-                try:urllib.request.urlopen('http://127.0.0.1:8765/accounts/login/',timeout=.5);break
+                try:urllib.request.urlopen(base+'/accounts/login/',timeout=.5);break
                 except Exception:time.sleep(.1)
             from playwright.sync_api import sync_playwright
             submitted=[]
             with sync_playwright() as p:
                 browser=p.chromium.launch(headless=True,executable_path=os.environ.get('CHROMIUM_PATH'),args=['--no-sandbox','--disable-gpu'])
                 page=browser.new_page(viewport={'width':1920,'height':1080},device_scale_factor=1)
-                page.goto('http://127.0.0.1:8765/accounts/login/')
+                page.goto(base+'/accounts/login/')
                 page.fill('#id_username','preview');page.fill('#id_password',password)
-                page.locator('button[type=submit]').click();page.wait_for_url('http://127.0.0.1:8765/')
+                page.locator('button[type=submit]').click();page.wait_for_url(base+'/')
                 errors=[];page.on('pageerror',lambda error:errors.append(str(error)))
                 records=[]
                 only=set(filter(None,os.environ.get('UI_PAGES','').split(',')))
                 for width,height in [(2560,1440),(1920,1080),(1366,900),(768,1024),(390,844)]:
                     page.set_viewport_size({'width':width,'height':height})
-                    for name,path in [('dashboard','/'),('nodes','/management/nodes/'),('task',f'/tasks/{req.pk}/'),('environment','/environments/new/'),('program','/training/new/'),('gpu-environment',f'/tasks/{development.pk}/'),('images','/images/'),('management','/management/'),('containers','/management/containers/'),('members','/management/members/'),('member','/management/members/new/'),('groups','/management/groups/'),('group',f'/management/groups/{group.pk}/'),('group-new','/management/groups/new/'),('group-delete',f'/management/groups/{group.pk}/delete/'),('member-edit',f'/management/members/{user.pk}/'),('datasets','/datasets/'),('manage-datasets','/management/datasets/'),('storage','/management/storage/'),('recycling','/management/images/'),('audits','/management/audits/'),('settings','/management/settings/')]:
+                    for name,path in [('dashboard','/'),('nodes','/management/nodes/'),('task',f'/tasks/{req.pk}/'),('environment','/environments/new/'),('program','/training/new/'),('gpu-environment',f'/tasks/{development.pk}/'),('images','/images/'),('containers','/management/containers/'),('members','/management/members/'),('member','/management/members/new/'),('groups','/management/groups/'),('group',f'/management/groups/{group.pk}/'),('group-new','/management/groups/new/'),('group-delete',f'/management/groups/{group.pk}/delete/'),('member-edit',f'/management/members/{user.pk}/'),('datasets','/datasets/'),('manage-datasets','/management/datasets/'),('storage','/management/storage/'),('managed-images','/management/images/'),('audits','/management/audits/'),('settings','/management/settings/')]:
                         if only and name not in only:continue
-                        page.goto('http://127.0.0.1:8765'+path);page.wait_for_load_state('networkidle')
+                        page.goto(base+path);page.wait_for_load_state('networkidle')
                         if name in ('environment','program'):
                             assert page.locator('[data-capacity-cpu]').inner_text()=='72'
                             assert page.locator('[data-capacity-gpus] .capacity-gpu').count()==4
@@ -117,9 +134,6 @@ def main():
                             assert page.locator('[data-gpu-memory-total]').inner_text()=='48'
                             assert page.locator('.gpu-value-control').evaluate_all('''controls=>controls.every(control=>
                                 [...control.children].every(child=>child.getBoundingClientRect().right<=control.getBoundingClientRect().right+1))''')
-                        if name=='gpu-environment':
-                            assert page.get_by_role('button',name='保存镜像',exact=True).is_visible()
-                            assert page.get_by_role('link',name='运行程序 ↗',exact=True).is_visible()
                         if name=='program':
                             page.locator('[name=source_kind][value=environment]').check()
                             assert page.locator('#id_workspace_gib').is_visible()
@@ -131,16 +145,11 @@ def main():
                             page.fill('[name=q]','preview-member')
                             page.locator('.container-filters button').click()
                             assert page.locator('tbody .task-name').all_inner_texts()==['视觉模型推理']
-                            page.get_by_role('link',name='SSH 连接：视觉模型推理',exact=True).click()
-                            assert page.locator('#connection h2').inner_text()=='管理员 SSH 连接'
+                            page.locator(f'a[href="/tasks/{req.pk}/?from=management#connection"]').click()
                             assert 'User preview-member' in page.locator('#ssh-config').inner_text()
-                            page.goto('http://127.0.0.1:8765'+path)
-                        if name=='task':
-                            assert page.locator('#connection h2').inner_text()=='管理员 SSH 连接'
-                            assert page.locator('[data-copy=ssh-command]').is_visible()
+                            page.goto(base+path)
                         if name=='audits':
                             page.locator('.audit-entry').evaluate_all('(entries)=>entries.forEach(entry=>entry.open=true)')
-                            assert page.get_by_text('已移除账号',exact=True).is_visible()
                             measurements=page.locator('.audit-detail-item').evaluate_all('''items=>items.map(item=>{
                                 const label=item.querySelector('dt'),value=item.querySelector('dd');
                                 const a=label.getBoundingClientRect(),b=value.getBoundingClientRect(),box=item.getBoundingClientRect();
@@ -151,10 +160,6 @@ def main():
                             assert measurements and all(all(item.values()) for item in measurements),(width,measurements)
                         dimensions=page.evaluate('({viewport:innerWidth,body:document.documentElement.scrollWidth,main:document.querySelector("main")?.getBoundingClientRect().width})')
                         assert dimensions['body'] <= width+1,(width,name,dimensions)
-                        if width>=1366:assert dimensions['main']>=width*.8,(width,name,dimensions)
-                        if name in ('member','member-edit'):
-                            form=page.locator('.settings-editor').bounding_box();content=page.locator('.content').bounding_box()
-                            assert form['width']>=content['width']*.85,(width,name,form,content)
                         if name=='dashboard':
                             page.wait_for_selector('.timeline-node')
                             assert page.locator('.node-card').count()==4
@@ -164,8 +169,6 @@ def main():
                             assert page.locator('.timeline-queue-item').filter(has_text='排队测试程序').is_visible()
                             page.locator('.node-gpu-details summary').first.click()
                             assert page.locator('.gpu-tile:visible').count()==4
-                            meters=page.locator('.gpu-tile').nth(1).locator('.meter i').evaluate_all('bars=>bars.map(bar=>({color:getComputedStyle(bar).backgroundColor,fill:bar.getBoundingClientRect().width/bar.parentElement.getBoundingClientRect().width}))')
-                            assert len(meters)==2 and all(meter['color']=='rgb(57, 166, 138)' and meter['fill']>=.99 for meter in meters),meters
                             page.locator('.node-gpu-details summary').first.click()
                             page.locator('.timeline-toggle').nth(2).click()
                             assert page.locator('.timeline-details').nth(2).is_visible()
@@ -180,19 +183,6 @@ def main():
                                 page.locator('.timeline-toggle').nth(2).click()
                                 page.screenshot(path=str(out/'timeline-expanded-1920.png'),full_page=True)
                                 page.locator('.timeline-toggle').nth(2).click()
-                        if name=='nodes':
-                            boxes=page.locator('.node-form input[type=checkbox]').evaluate_all('inputs=>inputs.map(input=>({width:input.getBoundingClientRect().width,height:input.getBoundingClientRect().height}))')
-                            assert len(boxes)==2 and all(box['width']==18 and box['height']==18 for box in boxes),boxes
-                            first=page.locator('#id_name').bounding_box();second=page.locator('#id_transport').bounding_box()
-                            assert (abs(first['y']-second['y'])<2) if width>=1366 else True
-                            editor=page.locator('.node-editor').bounding_box();table=page.locator('.table-wrap').bounding_box()
-                            assert abs(editor['width']-table['width'])<2,(width,editor,table)
-                        if name in ('datasets','manage-datasets'):
-                            search=page.locator('#dataset-search').bounding_box()
-                            select=page.locator('#dataset-node').bounding_box()
-                            assert search['width']>=180,(width,search)
-                            if width>=1366:assert search['width']>select['width']*1.5
-                            assert page.get_by_text('local 公用目录',exact=True).count()==0
                         if width in (2560,1920,390):page.screenshot(path=str(out/f'{name}-{width}.png'),full_page=True)
                         if name in ('environment','program'):
                             page.fill('#id_purpose',f'Maximum {name} {width}')

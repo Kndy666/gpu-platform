@@ -7,9 +7,11 @@ import subprocess
 import time
 from portal_lifecycle import Acceptance, kube
 
+from environment import require_features, require_commands, namespace
+
 def inventory():
-    pods = json.loads(kube('-n','gpu-workloads','get','pods','-o','json'))['items']
-    volumes = json.loads(kube('-n','gpu-workloads','get','pvc','-o','json'))['items']
+    pods = json.loads(kube('-n',namespace('workload_namespace'),'get','pods','-o','json'))['items']
+    volumes = json.loads(kube('-n',namespace('workload_namespace'),'get','pvc','-o','json'))['items']
     return {'pods':{p['metadata']['name']:{'uid':p['metadata']['uid'],'containers':[c.get('containerID') for c in p.get('status',{}).get('containerStatuses',[])]} for p in pods if p['metadata']['name'].startswith('task-') and p.get('status',{}).get('phase')=='Running'},
             'volumes':{p['metadata']['name']:p['metadata']['uid'] for p in volumes}}
 
@@ -21,7 +23,13 @@ def ready(timeout=180):
         except subprocess.CalledProcessError:time.sleep(2)
     raise TimeoutError('K3s API recovery')
 
+
 def main():
+    require_features('cluster', 'recovery')
+    require_commands('k3s', 'systemctl', 'sudo')
+    if subprocess.run(['systemctl','is-active','--quiet','k3s']).returncode:
+        from environment import skip
+        skip('Recovery scenarios require a local K3s systemd service')
     parser=argparse.ArgumentParser();parser.add_argument('--base',required=True);parser.add_argument('--directory',type=Path,required=True)
     args=parser.parse_args();test=Acceptance(args.base,args.directory);test.prepare()
     marker='/home/'+test.users[1]['username']+'/recovery-'+hashlib.sha256(str(args.directory.resolve()).encode()).hexdigest()[:10]
@@ -30,9 +38,8 @@ def main():
     test.wait(batch,{'running'})
     before=inventory();(args.directory/'recovery-before.json').write_text(json.dumps(before,indent=2))
     try:
-        subprocess.run(['sudo','python3','-c','import yaml;from deploy.install import storage_dependencies;storage_dependencies(yaml.safe_load(open("config.yaml")))'],check=True)
         fault='import os,signal;from pathlib import Path;found=[int(p.name) for p in Path("/proc").iterdir() if p.name.isdigit() and (p/"cmdline").exists() and b"manage.py"+bytes([0])+b"reconcile" in (p/"cmdline").read_bytes()];assert len(found)==1;os.kill(found[0],signal.SIGKILL);print("Reconciler fault injected")'
-        kube('-n','gpu-platform','exec','deploy/platform','--','python','-c',fault)
+        kube('-n',namespace(),'exec','deploy/platform','--','python','-c',fault)
         time.sleep(8)
         deadline=time.monotonic()+120
         while time.monotonic()<deadline:

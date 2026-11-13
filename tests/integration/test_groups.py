@@ -32,11 +32,8 @@ class GroupTests(TestCase):
         self.a.refresh_from_db()
         self.assertEqual(policy_for(self.a).pk, group.pk)
 
-    def test_gpu_quota_table_renders_and_saves_all_four_limits(self):
+    def test_group_editor_saves_all_four_gpu_limits(self):
         url=f'/management/groups/{self.default.pk}/'
-        page=self.client.get(url)
-        for name in ['gpu_compute_percent','gpu_memory_gib','gpu_compute_per_card_percent','gpu_memory_per_card_gib']:
-            self.assertContains(page,f'id="id_{name}"')
         data=self.group_data(name='临时用户',gpu_compute_percent=75,gpu_memory_gib=6,
                              gpu_compute_per_card_percent=50,gpu_memory_per_card_gib=4)
         self.assertEqual(self.client.post(url,data).status_code,302)

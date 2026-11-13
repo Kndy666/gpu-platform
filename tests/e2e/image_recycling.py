@@ -4,7 +4,7 @@
 Use the business image with source mounted at /src, /check/data as PLATFORM_DATA,
 /check/config.yaml as PLATFORM_CONFIG, and the fixture TLS CA at
 /etc/platform-registry-ca/tls.crt. Run setup, start Zot from /check/zot.json,
-then run check. The fixture registry host must resolve as registry-test:5000.
+then run check. Set PLATFORM_TEST_REGISTRY_DIR to the fixture directory and use its data subdirectory.
 """
 import base64
 from datetime import timedelta
@@ -20,10 +20,13 @@ import uuid
 
 import bcrypt
 import django
-import yaml
 
-if os.environ.get('PLATFORM_DATA') != '/check/data':
-    raise RuntimeError('This check requires the isolated /check/data database')
+from environment import require_features
+
+require_features('registry')
+fixture = Path(os.environ['PLATFORM_TEST_REGISTRY_DIR']).resolve()
+if Path(os.environ['PLATFORM_DATA']).resolve() != fixture / 'data':
+    raise RuntimeError('PLATFORM_DATA must point to the registry fixture data directory')
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 django.setup()
 from django.core.management import call_command
@@ -34,7 +37,7 @@ from portal.image_lifecycle import collect_images
 from portal.models import ImageArtifact, ResourceRequest
 from portal.registry import RegistryClient, zot_config
 
-directory = Path('/check')
+directory = fixture
 owner_identity = {'login': 'test-owner', 'password': 'isolated-owner-test', 'reader': {'login': 'test-owner-reader'}}
 collector = {'login': 'test-collector', 'password': 'isolated-collector-test'}
 if sys.argv[1] == 'setup':
@@ -61,7 +64,7 @@ for attempt in range(30):
 else:
     raise RuntimeError('Isolated registry did not start')
 token = uuid.uuid4().hex
-content = json.dumps({'architecture': 'arm64', 'os': 'linux', 'rootfs': {'type': 'layers', 'diff_ids': []}, 'config': {'Labels': {'test': token}}}).encode()
+content = json.dumps({'architecture': config()['platform']['architecture'], 'os': 'linux', 'rootfs': {'type': 'layers', 'diff_ids': []}, 'config': {'Labels': {'test': token}}}).encode()
 digest = 'sha256:'+hashlib.sha256(content).hexdigest()
 upload = owner.session.post(base+'/blobs/uploads/', timeout=10)
 upload.raise_for_status()

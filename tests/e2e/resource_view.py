@@ -13,8 +13,10 @@ import termios
 import time
 
 
+from environment import require_features, kubectl, namespace
+
 def inspect_resource_view(namespace, pod, cpu, memory_gib):
-    kube = ['k3s', 'kubectl', '-n', namespace, 'exec']
+    kube = [*kubectl(), '-n', namespace, 'exec']
     code = "grep -c '^processor' /proc/cpuinfo; grep -c '^cpu[0-9]' /proc/stat; awk '/^MemTotal:/ {print $2}' /proc/meminfo; cat /sys/fs/cgroup/cpu.max"
     values = subprocess.check_output([*kube, pod, '--', 'bash', '-c', code], text=True, timeout=20).splitlines()
     assert int(values[0]) == cpu, values
@@ -59,9 +61,10 @@ def inspect_resource_view(namespace, pod, cpu, memory_gib):
 
 
 if __name__ == '__main__':
+    require_features('cluster')
     parser = argparse.ArgumentParser()
     parser.add_argument('pod')
-    parser.add_argument('--namespace', default='gpu-workloads')
+    parser.add_argument('--namespace', default=namespace('workload_namespace'))
     parser.add_argument('--cpu', type=int, required=True)
     parser.add_argument('--memory-gib', type=int, required=True)
     args = parser.parse_args()

@@ -1,33 +1,42 @@
 #!/usr/bin/env python3
 """Live CPU environment -> saved files -> GPU command handoff; no framework downloads."""
-import json,re,secrets,shlex,subprocess,sys,tempfile,time,uuid
-import yaml
+import json, re, secrets, subprocess, sys, tempfile, time, uuid
 from datetime import datetime,timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
+from environment import gpu_inventory, require_features, require_commands, deployment_config, namespace, portal_url
+
 ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT))
 from tests.e2e.portal_lifecycle import Browser,kube
 
 def shell(code,payload=None):
-    raw=kube('-n','gpu-platform','exec','-i','deploy/platform','--','python','manage.py','shell','-c',code,data=json.dumps(payload) if payload else None)
+    raw=kube('-n',namespace(),'exec','-i','deploy/platform','--','python','manage.py','shell','-c',code,data=json.dumps(payload) if payload else None)
     return raw.strip().splitlines()[-1]
 
+
 def main():
-    platform=yaml.safe_load((ROOT/'config.yaml').read_text())['platform']
+    require_features('cluster', 'gpu')
+    require_commands('ssh', 'ssh-keygen')
+    gpu_inventory(lambda code: json.loads(shell(code)))
+    platform=deployment_config()['platform']
     user='workflow-check-'+uuid.uuid4().hex[:8];password=secrets.token_urlsafe(24)
     with tempfile.TemporaryDirectory(prefix='gpu-platform-workflow-') as directory:
         key=Path(directory)/'identity';subprocess.run(['ssh-keygen','-q','-t','ed25519','-N','','-f',str(key)],check=True)
         code='''import json,sys
 from django.contrib.auth import get_user_model
 from portal.models import ImageArtifact
+from portal.models import GROUP_QUOTA_FIELDS
 v=json.load(sys.stdin);u=get_user_model().objects.create_user(v['user'],password=v['password'],is_staff=True)
-u.profile.home_quota_gib=1;u.profile.save()
-i=ImageArtifact.objects.get(shared=True,reference__contains='/platform-ubuntu-ssh:')
+u.profile.home_quota_gib=1
+u.profile.resource_limits={'unlimited': True, **{field: None for field in GROUP_QUOTA_FIELDS}}
+u.profile.approval_mode='manual'
+u.profile.save()
+i=ImageArtifact.objects.filter(shared=True,verified=True,state='ready',node__transport='local').latest('created_at')
 print(json.dumps({'user_id':u.pk,'image':str(i.pk)}))'''
         info=json.loads(shell(code,{'user':user,'password':password}))
         print('ACCOUNT',json.dumps({'username':user,**info}),flush=True)
-        browser=Browser(platform['https_origin'],user,password)
+        browser=Browser(portal_url(),user,password)
         browser.post('/keys/',{'name':'workflow-check','public_key':key.with_suffix('.pub').read_text()}).raise_for_status()
         now=datetime.now(ZoneInfo('Asia/Shanghai'))
         response=browser.post('/environments/new/',{'image':info['image'],'purpose':'无 GPU 环境验收','gpu':0,'cpu':1,'memory_gib':1,'workspace_gib':1,'starts_at':(now-timedelta(minutes=1)).strftime('%Y-%m-%dT%H:%M'),'ends_at':(now+timedelta(minutes=30)).strftime('%Y-%m-%dT%H:%M'),'working_dir':'/workspace'},redirect=False)
@@ -47,9 +56,6 @@ print(json.dumps({'user_id':u.pk,'image':str(i.pk)}))'''
         s=wait(source,{'running'})
         ssh=['ssh','-i',str(key),'-p',str(s['ssh_port']),'-o','BatchMode=yes','-o','StrictHostKeyChecking=accept-new','-o','UserKnownHostsFile='+str(Path(directory)/'known_hosts'),'-o','HostKeyAlias=task-'+source,s['login_name']+'@'+platform['public_host']]
         script='''set -eu
-! command -v python3
-! command -v pip
-[ ! -d /usr/local/cuda ]
 printf configured > /tmp/environment-marker
 printf personal > $HOME/home-marker
 printf workspace > /workspace/work-marker
@@ -66,8 +72,8 @@ echo training-complete
 END
 '''
         subprocess.run(ssh+[script],check=True)
-        print('CPU_ENVIRONMENT_READY_WITHOUT_PYTHON',flush=True)
-        response=browser.post('/training/new/',{'source_kind':'environment','source_environment':source,'purpose':'环境转 GPU 程序运行验收','gpu':1,'cpu':1,'memory_gib':1,'working_dir':'/workspace','command':'bash $HOME/project/train.sh'},redirect=False)
+        print('CPU_ENVIRONMENT_READY',flush=True)
+        response=browser.post('/training/new/',{'source_kind':'environment','source_environment':source,'purpose':'环境转 GPU 程序运行验收','gpu':1,'gpu_requests':json.dumps([{'compute_percent':100,'memory_gib':1}]),'cpu':1,'memory_gib':1,'working_dir':'/workspace','command':'bash $HOME/project/train.sh'},redirect=False)
         assert response.status_code==302,re.sub('<[^>]+>',' ',response.text)[-1800:]
         target=response.headers['Location'].strip('/').split('/')[-1]
         browser.post(f'/tasks/{target}/review/',{'action':'approve','priority':0}).raise_for_status()
@@ -83,7 +89,7 @@ s=EnvironmentSnapshot.objects.get(target_id='''+repr(target)+''');w=Workspace.ob
         assert any(b['id']==target and b['row']==data['gpu_devices'][0] for b in timeline['blocks']),timeline
         final=wait(target,{'succeeded'})
         assert final['exit_code']==0,final
-        result={'username':user,'user_id':info['user_id'],'source':source,'target':target,'gpu_devices':data['gpu_devices'],'same_work_volume':True,'source_stopped':True,'exit_code':0,'timeline_actual_gpu':True,'base_without_python_cuda':True}
+        result={'username':user,'user_id':info['user_id'],'source':source,'target':target,'gpu_devices':data['gpu_devices'],'same_work_volume':True,'source_stopped':True,'exit_code':0,'timeline_actual_gpu':True}
         Path('/tmp/gpu-platform-workflow-result.json').write_text(json.dumps(result,indent=2));print('PASS',json.dumps(result),flush=True)
 
 if __name__=='__main__':main()

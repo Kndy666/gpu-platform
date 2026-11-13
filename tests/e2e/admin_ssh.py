@@ -1,25 +1,28 @@
 #!/usr/bin/env python3
 """Verify administrator SSH on a live workspace and remove all test resources."""
 from datetime import datetime,timedelta,timezone
-import json,os,subprocess,tempfile,time,uuid
+import json, subprocess, tempfile, time, uuid
 from pathlib import Path
-import requests,yaml
+import requests
 from workspace_cleanup import cleanup_account
+
+from environment import require_features, require_commands, deployment_config, kubectl, portal_url
 
 ROOT=Path(__file__).resolve().parents[2]
 
 
 def main():
-    if os.geteuid()!=0:raise SystemExit('Run with sudo')
-    cfg=yaml.safe_load((ROOT/'config.yaml').read_text())
+    require_features('cluster')
+    require_commands('ssh', 'ssh-keygen')
+    cfg=deployment_config()
     prefix='ssh-check-'+uuid.uuid4().hex[:8]
     print('TEST_PREFIX',prefix,flush=True)
     accounts={};credentials={};result={}
     session=requests.Session();session.trust_env=False
-    url=('https://' if cfg['network']['https'] else 'http://')+cfg['platform']['public_host']
+    url=portal_url()
 
     def app(code,data=None):
-        response=subprocess.run(['k3s','kubectl','-n',cfg['platform']['namespace'],'exec','-i','deployment/platform','--',
+        response=subprocess.run([*kubectl(),'-n',cfg['platform']['namespace'],'exec','-i','deployment/platform','--',
             'python','manage.py','shell','-c',code],input=json.dumps(data or {}),text=True,capture_output=True)
         if response.returncode:raise RuntimeError(response.stderr[-4000:])
         return json.loads(response.stdout.strip().splitlines()[-1])
@@ -57,15 +60,19 @@ def main():
             credentials=app('''import json,sys
 from django.contrib.auth import get_user_model
 from portal.api_auth import issue_token
+from portal.models import GROUP_QUOTA_FIELDS
 from portal.models import ImageArtifact
 data=json.load(sys.stdin)
-image=ImageArtifact.objects.filter(shared=True,verified=True,state='ready').latest('created_at')
+image=ImageArtifact.objects.filter(shared=True,verified=True,state='ready',node__transport='local').latest('created_at')
 users={}
 for role in ['owner','administrator','stranger']:
  user=get_user_model().objects.create_user(data['prefix']+'-'+role,is_staff=(role=='administrator'))
- user.profile.home_quota_gib=1;user.profile.save(update_fields=['home_quota_gib'])
+ user.profile.home_quota_gib=1
+ user.profile.resource_limits={'unlimited': True, **{field: None for field in GROUP_QUOTA_FIELDS}}
+ user.profile.approval_mode='manual'
+ user.profile.save()
  users[role]={'username':user.username,'user_id':user.pk,'token':issue_token(user,1800,name=data['prefix'])['token']}
-admin=get_user_model().objects.get(username='admin')
+admin=get_user_model().objects.filter(is_staff=True,is_superuser=True,is_active=True).first()
 print(json.dumps({'accounts':users,'admin':issue_token(admin,1800,name=data['prefix'])['token'],'image':str(image.pk)}))''',{'prefix':prefix})
             accounts=credentials['accounts']
             for role in ['owner','stranger']:

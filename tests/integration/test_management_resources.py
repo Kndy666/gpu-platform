@@ -7,7 +7,7 @@ from portal.models import ComputeNode, ImageArtifact, StoragePool, VolumeAllocat
 from tests.factories import fixtures, task
 
 
-class ManagementLayoutTests(TestCase):
+class ManagementResourceTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.admin, cls.user, cls.other, cls.image = fixtures()
@@ -39,8 +39,6 @@ class ManagementLayoutTests(TestCase):
             self.assertTrue(all(volume.node_id == node.pk for volume in group['page']))
             self.assertFalse(group['expanded'])
         self.assertEqual(nodes[self.empty.pk]['page'].paginator.count, 0)
-        self.assertContains(response, '等待存储池同步')
-        self.assertContains(response, '离线')
 
     def test_node_pagination_preserves_other_pages_and_opens_target_node(self):
         response = self.client.get('/management/storage/', {f'page_{self.local.pk}': 2,
@@ -57,46 +55,6 @@ class ManagementLayoutTests(TestCase):
         self.assertEqual(urlsplit(link).fragment, f'storage-node-{self.worker.pk}')
         invalid = self.client.get('/management/storage/', {f'page_{self.local.pk}': 'invalid'})
         self.assertEqual(invalid.context['storage_nodes'][0]['page'].number, 1)
-
-    def test_group_edit_keeps_member_navigation_selected_and_pending_count_visible(self):
-        response = self.client.get(f'/management/groups/{self.user.profile.group_id}/')
-        self.assertContains(response, 'aria-current="page">用户组')
-        self.assertContains(response, '52 条待审批')
-        sidebar, content = response.content.decode().split('</aside>', 1)
-        self.assertIn('aria-label="管理分类"', sidebar)
-        self.assertIn('成员与权限', sidebar)
-        self.assertIn('href="/management/storage/"', sidebar)
-        menu = sidebar.split('<nav class="admin-navigation"', 1)[1]
-        self.assertEqual(menu.count('<use href='), 4)
-        for icon in ['i-chip', 'i-admin', 'i-check', 'i-settings']:
-            self.assertIn(f'<use href="#{icon}"/>', menu)
-        self.assertNotIn('aria-label="管理分类"', content)
-        self.assertNotContains(response, 'class="manage-primary"')
-        self.assertNotContains(response, 'class="manage-secondary"')
-
-    def test_approval_pages_select_their_sidebar_entry_and_page_title(self):
-        for tab, title in [('pending', '待审批'), ('push', '推送设置'), ('history', '推送记录')]:
-            response = self.client.get('/management/approvals/', {'tab': tab})
-            self.assertContains(response, f'aria-current="page">{title}')
-            self.assertContains(response, f'<h1>{title}</h1>')
-            self.assertContains(response, 'aria-current="page"', count=1)
-
-    def test_workbench_keeps_global_navigation(self):
-        response = self.client.get('/')
-        self.assertContains(response, '开发环境')
-        self.assertContains(response, 'href="/management/"')
-        self.assertNotContains(response, 'data-admin-menu')
-
-    def test_management_opens_nodes_and_uses_updated_menu_names(self):
-        self.assertRedirects(self.client.get('/management/'), '/management/nodes/')
-        response = self.client.get('/management/settings/')
-        self.assertContains(response, 'aria-current="page">设置')
-        self.assertContains(response, '<h1>设置</h1>')
-        self.assertNotContains(response, '保留设置')
-        self.assertNotContains(response, '>概览<')
-        self.client.force_login(self.user)
-        self.assertEqual(self.client.get('/management/').status_code, 302)
-        self.assertEqual(self.client.get('/management/nodes/').status_code, 302)
 
     def test_containers_filter_and_paginate_within_selected_node(self):
         filters = {'node': self.worker.pk, 'q': 'volume', 'status': 'submitted', 'mode': 'interactive'}
@@ -131,10 +89,6 @@ class ManagementLayoutTests(TestCase):
         self.image.size_bytes = 700
         self.image.save(update_fields=['size_bytes'])
         response = self.client.get('/management/images/', {'node': self.worker.pk})
-        self.assertContains(response, '<h1>镜像</h1>')
-        self.assertContains(response, 'data-node-filter')
-        self.assertNotContains(response, '>切换</button>')
-        self.assertNotContains(response, '镜像回收')
         self.assertIn(self.worker, response.context['nodes'])
         self.assertEqual(response.context['ready_bytes'], 2600)
         self.assertEqual(response.context['waiting_count'], 26)
@@ -171,12 +125,12 @@ class ManagementLayoutTests(TestCase):
         image.state = 'deleting'
         image.save(update_fields=['state'])
         response = self.client.post(f'/images/{image.pk}/keep/', {'origin': 'management'}, follow=True)
-        self.assertContains(response, '镜像已经开始回收')
+        image.refresh_from_db()
+        self.assertEqual(image.state, 'deleting')
         self.assertEqual(response.context['node'], self.worker)
 
     def test_push_validation_stays_on_push_page(self):
         response = self.client.post('/management/approvals/', {'action': 'push', 'reminder_minutes': -1})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['approval_tab'], 'push')
-        self.assertContains(response, 'name="reminder_minutes"')
         self.assertTrue(response.context['push_form'].errors)

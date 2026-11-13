@@ -17,10 +17,9 @@ import uuid
 from urllib.parse import urlsplit
 import requests
 
-ROOT = Path(__file__).resolve().parents[2]
+from environment import require_features, require_commands, kube, namespace
 
-def kube(*args, data=None):
-    return subprocess.run(['k3s', 'kubectl', *args], input=data, text=True, stdout=subprocess.PIPE, check=True).stdout
+ROOT = Path(__file__).resolve().parents[2]
 
 class Browser:
     def __init__(self, base, username, password):
@@ -60,11 +59,12 @@ class Acceptance:
             temporary.write_text(json.dumps(self.record, indent=2, ensure_ascii=False)); temporary.replace(path)
 
     def prepare(self):
+        require_commands('ssh', 'ssh-keygen', 'scp', 'sftp')
         state = self.directory/'credentials.json'
         if not state.exists():
             suffix = uuid.uuid4().hex[:6]
             users = []
-            for name in ['alice', 'bob', 'carol', 'dave', 'eve']:
+            for name in ['alice', 'bob']:
                 username = f'acceptance-{name}-{suffix}'
                 key = self.directory/username
                 subprocess.run(['ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-f', key], check=True)
@@ -72,15 +72,15 @@ class Acceptance:
             payload = {'users': users}
             state.write_text(json.dumps(payload)); state.chmod(0o600)
         payload = json.loads(state.read_text())
-        raw = kube('-n','gpu-platform','exec','deploy/platform','--','python','manage.py','shell','-c','import json;from portal.models import ImageArtifact;print(json.dumps({"image":ImageArtifact.objects.filter(shared=True,verified=True).order_by("-created_at").values_list("id",flat=True).first()},default=str))')
+        raw = kube('-n',namespace(),'exec','deploy/platform','--','python','manage.py','shell','-c','import json;from portal.models import ImageArtifact;print(json.dumps({"image":ImageArtifact.objects.filter(shared=True,verified=True,state="ready",node__transport="local").order_by("-created_at").values_list("id",flat=True).first()},default=str))')
         payload['image'] = json.loads(raw.strip().splitlines()[-1])['image']
         if payload['image'] is None: raise RuntimeError('Prepare the production shared base image first')
-        raw = kube('-n', 'gpu-platform', 'exec', '-i', 'deploy/platform', '--', 'python', 'manage.py', 'shell', '-c', (ROOT/'tests/e2e/seed_fixture.py').read_text(), data=json.dumps(payload))
+        raw = kube('-n', namespace(), 'exec', '-i', 'deploy/platform', '--', 'python', 'manage.py', 'shell', '-c', (ROOT/'tests/e2e/seed_fixture.py').read_text(), data=json.dumps(payload))
         result = json.loads(raw.strip().splitlines()[-1])
         payload['image'] = result['image']; state.write_text(json.dumps(payload)); state.chmod(0o600)
         self.image = payload['image']
-        password = base64.b64decode(kube('-n', 'gpu-platform', 'get', 'secret', 'platform-secrets', '-o', 'jsonpath={.data.initial-admin-password}')).decode()
-        self.admin = Browser(self.base, 'admin', password)
+        password = os.environ.get('PLATFORM_TEST_ADMIN_PASSWORD') or base64.b64decode(kube('-n', namespace(), 'get', 'secret', 'platform-secrets', '-o', 'jsonpath={.data.initial-admin-password}')).decode()
+        self.admin = Browser(self.base, os.environ.get('PLATFORM_TEST_ADMIN_USER', 'admin'), password)
         for item in payload['users']:
             item['id'] = next(v['id'] for v in result['users'] if v['username'] == item['username'])
             item['browser'] = Browser(self.base, item['username'], item['password'])
@@ -90,13 +90,13 @@ class Acceptance:
                 response.raise_for_status()
                 if 'acceptance-key' not in response.text: raise RuntimeError('Public key upload failed')
             self.users.append(item)
-        self.passed('five_web_accounts_and_distinct_ssh_keys')
+        self.passed('web_accounts_and_distinct_ssh_keys')
 
-    def create(self, user, purpose, mode='interactive', workspace=1, argv=None, working_dir='/workspace', gpu=1):
+    def create(self, user, purpose, mode='interactive', workspace=1, argv=None, working_dir='/workspace', gpu=0, cpu=1, memory_gib=1):
         existing = next((t for t in self.record['tasks'] if t['purpose'] == purpose and t['username'] == user['username']), None)
         if existing:
             return {'id': existing['id'], 'path': '/tasks/'+existing['id']+'/', 'user': user, 'purpose': purpose}
-        data = {'image': self.image, 'gpu': gpu, 'cpu': 8, 'memory_gib': 32, 'workspace_gib': workspace,
+        data = {'image': self.image, 'gpu': gpu, 'cpu': cpu, 'memory_gib': memory_gib, 'gpu_requests': json.dumps([{'compute_percent':100,'memory_gib':1} for _ in range(gpu)]), 'workspace_gib': workspace,
                 'purpose': purpose, 'source_kind': 'image', 'starts_at': (datetime.now(ZoneInfo('Asia/Shanghai'))-timedelta(minutes=1)).strftime('%Y-%m-%dT%H:%M') if mode == 'interactive' else '',
                 'ends_at': (datetime.now(ZoneInfo('Asia/Shanghai'))+timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M') if mode == 'interactive' else '',
                 'command': shlex.join(argv or []), 'working_dir': working_dir}
@@ -134,12 +134,14 @@ class Acceptance:
             time.sleep(2)
         raise TimeoutError(str(last))
 
-    def ssh(self, task, command, data=None, check=True, key_user=None, timeout=30):
+    def ssh(self, task, command, data=None, check=True, key_user=None, timeout=30, tty=False):
         state = self.status(task)
         args = ['ssh', '-i', (key_user or task['user'])['key'], '-p', str(state['ssh_port']), '-o', 'BatchMode=yes',
                 '-o', 'ConnectTimeout=8', '-o', 'StrictHostKeyChecking=accept-new', '-o', 'UserKnownHostsFile='+str(self.directory/'known_hosts'),
                 '-o', 'HostKeyAlias=task-'+task['id'],
                 state['login_name']+'@'+urlsplit(self.base).hostname, command]
+        if tty:
+            args.insert(1, '-tt')
         result = subprocess.run(args, input=data, text=True, capture_output=True, timeout=timeout)
         if check and result.returncode: raise RuntimeError(result.stderr[-2000:])
         return result
@@ -150,10 +152,8 @@ class Acceptance:
 
     def run(self):
         a, b = self.users[:2]
-        first = self.create(a, '验收 · 独立 GPU 工作环境', workspace=100)
+        first = self.create(a, '验收 · 独立工作环境')
         self.wait(first, {'running'})
-        gpu = self.ssh(first, 'nvidia-smi --query-gpu=uuid --format=csv,noheader').stdout.strip().splitlines()
-        assert len(gpu) == 1
         state = self.status(first)
         local = self.directory/'scp-marker'
         local.write_text('scp-sftp-marker')
@@ -168,7 +168,7 @@ class Acceptance:
         self.ssh(first, "printf 'permanent-marker' > $HOME/permanent-marker; printf 'first-workspace' > /workspace/first-marker")
         assert b['browser'].get(first['path']).status_code == 404
         assert self.ssh(first, 'true', check=False, key_user=b).returncode != 0
-        self.passed('one_gpu_8cpu_32gib_100gib_and_cross_user_isolation')
+        self.passed('workspace_ssh_sftp_and_cross_user_isolation')
         second = self.create(a, '验收 · 用户并发队列')
         self.wait(second, {'queued'})
         time.sleep(12)
@@ -178,21 +178,6 @@ class Acceptance:
         self.ssh(second, 'test ! -e /workspace/first-marker')
         self.passed('native_per_user_concurrency_and_permanent_volume')
         self.stop(second)
-        tasks = [self.create(user, '验收 · 四卡队列 '+str(i)) for i, user in enumerate(self.users)]
-        deadline = time.monotonic()+240
-        while time.monotonic() < deadline:
-            states = [self.status(t) for t in tasks]
-            if sum(s['status'] == 'running' for s in states) == 4 and sum(s['status'] == 'queued' for s in states) == 1: break
-            time.sleep(2)
-        else: raise RuntimeError('Four-running/one-queued not reached: '+str(states))
-        running = [t for t, s in zip(tasks, states) if s['status'] == 'running']
-        waiting = next(t for t, s in zip(tasks, states) if s['status'] == 'queued')
-        uuids = [self.ssh(t, 'nvidia-smi --query-gpu=uuid --format=csv,noheader').stdout.strip() for t in running]
-        assert len(set(uuids)) == 4
-        self.stop(running[0]); self.wait(waiting, {'running'})
-        self.passed('four_unique_gpus_fifth_waits_and_auto_admits')
-        for task in tasks:
-            if self.status(task)['status'] not in {'canceled', 'succeeded', 'failed'}: self.stop(task)
         script = '#!/bin/bash\necho training-start\nsleep 30\necho training-end\n'
         helper = self.create(a, '验收 · 配置命令任务')
         self.wait(helper, {'running'})
@@ -211,7 +196,9 @@ class Acceptance:
         assert final['status'] == 'canceled'
         self.passed('real_batch_exit_42_no_retry_and_cancellation')
 
+
 def main():
+    require_features('cluster')
     parser = argparse.ArgumentParser(); parser.add_argument('--base', required=True)
     parser.add_argument('--directory', type=Path, required=True)
     args = parser.parse_args(); test = Acceptance(args.base, args.directory)

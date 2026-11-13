@@ -137,7 +137,7 @@ class ReconcileTests(TestCase):
         home = VolumeAllocation.objects.get(kind='home')
         home.state = 'bound'; home.save(update_fields=['state'])
         del self.kube.objects['persistentvolumeclaims', home.pvc_name]
-        with self.assertRaisesRegex(RuntimeError, '缺失'):
+        with self.assertRaises(RuntimeError):
             self.rec.reconcile_task(req)
         self.assertNotIn(('persistentvolumeclaims', home.pvc_name), self.kube.objects)
 

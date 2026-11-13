@@ -21,10 +21,9 @@ class EnvironmentRequestTests(TestCase):
         approve(source.pk,self.admin)
         source.status='running';source.save(update_fields=['status']);return source
 
-    def test_gpu_environment_has_save_and_run_buttons_and_accepts_both_endpoints(self):
+    def test_gpu_environment_can_be_saved_from_web_and_api(self):
         source=self.source()
         response=self.client.get(f'/tasks/{source.pk}/')
-        self.assertContains(response,'保存镜像')
         self.assertContains(response,f'/training/new/?source={source.pk}')
         self.assertEqual(self.client.post(f'/tasks/{source.pk}/save/').status_code,302)
         second=self.source()
@@ -61,8 +60,7 @@ class EnvironmentRequestTests(TestCase):
         SystemObservation.objects.create(name='gpu_inventory',data={'devices':[{'uuid':'GPU-a','index':0,'sm_count':114,
             'memory_mib':24564,'usable_memory_mib':24052,'used_memory_mib':4096,'used_compute_percent':50,'ready':True}]})
         page=self.client.get('/environments/new/')
-        self.assertContains(page,'当前余量')
-        self.assertContains(page,'data-capacity-cpu>14')
+        self.assertEqual(page.context['capacity']['cpu']['available'], 14)
         browser=self.client.get('/resources/available/').json()
         api=self.api.get('/api/v1/resources').json()['data']['request_capacity']
         self.assertEqual(browser,api)

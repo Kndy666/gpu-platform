@@ -8,19 +8,24 @@ import tempfile
 import uuid
 
 
+from environment import require_features, require_commands
+
 def main():
-    if os.geteuid() != 0:
-        raise SystemExit('Run with sudo')
+    require_features('containerd')
+    require_commands('k3s')
     root = Path(__file__).resolve().parents[2]
     spec = importlib.util.spec_from_file_location('cleanup_agent', root / 'deploy/node-agent.py')
     agent = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(agent)
     command = ['k3s', 'ctr', '--namespace', 'k8s.io', 'images']
-    source = 'docker.io/library/gpu-platform:0.2.0'
     operation = uuid.uuid4()
     references = ['docker.io/library/platform-save:' + operation.hex,
                   'localhost:5000/platform-cleanup-check/environment:' + operation.hex]
     before = set(agent.run([*command, 'list', '-q']).splitlines())
+    from environment import skip
+    if not before:
+        skip('Containerd has no local image to tag')
+    source = os.environ.get('PLATFORM_TEST_IMAGE') or sorted(before)[0]
     assert source in before and not (set(references) & before)
     try:
         for reference in references:

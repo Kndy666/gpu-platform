@@ -2,7 +2,6 @@
 """Real student Docker workflow; always remove the resources created by this test."""
 from datetime import datetime, timedelta, timezone
 import json
-import os
 from pathlib import Path
 import shlex
 import subprocess
@@ -10,25 +9,25 @@ import tempfile
 import time
 import uuid
 import requests
-import yaml
 from workspace_cleanup import cleanup_account
+
+from environment import enabled, gpu_inventory, require_features, require_commands, deployment_config, kubectl, portal_url
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
 def main():
-    if os.geteuid() != 0:
-        raise SystemExit('Run with sudo')
-    cfg = yaml.safe_load((ROOT/'config.yaml').read_text())
+    require_features('cluster', 'docker', 'gpu')
+    cfg = deployment_config()
     ns = cfg['platform']['namespace']
     work_ns = cfg['platform']['workload_namespace']
-    url = ('https://' if cfg['network']['https'] else 'http://')+cfg['platform']['public_host']
+    url = portal_url()
     username = 'docker-check-'+uuid.uuid4().hex[:10]
     credentials = {}
     logs_by_task = {}
 
     def app(code, payload=None):
-        result = subprocess.run(['k3s', 'kubectl', '-n', ns, 'exec', '-i', 'deployment/platform', '--',
+        result = subprocess.run([*kubectl(), '-n', ns, 'exec', '-i', 'deployment/platform', '--',
                                  'python', 'manage.py', 'shell', '-c', code],
                                 input=json.dumps(payload or {}), text=True, capture_output=True)
         if result.returncode:
@@ -63,6 +62,8 @@ def main():
             time.sleep(2)
         raise TimeoutError('Task did not reach '+str(statuses))
 
+    require_commands('ssh', 'ssh-keygen')
+    gpu_inventory(app)
     try:
         with tempfile.TemporaryDirectory(prefix='gpu-platform-docker-e2e-') as directory:
             directory = Path(directory)
@@ -72,16 +73,20 @@ def main():
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from portal.api_auth import issue_token
+from portal.models import GROUP_QUOTA_FIELDS
 from portal.models import ImageArtifact,SSHKey
 from portal.services import parse_ssh_key
 data=json.load(sys.stdin)
 with transaction.atomic():
- image=ImageArtifact.objects.filter(shared=True,verified=True,state='ready',name='Ubuntu 22.04').latest('created_at')
+ image=ImageArtifact.objects.filter(shared=True,verified=True,state='ready',node__transport='local').latest('created_at')
  user=get_user_model().objects.create_user(data['username'],password=secrets.token_urlsafe(24))
- user.profile.home_quota_gib=1;user.profile.save(update_fields=['home_quota_gib'])
+ user.profile.home_quota_gib=1
+ user.profile.resource_limits={'unlimited': True, **{field: None for field in GROUP_QUOTA_FIELDS}}
+ user.profile.approval_mode='manual'
+ user.profile.save()
  public,fingerprint=parse_ssh_key(data['public_key'])
  SSHKey.objects.create(user=user,name='Docker verification',public_key=public,fingerprint=fingerprint)
- admin=get_user_model().objects.get(username='admin')
+ admin=get_user_model().objects.filter(is_staff=True,is_superuser=True,is_active=True).first()
  print(json.dumps({'user_id':user.pk,'student':issue_token(user,1800,name=data['username'])['token'],
   'admin':issue_token(admin,1800,name=data['username']+'-admin')['token'],'image':str(image.pk),'reference':image.reference+'@'+image.digest}))''',
                               {'username': username, 'public_key': key.with_suffix('.pub').read_text()})
@@ -102,8 +107,6 @@ with transaction.atomic():
             script = '''set -euo pipefail
 test "$(whoami)" = USERNAME
 test "$HOME" = /home/USERNAME
-! command -v python3
-grep -q ports.ubuntu.com /etc/apt/sources.list
 docker info --format '{{json .SecurityOptions}}' | grep -q rootless
 docker compose version
 docker buildx version
@@ -114,7 +117,7 @@ USER 0
 RUN printf image-preserved > /usr/local/share/docker-check
 DOCKERFILE
 docker volume create check-state
-docker run --rm --user 0 --entrypoint /bin/bash local-check -c 'getent hosts ports.ubuntu.com >/dev/null && curl -fsS --connect-timeout 5 --max-time 30 http://ports.ubuntu.com/ubuntu-ports/dists/jammy/Release >/dev/null'
+NETWORK_CHECK
 docker run --rm --user 0 --entrypoint /bin/bash -v check-state:/state local-check -c 'echo volume-preserved > /state/marker'
 cat > /workspace/compose-check.yaml <<'COMPOSE'
 services:
@@ -140,6 +143,8 @@ if timeout 60 docker push REGISTRY_HOST/user-USER_ID/docker-e2e:denied > /worksp
 grep -Ei 'denied|unauthorized' /workspace/ro-push.log
 printf 'DOCKER_PREPARATION_PASS\\n'
 '''.replace('USERNAME', username).replace('IMAGE_REFERENCE', credentials['reference'])
+            network_check = "docker run --rm --user 0 --entrypoint /bin/bash local-check -c 'apt-get update'" if enabled('network') else 'true'
+            script = script.replace('NETWORK_CHECK', network_check)
             script = script.replace('CUDA_PROGRAM', cuda_source).replace('USER_ID', str(credentials['user_id'])).replace('REGISTRY_HOST', cfg['registry']['host'])
             result = subprocess.run(ssh+['/bin/bash -s'], input=script, text=True, capture_output=True, timeout=300)
             print(result.stdout[-5000:], result.stderr[-3000:], flush=True)
@@ -153,7 +158,7 @@ printf 'DOCKER_PREPARATION_PASS\\n'
                        '; result=$?; sleep 12; exit "$result"')
             target = api(credentials['student'], 'POST', '/tasks', {'mode': 'batch',
                 'source_kind': 'environment', 'source_environment': source, 'purpose': 'Docker GPU 验证',
-                'gpu': 1, 'cpu': 2, 'memory_gib': 4, 'working_dir': '/workspace', 'command': command})['id']
+                'gpu': 1, 'gpu_requests': [{'compute_percent':100,'memory_gib':1}], 'cpu': 2, 'memory_gib': 4, 'working_dir': '/workspace', 'command': command})['id']
             api(credentials['admin'], 'POST', '/tasks/'+target+'/review', {'action': 'approve', 'priority': 0})
             completed = wait_task(target, {'succeeded'}, 360)
             assert completed['exit_code'] == 0, completed

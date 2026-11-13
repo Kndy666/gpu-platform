@@ -6,23 +6,25 @@ import time
 import uuid
 from portal_lifecycle import Acceptance, kube
 
+from environment import require_features, namespace
+
 def query(expression):
     code = 'import json; from portal.models import ImageArtifact,ImageBuild; print(json.dumps('+expression+',default=str))'
-    raw = kube('-n', 'gpu-platform', 'exec', 'deploy/platform', '--', 'python', 'manage.py', 'shell', '-c', code)
+    raw = kube('-n', namespace(), 'exec', 'deploy/platform', '--', 'python', 'manage.py', 'shell', '-c', code)
     return json.loads(raw.strip().splitlines()[-1])
 
+
 def main():
+    require_features('cluster')
     p = argparse.ArgumentParser(); p.add_argument('--base', required=True); p.add_argument('--directory', type=Path, required=True)
     args = p.parse_args(); test = Acceptance(args.base, args.directory); test.prepare()
-    base = query('list(ImageArtifact.objects.filter(shared=True,verified=True).values("reference","digest"))')[0]
+    base = query(f'list(ImageArtifact.objects.filter(pk="{test.image}").values("reference","digest"))')[0]
     dockerfile = f'''FROM {base['reference']}@{base['digest']}
 USER root
-RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-pip && rm -rf /var/lib/apt/lists/*
-RUN python3 -m pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple --target=/opt/experiment rich==13.9.4
-ENV PYTHONPATH=/opt/experiment
+RUN printf acceptance-image-marker > /opt/acceptance-image-marker
 USER 1000:1000
 '''
-    name = 'acceptance-rich-'+uuid.uuid4().hex[:6]
+    name = 'acceptance-image-'+uuid.uuid4().hex[:6]
     response = test.users[0]['browser'].post('/images/', {'name': name, 'dockerfile': dockerfile, 'context_git': ''})
     response.raise_for_status()
     deadline = time.monotonic()+900

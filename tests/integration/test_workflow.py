@@ -236,7 +236,8 @@ class WorkflowTests(TestCase):
         own=allocation_timeline(self.a)
         self.assertTrue(any(b['row']=='GPU-test' and b['title']==source.purpose for b in own['blocks']))
         other=allocation_timeline(self.b)
-        self.assertTrue(all(b['url'] is None and b['title']=='已分配' for b in other['blocks']))
+        self.assertTrue(all(b['url'] is None for b in other['blocks']))
+        self.assertNotIn(source.purpose, json.dumps(other['blocks'], ensure_ascii=False))
 
     def test_management_requires_staff_and_renders_for_admin(self):
         self.client.force_login(self.a);self.assertEqual(self.client.get('/management/').status_code,302)

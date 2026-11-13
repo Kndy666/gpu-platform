@@ -8,8 +8,10 @@ import time
 import uuid
 import yaml
 
+from environment import require_features, config_path, kubectl as kubectl_command
+
 def kubectl(*args, obj=None):
-    result = subprocess.run(['k3s', 'kubectl', *args], input=yaml.safe_dump(obj) if obj else None,
+    result = subprocess.run([*kubectl_command(), *args], input=yaml.safe_dump(obj) if obj else None,
                              text=True, stdout=subprocess.PIPE, check=True)
     return result.stdout
 
@@ -63,8 +65,10 @@ def wait(namespace, name):
         time.sleep(2)
     raise TimeoutError(name)
 
+
 def main():
-    parser = argparse.ArgumentParser(); parser.add_argument('--config', type=Path, required=True)
+    require_features('cluster')
+    parser = argparse.ArgumentParser(); parser.add_argument('--config', type=Path, default=config_path())
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args(); cfg = yaml.safe_load(args.config.read_text())
     ns = 'platform-storage-test-'+uuid.uuid4().hex[:8]

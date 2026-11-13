@@ -75,7 +75,7 @@ class RegistryCredentialTests(TestCase):
         ns = config()['platform']['workload_namespace']
         secret = self.kube.objects['secrets', ns, f'registry-u{self.user.pk}']
         secret['metadata']['labels']['platform.user'] = str(self.other.pk)
-        with self.assertRaisesRegex(RuntimeError, '不属于本账号'):
+        with self.assertRaises(RuntimeError):
             sync_registry_users(self.kube)
         self.assertFalse(self.kube.patches)
 

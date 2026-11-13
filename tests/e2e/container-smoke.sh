@@ -1,7 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 project_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
+case ",${PLATFORM_TEST_FEATURES:-}," in
+  *,docker,*) ;;
+  *) echo 'SKIP Docker smoke test (enable PLATFORM_TEST_FEATURES=docker)'; exit 0 ;;
+esac
+for tool in docker python3 curl; do
+  if ! command -v "${tool}" >/dev/null; then echo "SKIP Required command unavailable: ${tool}"; exit 0; fi
+done
 image="${PLATFORM_TEST_IMAGE:-gpu-platform:0.3.0}"
+docker info >/dev/null
+if ! docker image inspect "${image}" >/dev/null 2>&1; then
+  echo "SKIP Local test image unavailable: ${image}"
+  exit 0
+fi
 name="gpu-platform-smoke-$$"
 volume="${name}-data"
 smoke_dir="$(mktemp -d -t gpu-platform-smoke.XXXXXX)"
@@ -16,17 +28,18 @@ PY
 docker volume create "${volume}" >/dev/null
 docker run --rm --user 0 -v "${volume}:/var/lib/platform" --entrypoint chown "${image}" 10001:10001 /var/lib/platform
 start() {
-  docker run -d --name "${name}" -p 127.0.0.1:18080:8000 --env-file "${smoke_dir}/app.env" \
-    -e PLATFORM_CONFIG=/etc/platform/config.yaml -v "${project_root}/config.example.yaml:/etc/platform/config.yaml:ro" \
+  docker run -d --name "${name}" -p 127.0.0.1::8000 --env-file "${smoke_dir}/app.env" \
+    -e PLATFORM_CONFIG=/etc/platform/config.yaml -v "${project_root}/tests/platform.yaml:/etc/platform/config.yaml:ro" \
     -v "${volume}:/var/lib/platform" "${image}" >/dev/null
+  address="$(docker port "${name}" 8000/tcp)"
   for attempt in $(seq 1 40); do
-    if curl -fsS http://127.0.0.1:18080/accounts/login/ > "${smoke_dir}/login.html"; then return; fi
+    if curl -fsS "http://${address}/accounts/login/" > "${smoke_dir}/login.html"; then return; fi
     sleep 1
   done
   docker logs --tail=40 "${name}"; exit 1
 }
 start
-curl -fsS http://127.0.0.1:18080/static/portal/style.css > "${smoke_dir}/style.css"
+curl -fsS "http://${address}/static/portal/style.css" > "${smoke_dir}/style.css"
 docker exec "${name}" python manage.py shell -c 'from portal.models import AuditLog; AuditLog.objects.create(action="container_smoke",target="upgrade-persistence")' >/dev/null
 docker stop "${name}" >/dev/null
 docker rm "${name}" >/dev/null

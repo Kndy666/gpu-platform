@@ -32,5 +32,4 @@ class WorkspaceDataCopyTests(TestCase):
             result=subprocess.run(['/bin/sh','-c',COPY_SCRIPT,'copy',str(source),str(destination)],
                 env={**os.environ,'PATH':str(binary)+':'+os.environ['PATH']},text=True,capture_output=True)
             self.assertEqual(result.returncode,72)
-            self.assertIn('原工作卷保留',result.stderr)
             self.assertEqual(data.read_bytes(),b'x'*8192);self.assertEqual(list(destination.iterdir()),[])

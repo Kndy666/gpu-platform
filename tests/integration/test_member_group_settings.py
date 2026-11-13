@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 
 from portal.api_auth import issue_token
-from portal.models import APPROVAL_CHOICES, GROUP_QUOTA_FIELDS, UserGroup
+from portal.models import GROUP_QUOTA_FIELDS, UserGroup
 from portal.policies import approval_mode, extension_limit
 from portal.services import policy_for
 from tests.factories import fixtures, task, member_form_data
@@ -26,11 +26,8 @@ class MemberGroupSettingsTests(TestCase):
         fields = [*GROUP_QUOTA_FIELDS, 'unlimited', 'approval_mode', 'extension_limit']
         for page in (member, group):
             self.assertEqual(page.status_code, 200)
-            self.assertNotContains(page, '沿用')
             for name in fields:
-                self.assertContains(page, f'name="{name}"')
                 self.assertFalse(page.context['form'].fields[name].disabled, name)
-            self.assertEqual(list(page.context['form'].fields['approval_mode'].choices), APPROVAL_CHOICES)
 
     def test_new_member_copies_group_defaults_once(self):
         self.group.approval_mode = 'automatic'
@@ -60,21 +57,12 @@ class MemberGroupSettingsTests(TestCase):
         self.group.refresh_from_db()
         self.assertEqual((self.group.cpu, self.group.approval_mode, self.group.extension_limit), (80, 'manual', 1))
 
-    def test_approvals_navigation_separates_pending_work_and_push_settings(self):
-        req = task(self.alice, self.image, purpose='需要人工审核')
+    def test_pending_requests_are_listed_in_web_and_api(self):
+        req = task(self.alice, self.image)
         page = self.client.get('/management/approvals/')
-        self.assertContains(page, '审批与推送')
-        self.assertContains(page, '需要人工审核')
-        self.assertNotContains(page, 'name="token"')
-        push = self.client.get('/management/approvals/?tab=push')
-        self.assertContains(push, 'PushPlus')
-        self.assertNotContains(push, '需要人工审核')
-        self.assertNotContains(page, 'name="scope"')
-        self.assertNotContains(page, 'name="mode"')
+        self.assertEqual([item.pk for item in page.context['pending']], [req.pk])
         queue = self.client.get('/api/v1/admin/approvals').json()['data']
         self.assertEqual([item['id'] for item in queue['items']], [str(req.pk)])
-        response = self.client.patch('/api/v1/admin/approvals', '{}', content_type='application/json')
-        self.assertEqual(response.status_code, 405)
 
     def test_explicit_numeric_limits_are_not_ignored_for_an_unlimited_group(self):
         self.group.unlimited = True

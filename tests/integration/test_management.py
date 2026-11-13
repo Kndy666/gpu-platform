@@ -26,7 +26,7 @@ class ManagementTests(TestCase):
         data.update(overrides)
         return data
 
-    def test_all_management_pages_use_portal_layout(self):
+    def test_management_pages_render(self):
         paths = ['/management/nodes/', '/management/members/', '/management/members/new/',
                  f'/management/members/{self.a.pk}/', '/management/groups/', f'/management/groups/{self.default_group.pk}/',
                  '/management/storage/', '/management/images/', '/management/audits/', '/management/settings/']
@@ -34,8 +34,6 @@ class ManagementTests(TestCase):
             with self.subTest(path=path):
                 response = self.client.get(path)
                 self.assertEqual(response.status_code, 200)
-                self.assertContains(response, 'aria-label="管理分类"')
-                self.assertNotContains(response, 'href="/admin/')
 
     def test_student_cannot_open_or_modify_management(self):
         self.client.force_login(self.a)

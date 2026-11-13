@@ -22,7 +22,8 @@ int main(int argc,char **argv){
  if(argc!=3)return 1;
  int count=atoi(argv[1]),rank=atoi(argv[2]);FILE *file=fopen("id.bin","rb");if(!file)return 1;
  if(fread(&id,sizeof(id),1,file)!=1)return 1;fclose(file);
- void *cuda=dlopen("libcudart.so.13",RTLD_NOW);if(!cuda){fprintf(stderr,"%s\n",dlerror());return 1;}
+ const char *runtime=getenv("PLATFORM_CUDART_LIBRARY");
+ void *cuda=dlopen(runtime ? runtime : "libcudart.so",RTLD_NOW);if(!cuda){fprintf(stderr,"%s\n",dlerror());return 1;}
  LOAD(cuda,cudaSetDevice,(int));LOAD(cuda,cudaMalloc,(void**,size_t));LOAD(cuda,cudaMemcpy,(void*,const void*,size_t,int));
  LOAD(cuda,cudaStreamCreate,(void**));LOAD(cuda,cudaStreamSynchronize,(void*));
  LOAD(nccl,ncclCommInitRank,(void**,int,UniqueId,int));LOAD(nccl,ncclAllReduce,(const void*,void*,size_t,int,int,void*,void*));

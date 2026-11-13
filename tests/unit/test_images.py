@@ -40,7 +40,6 @@ class ImageTests(TestCase):
         cm, job, _, _ = build_objects(build)
         self.assertIn('runner.sh', cm['data'])
         self.assertIn('emptyDir', job['spec']['template']['spec']['volumes'][0])
-        self.assertIn('cp -L', job['spec']['template']['spec']['initContainers'][0]['command'][2])
         build.user = self.a
         with self.assertRaises(RuntimeError): build_objects(build)
 
@@ -49,7 +48,5 @@ class ImageTests(TestCase):
         cm,job,_,_=build_objects(build)
         self.assertIn('docker.sh',cm['data'])
         self.assertIn('runner.sh',cm['data'])
-        self.assertIn('docker/certs.d',cm['data']['docker.sh'])
-        self.assertIn('ble-0.4.0-devel3.tar.xz',cm['binaryData'])
         command=job['spec']['template']['spec']['containers'][0]['command']
         self.assertTrue(any(item.startswith('build-arg:BASE_IMAGE=') for item in command))

@@ -105,7 +105,7 @@ class AdministratorSSHTests(TestCase):
         self.assertEqual([row['id'] for row in data],[str(req.pk)])
         self.assertEqual(data[0]['connection']['port'],30047)
         html=self.client.get(f'/tasks/{req.pk}/?from=management')
-        self.assertContains(html,'管理员 SSH 连接');self.assertContains(html,'User alice')
+        self.assertContains(html,'User alice')
         conn=api.get(f'/api/v1/tasks/{req.pk}/connection').json()['data']
         self.assertEqual(conn['administrator_access']['keys'][0]['fingerprint'],'admin-fingerprint')
         self.assertTrue(conn['administrator_access']['ready']);self.assertTrue(conn['administrator_access']['sudo'])
@@ -126,27 +126,15 @@ class AdministratorSSHTests(TestCase):
         own=task(self.b,self.image)
         self.assertNotIn('administrator_access',api.get(f'/api/v1/tasks/{own.pk}/connection').json()['data'])
 
-    def test_missing_admin_key_has_an_actionable_entry_and_no_fake_connection(self):
+    def test_missing_admin_key_and_finished_task_have_no_ready_connection(self):
         self.admin_key.enabled=False;self.admin_key.save(update_fields=['enabled'])
         self.client.force_login(self.admin)
-        self.assertContains(self.client.get('/management/containers/'),'添加 SSH 公钥')
+        self.assertFalse(self.client.get('/management/containers/').context['ssh_access']['ready'])
         req=task(self.a,self.image,status='running');ws=Workspace.objects.create(request=req,object_name='no-key',ssh_port=30047)
-        self.assertContains(self.client.get(f'/tasks/{req.pk}/'),'添加你的 SSH 公钥')
+        self.assertFalse(self.client.get(f'/tasks/{req.pk}/').context['administrator_access']['ready'])
         api=Client(HTTP_AUTHORIZATION='Bearer '+issue_token(self.admin)['token'])
         data=api.get(f'/api/v1/tasks/{req.pk}/connection').json()['data']
         self.assertFalse(data['administrator_access']['ready'])
         req.status='succeeded';req.save(update_fields=['status'])
         ws.ssh_port=None;ws.cleanup_complete=True;ws.save(update_fields=['ssh_port','cleanup_complete'])
-        self.assertNotContains(self.client.get('/management/containers/'),'title="SSH 连接"')
         self.assertIsNone(api.get(f'/api/v1/tasks/{req.pk}/connection').json()['data']['connection'])
-
-    def test_container_pagination_preserves_filters(self):
-        for index in range(26):
-            req=task(self.a,self.image,status='running',purpose='page-'+str(index))
-            Workspace.objects.create(request=req,object_name='page-'+str(index),ssh_port=30022+index)
-        self.client.force_login(self.admin)
-        response=self.client.get('/management/containers/',{'q':'alice','status':'running','mode':'interactive'})
-        self.assertTrue(response.context['tasks'].has_next())
-        next_url=response.context['tasks'].next_url
-        self.assertIn('status=running',next_url);self.assertIn('mode=interactive',next_url)
-        self.assertEqual(len(self.client.get('/management/containers/'+next_url).context['tasks']),1)

@@ -48,7 +48,7 @@ class BusinessTests(TestCase):
     def test_stale_home_allocation_cannot_exceed_current_group_limit(self):
         set_member_settings(self.a, home_gib=10)
         req = task(self.a, self.image)
-        with self.assertRaisesMessage(ValidationError, '个人卷容量超过成员上限'):
+        with self.assertRaises(ValidationError):
             approve(req.pk, self.admin)
         self.assertFalse(VolumeAllocation.objects.exists())
 

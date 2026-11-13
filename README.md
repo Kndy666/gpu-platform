@@ -103,8 +103,33 @@ export DJANGO_DEBUG=1 PLATFORM_HTTPS=0
 运行测试与构建应用镜像：
 
 ```bash
-DJANGO_DEBUG=1 PLATFORM_HTTPS=0 .venv/bin/python backend/manage.py test tests --noinput
+.venv/bin/python backend/manage.py test tests --noinput
 docker build --build-arg PYTHON_IMAGE=docker.m.daocloud.io/library/python:3.12.12-slim-bookworm -t gpu-platform:0.3.0 .
+```
+
+常规测试自动使用 `tests/settings.py`、固定测试数据和临时数据库，退出后清理。部署环境中的配置文件、数据库路径、用户组默认值和 HTTPS 设置由测试配置覆盖。需要自定义测试设置时可传入 `--settings`。
+
+端到端测试按需设置 `PLATFORM_TEST_FEATURES`，多个能力用逗号分隔。脚本会输出跳过原因。
+
+| 能力 | 对应测试 |
+| --- | --- |
+| `browser` | `visual_ui.py`，需要已有 Playwright 和 Chromium，可用 `CHROMIUM_PATH` 指定浏览器 |
+| `docker` | `container-smoke.sh`、`runner-smoke.sh`，分别用 `PLATFORM_TEST_IMAGE`、`WORKSPACE_TEST_IMAGE` 指定本地镜像 |
+| `cluster` | 工作空间生命周期、存储配额、镜像构建与权限、管理员 SSH、资源视图 |
+| `cluster,gpu` | `gpu_sharing.py`、`workflow_lifecycle.py`，使用节点的显卡信息检查配额 |
+| `cluster,gpu,docker` | `docker_workspace.py`，以及 GPU 共享测试中的容器内 Docker 检查 |
+| `containerd` | `node_image_cleanup.py`，在 K3s 节点检查临时镜像标签回收 |
+| `registry` | `image_recycling.py`，用 `PLATFORM_TEST_REGISTRY_DIR` 指定独立 Zot 测试目录，`PLATFORM_DATA` 指向其 `data` 子目录 |
+| `recovery` | 与 `cluster` 一起启用 `recovery_check.py`，会重启测试节点的 K3s、CSI 并注入进程故障 |
+| `network` | 为工作空间工具、Docker 验收启用软件源联网检查 |
+| `nccl` | 为 GPU 共享验收启用 NCCL，`PLATFORM_NCCL_TEST_DIR` 提供 `check.c` 和运行库，可通过 `PLATFORM_CUDART_LIBRARY` 指定 CUDA 运行库文件名 |
+
+集群测试从 `PLATFORM_TEST_CONFIG` 读取目标部署配置，默认使用 `PLATFORM_CONFIG` 或项目的 `config.yaml`。`PLATFORM_TEST_KUBECTL` 可指定命令，例如 `kubectl --context staging`。实际显卡数量不足的场景会跳过。HTTP 入口可用 `PLATFORM_TEST_BASE` 覆盖，带 `--base` 的脚本使用该参数。通过网页登录的验收脚本支持 `PLATFORM_TEST_ADMIN_USER` 和 `PLATFORM_TEST_ADMIN_PASSWORD`，默认读取初始化管理员凭据。
+
+```bash
+PLATFORM_TEST_FEATURES=browser .venv/bin/python tests/e2e/visual_ui.py /tmp/platform-ui
+PLATFORM_TEST_FEATURES=cluster,gpu PLATFORM_TEST_CONFIG=/path/to/test-config.yaml \
+  .venv/bin/python tests/e2e/gpu_sharing.py
 ```
 
 ## 文档

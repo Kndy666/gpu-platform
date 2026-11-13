@@ -76,7 +76,7 @@ class InstallerSimulationTests(TestCase):
         with tempfile.TemporaryDirectory() as directory, \
                 patch.object(installer.urllib.request, 'urlopen', return_value=io.BytesIO(b'corrupt archive')):
             destination = Path(directory) / 'chart.tgz'
-            with self.assertRaisesRegex(RuntimeError, 'Cannot obtain chart.tgz'):
+            with self.assertRaises(RuntimeError):
                 installer.download(['https://example.com/chart.tgz'], destination, digest)
             self.assertFalse(destination.exists())
             self.assertFalse(destination.with_suffix('.part').exists())

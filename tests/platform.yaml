@@ -1,0 +1,97 @@
+# Synthetic deployment fixture shared by unit, integration and browser tests.
+platform:
+  role: controller
+  namespace: gpu-platform
+  workload_namespace: gpu-workloads
+  build_namespace: gpu-builds
+  public_host: portal.test.invalid
+  https_origin: https://portal.test.invalid
+  tls_secret: platform-tls
+  app_image: test/platform:current
+  app_image_archive: ''
+  architecture: arm64
+  node_ip: auto
+  maintenance: false
+  reconcile_seconds: 10
+  ssh_ports:
+  - 30022
+  - 30121
+  batch_reminder_hours: 168
+  data_storage_class: rawfile-system-test
+  data_size_gib: 10
+  queue: laboratory
+  runtime_classes:
+    cpu: workspace-runc
+    gpu: workspace-nvidia
+  reserve_cpu: 4
+  reserve_memory_gib: 16
+controller:
+  key_directory: /test/ssh-keys
+nodes: []
+network:
+  https: false
+  public_ports_approved: false
+  public_interface: auto
+  private_ports:
+  - 6443
+  - 10250
+  pod_cidr: 10.42.0.0/16
+  service_cidr: 10.43.0.0/16
+  registry_service_ip: 10.43.0.50
+  download_proxy: ''
+  registry_mirrors: {}
+storage:
+  datasets: /test/datasets
+  registry_budget_gib: 300
+  pools:
+  - name: test
+    path: /test/volumes
+    storage_class: rawfile-test
+    buffer_percent: 5
+registry:
+  bootstrap_workspace: true
+  host: registry.test.invalid:5000
+  tls_secret: registry-tls
+  buildkit_image: test/buildkit:current
+  zot_image: test/registry:current
+  git_image: test/git:current
+  git_hosts:
+  - github.com
+  - gitlab.com
+  - gitee.com
+  base_image: test/workspace:current
+policies:
+  temporary:
+    unlimited: false
+    gpu_compute_percent: 100
+    gpu_compute_per_card_percent: 100
+    gpu_memory_per_card_gib: 24
+    gpu_memory_gib: 24
+    cpu: 8
+    memory_gib: 12
+    workspace_gib: 300
+    home_gib: 200
+    image_gib: 200
+    concurrent_tasks: 1
+    interactive_hours: 120
+    extension_limit: 1
+    approval_mode: automatic
+  longterm:
+    unlimited: false
+    gpu_compute_percent: 200
+    gpu_compute_per_card_percent: 100
+    gpu_memory_per_card_gib: 24
+    gpu_memory_gib: 48
+    cpu: 16
+    memory_gib: 24
+    workspace_gib: 500
+    home_gib: 500
+    image_gib: 400
+    concurrent_tasks: 1
+    interactive_hours: 240
+    extension_limit: 1
+    approval_mode: automatic
+  管理员:
+    unlimited: true
+    extension_limit: 1
+    approval_mode: automatic
