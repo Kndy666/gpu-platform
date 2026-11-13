@@ -1,6 +1,13 @@
 (() => {
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+  const adminMenu = $('[data-admin-menu]');
+  if (adminMenu) {
+    const compactNavigation = window.matchMedia('(max-width: 700px)');
+    const updateNavigation = () => { adminMenu.open = !compactNavigation.matches; };
+    updateNavigation();
+    compactNavigation.addEventListener('change', updateNavigation);
+  }
   const storageNodes = $('[data-storage-user]');
   if (storageNodes) {
     $$('[data-storage-node]', storageNodes).forEach(details => {

@@ -59,10 +59,28 @@ class ManagementLayoutTests(TestCase):
 
     def test_group_edit_keeps_member_navigation_selected_and_pending_count_visible(self):
         response = self.client.get(f'/management/groups/{self.user.profile.group_id}/')
-        self.assertContains(response, 'aria-current="true">成员与权限')
         self.assertContains(response, 'aria-current="page">用户组')
         self.assertContains(response, '52 条待审批')
-        self.assertNotContains(response, 'href="/management/storage/"')
+        sidebar, content = response.content.decode().split('</aside>', 1)
+        self.assertIn('aria-label="管理分类"', sidebar)
+        self.assertIn('成员与权限', sidebar)
+        self.assertIn('href="/management/storage/"', sidebar)
+        self.assertNotIn('aria-label="管理分类"', content)
+        self.assertNotContains(response, 'class="manage-primary"')
+        self.assertNotContains(response, 'class="manage-secondary"')
+
+    def test_approval_pages_select_their_sidebar_entry_and_page_title(self):
+        for tab, title in [('pending', '待审批'), ('push', '推送设置'), ('history', '发送记录')]:
+            response = self.client.get('/management/approvals/', {'tab': tab})
+            self.assertContains(response, f'aria-current="page">{title}')
+            self.assertContains(response, f'<h1>{title}</h1>')
+            self.assertContains(response, 'aria-current="page"', count=1)
+
+    def test_workbench_keeps_global_navigation(self):
+        response = self.client.get('/')
+        self.assertContains(response, '开发环境')
+        self.assertContains(response, 'href="/management/"')
+        self.assertNotContains(response, 'data-admin-menu')
 
     def test_push_validation_stays_on_push_page(self):
         response = self.client.post('/management/approvals/', {'action': 'push', 'reminder_minutes': -1})

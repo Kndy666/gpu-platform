@@ -1,12 +1,25 @@
-<div class="management-navigation">
-  <nav class="manage-primary" aria-label="管理分类">
-    {% for item in primary %}
-    <a href="{{ item.url }}" {% if item.active %}aria-current="true"{% endif %}>{{ item.label }}{% if item.count %}<span class="nav-count" aria-label="{{ item.count }} 条待审批">{{ item.count }}</span>{% endif %}</a>
+<details class="admin-menu" data-admin-menu open>
+  <summary class="admin-menu-toggle">
+    <span>管理导航</span><span class="admin-current-title">{{ current_title }}</span>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+  </summary>
+  <nav class="admin-navigation" aria-label="管理分类">
+    <a class="admin-back" href="{% url 'dashboard' %}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg>返回工作台</a>
+    {% for group in navigation %}
+      {% if group.items|length == 1 %}
+        {% for item in group.items %}<a class="admin-home" href="{{ item.url }}" {% if item.active %}aria-current="page"{% endif %}>{{ item.label }}</a>{% endfor %}
+      {% else %}
+      <details class="admin-nav-group" name="management-section" {% if group.active %}open{% endif %}>
+        <summary {% if group.active %}class="current-group"{% endif %}>
+          <span>{{ group.label }}</span>
+          {% if group.count %}<span class="admin-pending-count" aria-label="{{ group.count }} 条待审批">{{ group.count }}</span>{% endif %}
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+        </summary>
+        <div class="admin-nav-links">
+          {% for item in group.items %}<a href="{{ item.url }}" {% if item.active %}aria-current="page"{% endif %}>{{ item.label }}</a>{% endfor %}
+        </div>
+      </details>
+      {% endif %}
     {% endfor %}
   </nav>
-  {% if secondary %}
-  <nav class="manage-secondary" aria-label="管理导航">
-    {% for item in secondary %}<a href="{{ item.url }}" {% if item.active %}aria-current="page"{% endif %}>{{ item.label }}</a>{% endfor %}
-  </nav>
-  {% endif %}
-</div>
+</details>

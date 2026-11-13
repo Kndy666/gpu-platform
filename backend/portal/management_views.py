@@ -71,7 +71,8 @@ def approvals(request):
             else:
                 messages.error(request, '请选择有效的审批操作。')
             return redirect('manage_approvals')
-    return render(request, 'portal/manage_approvals.html', {'section': 'approvals', 'section_title': '审批与推送',
+    title = {'pending': '待审批', 'push': '推送设置', 'history': '发送记录'}[tab]
+    return render(request, 'portal/manage_approvals.html', {'section': 'approvals', 'section_title': title,
         'approval_tab': tab,
         'pending': ResourceRequest.objects.filter(status='submitted').select_related('user', 'node'),
         'extensions': ExtensionRequest.objects.filter(status='pending').select_related('request__user', 'request__node'),

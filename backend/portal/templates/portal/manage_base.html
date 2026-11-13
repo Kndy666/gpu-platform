@@ -1,7 +1,7 @@
 {% extends 'portal/base.html' %}
 {% load management %}
+{% block sidebar_navigation %}{% management_navigation %}{% endblock %}
 {% block content %}
-{% management_navigation %}
 <div class="page-heading"><h1>{{ section_title }}</h1><div class="actions">{% block manage_actions %}{% endblock %}</div></div>
 {% block manage_content %}{% endblock %}
 {% endblock %}
