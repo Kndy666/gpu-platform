@@ -92,7 +92,11 @@ def new_request(request, mode='interactive'):
     form = RequestForm(request.POST or None, user=request.user, mode=mode, initial=initial)
     if request.method == 'POST' and form.is_valid():
         req = form.save()
-        audit(request.user, 'submit', req.pk)
+        from .approvals import submit_request
+        try:
+            submit_request(req)
+        except ValidationError as exc:
+            messages.error(request, '自动审批未完成：' + '；'.join(exc.messages))
         return redirect('task', pk=req.pk)
     from .queries import request_capacity
     return render(request, 'portal/request.html', {'form': form, 'mode': mode, 'capacity':request_capacity(request.user,node=form.node),
@@ -114,9 +118,38 @@ def task(request, pk):
     from .ssh_access import administrator_access
     admin_access=administrator_access(request.user)
     managed=bool(request.user.is_staff and (request.GET.get('from')=='management' or req.user_id!=request.user.pk))
+    from .forms import ExtensionForm
+    from .policies import extension_limit
+    from .services import policy_for
+    limit = extension_limit(req.user)
+    pending_extension = req.extensions.filter(status='pending').first()
+    can_extend = bool(req.user_id == request.user.pk and req.mode == 'interactive' and req.can_stop and ws
+                      and not ws.stop_requested and req.ends_at and req.ends_at > timezone.now()
+                      and req.extension_count < limit and not pending_extension)
     return render(request, 'portal/task.html', {'task': req, 'ws': ws, 'volume': volume,
                   'host': config()['platform']['public_host'],'administrator_access':admin_access,
-                  'admin_connection':bool(request.user.is_staff and req.user_id!=request.user.pk),'managed':managed})
+                  'admin_connection':bool(request.user.is_staff and req.user_id!=request.user.pk),'managed':managed,
+                  'extension_form': ExtensionForm(), 'can_extend': can_extend, 'extension_limit': limit,
+                  'extension_hours': None if policy_for(req.user).unlimited else policy_for(req.user).interactive_hours,
+                  'pending_extension': pending_extension, 'extensions': req.extensions.order_by('-created_at')[:5]})
+
+
+@login_required
+@require_POST
+def request_extension(request, pk):
+    from .forms import ExtensionForm
+    from .approvals import request_extension as submit_extension
+    get_object_or_404(ResourceRequest, pk=pk, user=request.user)
+    form = ExtensionForm(request.POST)
+    if form.is_valid():
+        try:
+            entry = submit_extension(pk, request.user, **form.cleaned_data)
+            messages.success(request, '延期已通过。' if entry.status == 'approved' else '延期申请已提交。')
+        except ValidationError as exc:
+            messages.error(request, '；'.join(exc.messages))
+    else:
+        messages.error(request, form.errors.as_text())
+    return redirect('task', pk=pk)
 
 @login_required
 def task_status(request, pk):

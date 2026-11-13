@@ -3,6 +3,9 @@ import json
 from .models import ResourceRequest
 
 ACTION_LABELS = {
+    'extension_submitted': '申请延期', 'extension_approved': '延期通过', 'extension_rejected': '延期拒绝',
+    'approval_rule_updated': '修改审批方式', 'push_settings_updated': '修改微信推送设置',
+    'ending_soon': '环境即将到期', 'running': '容器已启动', 'node_offline': '节点离线',
     'submit': '提交申请', 'approve': '批准申请', 'reject': '拒绝申请', 'stop_requested': '停止任务',
     'finished': '任务结束', 'resources_released': '资源已释放', 'environment_saved': '环境已保存',
     'save_environment': '保存环境', 'image_kept': '保留镜像', 'image_recycle_requested': '安排镜像回收',
@@ -22,6 +25,7 @@ ACTION_LABELS = {
 
 
 DETAIL_LABELS = {
+    'extension_id': '延期申请', 'scope': '配置范围', 'mode': '审批方式', 'events': '推送事件', 'automatic': '自动审批',
     'users_removed': '已移除账号', 'requests_removed': '已移除任务', 'volumes_removed': '已移除数据卷',
     'remaining_accounts': '当前账号数', 'remaining_requests': '当前任务数', 'production_shared_images': '共享镜像数',
     'removed_test_image_tags': '已移除测试镜像版本', 'images_removed': '已移除镜像', 'pvc_names': '数据卷',

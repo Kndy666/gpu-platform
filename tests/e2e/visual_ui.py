@@ -13,7 +13,7 @@ def main():
         os.environ['PLATFORM_DATASET_ROOT']=str(datasets)
         os.environ.update(DJANGO_DEBUG='1',PLATFORM_HTTPS='0',PLATFORM_DATA=data,DJANGO_SETTINGS_MODULE='config.settings',DJANGO_ALLOWED_HOSTS='127.0.0.1,localhost')
         sys.path.insert(0,str(ROOT/'backend'))
-        subprocess.run([sys.executable,str(ROOT/'backend/manage.py'),'migrate','--noinput'],check=True,stdout=subprocess.DEVNULL)
+        subprocess.run([sys.executable,str(ROOT/'backend/manage.py'),'initdb'],check=True,stdout=subprocess.DEVNULL)
         import django;django.setup()
         from django.utils import timezone
         from portal.models import ComputeNode,ResourceRequest,Workspace,StoragePool,SystemObservation,ImageArtifact,UserGroup,AuditLog,SSHKey,VolumeAllocation

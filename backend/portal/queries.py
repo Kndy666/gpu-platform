@@ -65,7 +65,7 @@ def node_resource_groups(overview, node=None):
         fresh = bool(node.enabled and node.state != 'offline' and observation and observation.observed_at >= cutoff)
         devices = sorted(({**gpu, 'memory_total_gib': round(gpu.get('usable_memory_mib', gpu.get('memory_mib', 0)) / 1024, 1)}
                           for gpu in overview['gpus'] if gpu['node_id'] == node.pk), key=lambda gpu: gpu['index'])
-        models = list(dict.fromkeys(gpu['name'].removeprefix('NVIDIA ').removeprefix('GeForce ') for gpu in devices))
+        models = list(dict.fromkeys((gpu.get('name') or 'GPU').removeprefix('NVIDIA ').removeprefix('GeForce ') for gpu in devices))
         state = 'maintenance' if node.maintenance else 'disabled' if not node.enabled else 'online' if fresh else 'offline'
         groups.append({'id': node.pk, 'name': node.name, 'state': state,
             'state_label': {'maintenance': '维护中', 'disabled': '已停用', 'online': '在线', 'offline': '等待同步'}[state],

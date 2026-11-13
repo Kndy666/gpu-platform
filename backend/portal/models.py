@@ -4,6 +4,7 @@ from django.db import models
 from django.db.models import Q
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator
+from django.utils import timezone
 
 
 class ComputeNode(models.Model):
@@ -59,6 +60,7 @@ class NodeManager(models.Manager):
 
 GROUP_QUOTA_FIELDS = ('gpu_compute_percent', 'gpu_memory_gib', 'gpu_compute_per_card_percent', 'gpu_memory_per_card_gib', 'cpu', 'memory_gib', 'workspace_gib', 'home_gib', 'image_gib',
                       'concurrent_tasks', 'interactive_hours')
+APPROVAL_CHOICES = [('manual', '人工审批'), ('automatic', '自动通过')]
 
 class UserGroup(models.Model):
     name = models.CharField(max_length=80, unique=True, verbose_name='用户组名称')
@@ -75,6 +77,8 @@ class UserGroup(models.Model):
     image_gib = models.PositiveIntegerField(default=50, null=True, blank=True, verbose_name='镜像额度 GiB')
     concurrent_tasks = models.PositiveIntegerField(default=1, null=True, blank=True, verbose_name='并发任务数')
     interactive_hours = models.PositiveIntegerField(default=48, null=True, blank=True, verbose_name='最长环境时段（小时）')
+    extension_limit = models.PositiveIntegerField(default=1, verbose_name='每个环境可延期次数')
+    approval_mode = models.CharField(max_length=12, choices=APPROVAL_CHOICES, default='manual', verbose_name='审批方式')
 
     def clean(self):
         super().clean()
@@ -112,6 +116,9 @@ class UserProfile(models.Model):
     gid = models.PositiveIntegerField(default=1000)
     home_quota_gib = models.PositiveIntegerField(default=50, verbose_name='个人卷 GiB')
     registry_secret = models.CharField(max_length=100, blank=True)
+    quota_overrides = models.JSONField(default=dict, blank=True, verbose_name='成员自定义额度')
+    extension_limit = models.PositiveIntegerField(null=True, blank=True, verbose_name='每个环境可延期次数')
+    approval_mode = models.CharField(max_length=12, choices=[('', '沿用用户组'), *APPROVAL_CHOICES], blank=True, default='', verbose_name='审批方式')
 
     class Meta:
         verbose_name = '用户与个人卷'
@@ -217,6 +224,7 @@ class ResourceRequest(models.Model):
     cpu = models.PositiveIntegerField(default=8, verbose_name='CPU 核')
     memory_gib = models.PositiveIntegerField(default=32, verbose_name='内存 GiB')
     workspace_gib = models.PositiveIntegerField(default=100, verbose_name='工作卷 GiB')
+    extension_count = models.PositiveIntegerField(default=0, verbose_name='已延期次数')
     purpose = models.CharField(max_length=500, verbose_name='名称')
     notes = models.TextField(blank=True, verbose_name='备注')
     mode = models.CharField(max_length=16, choices=[('interactive', '开发环境'), ('batch', '运行程序')], verbose_name='运行模式')
@@ -318,6 +326,53 @@ class Workspace(models.Model):
     class Meta:
         verbose_name = '运行实例'
         verbose_name_plural = verbose_name
+
+class ExtensionRequest(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    request = models.ForeignKey(ResourceRequest, on_delete=models.PROTECT, related_name='extensions')
+    previous_ends_at = models.DateTimeField()
+    ends_at = models.DateTimeField(verbose_name='延期至')
+    reason = models.TextField(verbose_name='原因')
+    status = models.CharField(max_length=12, default='pending', choices=[('pending', '待审批'), ('approved', '已通过'), ('rejected', '已拒绝')])
+    review_reason = models.TextField(blank=True)
+    reviewed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['request'], condition=Q(status='pending'), name='one_pending_extension')]
+
+
+class NotificationSettings(models.Model):
+    singleton = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
+    enabled = models.BooleanField(default=False, verbose_name='启用微信推送')
+    token_ciphertext = models.TextField(blank=True)
+    events = models.JSONField(default=list, blank=True)
+    reminder_minutes = models.PositiveIntegerField(default=30, verbose_name='到期前提醒（分钟）')
+    last_attempt_at = models.DateTimeField(null=True, blank=True)
+    quota_date = models.DateField(null=True, blank=True)
+    quota_used = models.PositiveIntegerField(default=0)
+
+    @classmethod
+    def load(cls):
+        return cls.objects.get_or_create(singleton=1)[0]
+
+
+class Notification(models.Model):
+    event_key = models.CharField(max_length=255, unique=True)
+    event = models.CharField(max_length=40)
+    title = models.CharField(max_length=100)
+    content = models.TextField()
+    state = models.CharField(max_length=12, default='pending', choices=[('pending', '等待发送'), ('sending', '发送中'), ('sent', '已提交渠道'), ('failed', '发送失败')])
+    attempts = models.PositiveIntegerField(default=0)
+    next_attempt_at = models.DateTimeField(default=timezone.now)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    error = models.CharField(max_length=300, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [models.Index(fields=['state', 'next_attempt_at'], name='notification_delivery_idx')]
+
 
 class EnvironmentSnapshot(models.Model):
     objects = NodeManager('source__node_id')

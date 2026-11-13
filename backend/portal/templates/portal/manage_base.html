@@ -3,6 +3,7 @@
 <div class="page-heading"><h1>{{ section_title }}</h1><div class="actions">{% block manage_actions %}{% endblock %}</div></div>
 <nav class="manage-tabs" aria-label="管理导航">
 <a href="{% url 'management' %}" {% if section == 'overview' %}aria-current="page"{% endif %}>概览</a>
+<a href="{% url 'manage_approvals' %}" {% if section == 'approvals' %}aria-current="page"{% endif %}>审批与推送</a>
 <a href="{% url 'manage_containers' %}" {% if section == 'containers' %}aria-current="page"{% endif %}>容器</a>
 <a href="{% url 'manage_nodes' %}" {% if section == 'nodes' %}aria-current="page"{% endif %}>节点</a>
 <a href="{% url 'manage_performance' %}" {% if section == 'performance' %}aria-current="page"{% endif %}>性能</a>

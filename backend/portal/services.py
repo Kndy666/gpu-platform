@@ -25,7 +25,10 @@ def volume_in_use(volume, excluding=None):
     return related_requests(volume).filter(status__in=ACTIVE).exclude(pk=excluding).exists()
 
 def audit(actor, action, target, **detail):
-    return AuditLog.objects.create(actor=actor, action=action, target=str(target), detail=detail)
+    row = AuditLog.objects.create(actor=actor, action=action, target=str(target), detail=detail)
+    from .notifications import enqueue_event
+    enqueue_event(row)
+    return row
 
 def parse_ssh_key(value):
     parts = value.strip().split()
@@ -44,7 +47,8 @@ def parse_ssh_key(value):
 
 def policy_for(user):
     try:
-        return UserGroup.objects.get(members__user=user)
+        from .policies import effective_policy
+        return effective_policy(user)
     except ObjectDoesNotExist as e:
         raise ValidationError('用户尚未加入用户组。') from e
 
@@ -205,9 +209,13 @@ def resize_home(user, size, actor):
 
 @transaction.atomic
 def approve(request_id, actor, reason='', priority=None):
-    if not actor.is_staff:
+    if actor is not None and not actor.is_staff:
         raise ValidationError('需要管理员权限。')
     req = ResourceRequest.objects.select_related('user__profile', 'image').get(pk=request_id)
+    if actor is None:
+        from .policies import approval_mode
+        if approval_mode(req.user) != 'automatic':
+            raise ValidationError('该成员需要人工审批。')
     if req.status in ACTIVE or req.status in TERMINAL:
         return req
     if not req.login_name:
@@ -249,7 +257,7 @@ def approve(request_id, actor, reason='', priority=None):
     if priority is not None:
         req.priority = priority
     req.save()
-    audit(actor, 'approve', req.pk, reason=reason, priority=req.priority)
+    audit(actor, 'approve', req.pk, reason=reason, priority=req.priority, automatic=actor is None)
     return req
 
 @transaction.atomic
@@ -278,9 +286,10 @@ def request_stop(request_id, actor, reason='用户主动停止'):
     audit(actor, 'stop_requested', req.pk, reason=reason)
 
 @transaction.atomic
-def extend(request_id, actor, ends_at, reason):
-    req = ResourceRequest.objects.get(pk=request_id)
-    if not actor.is_staff or req.mode != 'interactive' or req.status not in ACTIVE or not ends_at or ends_at <= req.ends_at or not reason.strip():
+def extend(request_id, actor, ends_at, reason, *, automatic=False):
+    req = ResourceRequest.objects.select_for_update().get(pk=request_id)
+    if ((actor is None and not automatic) or (actor is not None and not actor.is_staff) or req.mode != 'interactive'
+            or req.status not in ACTIVE or not ends_at or ends_at <= req.ends_at or not reason.strip()):
         raise ValidationError('请选择更晚的结束时间，并填写原因。')
     ws = Workspace.objects.get(request=req)
     if ws.dispatch_started_at:
@@ -300,5 +309,6 @@ def extend(request_id, actor, ends_at, reason):
         ws.expire_at = ends_at
         ws.save(update_fields=['expire_at'])
     req.ends_at = ends_at
-    req.save(update_fields=['ends_at'])
+    req.extension_count += 1
+    req.save(update_fields=['ends_at', 'extension_count'])
     audit(actor, 'extend', req.pk, ends_at=ends_at.isoformat(), reason=reason)

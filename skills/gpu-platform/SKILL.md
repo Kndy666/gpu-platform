@@ -9,6 +9,8 @@ description: 通过计算资源平台 API 查询配额与资源、申请开发�
 
 通过 `/me` 返回的 `permissions` 和用户组额度判断可用操作。管理角色变更即时生效；个人公钥、令牌、构建和保存记录始终按本人归属访问。
 
+成员可能有独立额度覆盖用户组默认值，通过 `/me` 的 `effective_limits` 和资源接口的 request_capacity 判断实际限制。新建和延期可按成员或用户组配置自动通过，提交后读取实际状态。用户延期使用 `POST /tasks/{id}/extensions`，填写带时区的 ends_at 和 reason；默认每个环境允许成功延期一次，每次新增时长与新建环境上限一致。通过 `GET /tasks/{id}/extensions` 查看审批结果。
+
 使用 [scripts/client.py](scripts/client.py) 调用 API，Python 3 标准库即可运行。例如：
 
 ```bash
@@ -29,11 +31,11 @@ GPU 算力和显存可分别填写 `"max"`。服务端按当前用户组权限�
 
 GPU 申请使用 `gpu_requests` 数组，每个元素填写 `compute_percent`（2–100）和 `memory_gib`（正整数）。例如 `[ {"compute_percent":100,"memory_gib":8}, {"compute_percent":50,"memory_gib":4} ]` 表示第一张全卡、第二张半卡。卡数 `gpu` 可省略，由数组长度确定；显式提供时须一致。数组顺序对应外层与内层 Docker `--gpus all` 的 CUDA 设备顺序。通过 `GET /gpus` 查询逐卡余量。平台一次匹配全部物理卡后启动；`gpu_allocations.slot` 对应配置行，`index` 是实际物理 GPU 编号。用户组 `gpu_compute_percent` 是各卡及同时运行任务的总算力额度（百分比之和），`gpu_memory_gib` 是总显存；`gpu_compute_per_card_percent`、`gpu_memory_per_card_gib` 分别限制单卡。管理员不限额。运行命令和环境变量不覆盖 NVIDIA、CUDA_MPS 或平台保留配置。
 
-运行程序使用 `mode=batch`，填写命令并选择 `image` 或自己运行中的 `source_environment`（可带 GPU）。管理员批准后，平台保存环境、释放源容器并排队。个人卷继续复用，`workspace_gib` 可调整：省略或相同时沿用原工作卷，变化时离线复制到新卷，完成后回收原卷；源开发环境在批准时仍须运行。Agent 等待目标任务状态。程序运行至命令结束，省略 `ends_at`。用户尚未提供命令时先完成开发环境申请。
+运行程序使用 `mode=batch`，填写命令并选择 `image` 或自己运行中的 `source_environment`（可带 GPU）。审批通过后，平台保存环境、释放源容器并排队。个人卷继续复用，`workspace_gib` 可调整：省略或相同时沿用原工作卷，变化时离线复制到新卷，完成后回收原卷；源开发环境在批准时仍须运行。Agent 等待目标任务状态。程序运行至命令结束，省略 `ends_at`。用户尚未提供命令时先完成开发环境申请。
 
 创建任务、构建镜像和保存环境时使用可复用的 `Idempotency-Key`。客户端会为 POST 自动生成 key，连接中断会把 key 写入错误结果；重试同一操作时传回该 key 和相同参数。先查询任务状态，再决定后续动作。
 
-提交后报告任务 ID 和审核状态。普通账号需要管理员批准；管理接口只用于本次用户授权的审核或维护操作。可用 `client.py wait TASK_ID --timeout 300` 等待连接就绪；未来预约或待审核时先向用户报告状态。超时后保留任务并报告当前状态。
+提交后报告任务 ID 和审核状态。审批方式按成员和用户组配置生效；管理接口用于用户授权的审核或维护操作。可用 `client.py wait TASK_ID --timeout 300` 等待连接就绪；未来预约或待审核时先向用户报告状态。超时后保留任务并报告当前状态。
 
 运行后给用户返回 `connection.command` 与 `connection.config`，它们包含该容器的地址、端口、登录名和 HostKeyAlias。需要进度时查询任务或 `/tasks/{id}/logs`；容器释放后日志仍位于工作卷的 `/workspace/.platform/`。
 

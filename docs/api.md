@@ -30,6 +30,7 @@ API 根路径为 `/api/v1`，网页地址由 `config.yaml` 的 `platform.https_o
 | 资源、逐卡 GPU、时间轴 | `GET /resources`，`GET /gpus`，`GET /timeline?date=YYYY-MM-DD` |
 | SSH 公钥 | `GET/POST /keys`，`PATCH/DELETE /keys/{id}` |
 | 开发环境与程序 | `GET/POST /tasks`，`GET /tasks/{id}` |
+| 用户延期 | `GET/POST /tasks/{id}/extensions`，`POST /extensions/{id}/review`（管理员审批） |
 | 连接与日志 | `GET /tasks/{id}/connection`，`GET /tasks/{id}/logs` |
 | 停止与审批 | `POST /tasks/{id}/stop`，`POST /tasks/{id}/review` |
 | 保存环境与记录 | `POST /tasks/{id}/save`，`GET /snapshots`，`GET /snapshots/{id}` |
@@ -38,6 +39,7 @@ API 根路径为 `/api/v1`，网页地址由 `config.yaml` 的 `platform.https_o
 | 数据卷 | `GET /volumes`，`GET/DELETE /volumes/{id}`；删除使用管理员权限 |
 | 公用目录 | `GET /datasets`，`GET /datasets/download` |
 | 管理概览与容器 | `GET /admin/overview`，`GET /admin/containers` |
+| 审批与微信推送 | `GET/PATCH /admin/approvals`，`GET/PATCH /admin/notifications` |
 | 节点实时性能 | `GET /admin/performance?node=ID`；管理员可读 CPU 使用率、温度、内存、逐卡 GPU、磁盘和网络速率 |
 | 成员 | `GET/POST /admin/members`，`GET/PATCH /admin/members/{id}` |
 | 用户组 | `GET/POST /admin/groups`，`GET/PATCH/DELETE /admin/groups/{id}` |
@@ -47,6 +49,14 @@ API 根路径为 `/api/v1`，网页地址由 `config.yaml` 的 `platform.https_o
 各接口的字段、查询参数、权限和幂等支持以 OpenAPI 为准。支持 `Idempotency-Key` 的操作在文档中标注；相同用户、方法、路径、key 和参数重试返回原结果，修改参数时使用新 key。
 
 ## 提交任务
+
+用户组额度是默认值；管理员可在成员编辑页设置个人的 CPU、内存、GPU 总量与单卡上限、工作卷、个人卷、镜像、并发数和使用时长。成员接口使用 `inherit_quotas=true` 沿用组默认值，`false` 启用个人额度，额度字段与用户组一致；PATCH 任意额度字段会启用成员配置。`effective_limits` 返回实际生效额度，`quota_overrides` 返回成员覆盖值。已有容器的资源分配保持不变，新申请与后续派发使用当前额度。
+
+审批方式由成员配置优先，其次采用用户组配置。`PATCH /admin/approvals` 使用 `{"scope":"member","target":成员ID,"mode":"automatic"}`；scope 可为 group，mode 可为 manual 或 automatic；成员的空 mode 表示沿用用户组。默认人工审批。规则变更用于后续新建和延期申请，已有待审核申请继续保留。
+
+本人可通过 `POST /tasks/{id}/extensions` 提交 `ends_at` 和 `reason`。每个开发环境默认允许成功延期一次；用户组 `extension_limit` 可修改默认次数，成员的同名字段为 null 时继承、0 时关闭。每次新增的时长上限等于新建开发环境的 `interactive_hours`。人工审批通过前保持原结束时间；拒绝不消耗次数；自动审批通过后立即更新截止时间。`extension_count` 返回已成功延期次数，管理员通过 `POST /extensions/{id}/review` 提交 action=approve/reject，拒绝需 reason。延期只更新运行容器的截止时间注解。
+
+`GET/PATCH /admin/notifications` 配置 PushPlus 个人微信推送：enabled、写入用的 token、events 和 reminder_minutes。GET 只返回 token_configured，空 token 保留原密钥。可选事件在 available_events 中查询。推送通过独立后台队列发送，限制为最多每分钟 5 次请求、每天 200 次请求；失败自动重试，recent 返回发送状态。默认关闭，填写 Token 并启用后才开始入队。
 
 先通过 `GET /nodes` 查询节点 ID、架构、在线状态和维护状态。任务与构建正文的 `node` 指定执行节点；任务、镜像、构建和卷响应包含 `node_id`、`node_name`。
 

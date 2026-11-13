@@ -53,8 +53,14 @@ def allocate_port(ws, occupied=()):
 def mark_finished(req, status, code=None, error='', ended_at=None):
     ws = Workspace.objects.get(request=req)
     if ws.ended_at:
-        return
+        return True
     now = ended_at or timezone.now()
+    if status == 'expired':
+        # Recheck under the write transaction: an extension may have committed
+        # after this reconciler read the previous deadline.
+        current_end = ResourceRequest.objects.only('ends_at').get(pk=req.pk).ends_at
+        if current_end and current_end > now and current_end > req.ends_at:
+            return False
     ws.ended_at, ws.exit_code, ws.error = now, code, error
     ws.save(update_fields=['ended_at', 'exit_code', 'error'])
     ResourceRequest.objects.filter(pk=req.pk).update(status=status)
@@ -66,6 +72,7 @@ def mark_finished(req, status, code=None, error='', ended_at=None):
         if original.state not in {'deleting','deleted'} and not volume_in_use(original,excluding=req.pk):
             VolumeAllocation.objects.filter(pk=original.pk).update(retain_until=now+timedelta(days=PlatformSettings.load().workspace_retention_days))
     audit(None, 'finished', req.pk, status=status, exit_code=code, error=error)
+    return True
 
 class Reconciler:
     def __init__(self, kube=None, node=None):
@@ -139,8 +146,8 @@ class Reconciler:
             return
         now = timezone.now()
         if req.mode == 'interactive' and req.ends_at <= now:
-            mark_finished(req, 'expired')
-            self.cleanup(req, ws)
+            if mark_finished(req, 'expired'):
+                self.cleanup(req, ws)
             return
         if req.status == 'preparing':
             snapshot=getattr(req,'environment_snapshot',None)
@@ -150,8 +157,8 @@ class Reconciler:
         if req.starts_at and req.starts_at > now:
             return
         if req.mode == 'interactive' and ws.expire_at and ws.expire_at <= now:
-            mark_finished(req, 'expired')
-            self.cleanup(req, ws)
+            if mark_finished(req, 'expired'):
+                self.cleanup(req, ws)
             return
         if (config()['platform'].get('maintenance') or self.node.maintenance) and not ws.dispatch_started_at:
             return
@@ -232,6 +239,8 @@ class Reconciler:
             if errors:
                 Workspace.objects.filter(pk=ws.pk).update(error='\n'.join(errors)[:4000])
         ResourceRequest.objects.filter(pk=req.pk, status__in=ACTIVE).update(status=status)
+        if status == 'running' and req.status != 'running':
+            audit(None, 'running', req.pk)
         if req.mode == 'batch' and ws.started_at and now - ws.started_at > timedelta(hours=config()['platform']['batch_reminder_hours']):
             if not AuditLog.objects.filter(action='long_batch', target=str(req.pk)).exists():
                 audit(None, 'long_batch', req.pk, message='命令任务运行较久，仅提醒，不终止')
@@ -295,6 +304,8 @@ class Reconciler:
                     from .builds import ensure_base_build
                     ensure_base_build()
                 except Exception as exc:
+                    if self.node.state != 'offline':
+                        audit(None, 'node_offline', self.node.pk, name=self.node.name)
                     ComputeNode.objects.filter(pk=self.node.pk).update(state='offline', error=str(exc)[:1000])
                     StoragePool.objects.update(healthy=False)
                     # An unreachable node must never be mistaken for missing work.

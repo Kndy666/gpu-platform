@@ -1,6 +1,29 @@
 (() => {
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+  const memberQuotas = $('[data-member-quotas]');
+  if (memberQuotas) {
+    const inherited = $('[name=inherit_quotas]', memberQuotas), unlimited = $('[name=unlimited]', memberQuotas);
+    const fields = $('[data-member-resource-fields]', memberQuotas), mode = $('[data-member-unlimited]', memberQuotas);
+    const group = $('[name=group]', memberQuotas), defaults = JSON.parse($('#member-group-defaults').textContent);
+    group.addEventListener('change', () => {
+      if (!inherited.checked) return;
+      const values = defaults[group.value];
+      if (!values) return;
+      unlimited.checked = values.unlimited;
+      $$('input', fields).forEach(input => {input.value = values[input.name] ?? '';});
+      updateMemberQuotas();
+    });
+    const updateMemberQuotas = () => {
+      mode.hidden = inherited.checked;
+      unlimited.disabled = inherited.checked;
+      fields.hidden = inherited.checked || unlimited.checked;
+      $$('input', fields).forEach(input => {input.disabled = fields.hidden; input.required = !fields.hidden;});
+    };
+    inherited.addEventListener('change', updateMemberQuotas);
+    unlimited.addEventListener('change', updateMemberQuotas);
+    updateMemberQuotas();
+  }
   const performancePanel = $('[data-performance-url]');
   if (performancePanel) {
     const input = $('[data-performance-interval]'), status = $('[data-performance-status]');

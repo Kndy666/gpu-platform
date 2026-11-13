@@ -183,7 +183,7 @@ def node_filter(request, query, field='node'):
 
 
 def group_data(group, members=False):
-    fields = ['id', 'name', 'is_default', 'unlimited', *GROUP_QUOTA_FIELDS]
+    fields = ['id', 'name', 'is_default', 'unlimited', 'extension_limit', 'approval_mode', *GROUP_QUOTA_FIELDS]
     data = {name: getattr(group, name) for name in fields}
     if group.unlimited:
         for name in GROUP_QUOTA_FIELDS:
@@ -195,9 +195,13 @@ def group_data(group, members=False):
 
 
 def user_data(user):
+    from .policies import approval_mode, extension_limit
     return {'id': user.pk, 'username': user.username, 'first_name': user.first_name, 'email': user.email,
             'is_active': user.is_active, 'is_staff': user.is_staff, 'is_superuser': user.is_superuser,
-            'group': group_data(user.profile.group), 'home_quota_gib': user.profile.home_quota_gib}
+            'group': group_data(user.profile.group), 'home_quota_gib': user.profile.home_quota_gib,
+            'quota_overrides': user.profile.quota_overrides, 'effective_limits': group_data(policy_for(user)),
+            'extension_limit': extension_limit(user), 'extension_limit_override': user.profile.extension_limit,
+            'approval_mode': approval_mode(user), 'approval_mode_override': user.profile.approval_mode}
 
 
 def connection_data(req):
@@ -218,6 +222,7 @@ def task_data(req, detail=True):
     data = {name: getattr(req, name) for name in fields}
     ws = getattr(req, 'workspace', None)
     data.update(node_id=req.node_id, node_name=req.node.name, user_id=req.user_id, username=req.user.username, image_id=req.image_id, image_name=req.image.name,
+                extension_count=req.extension_count,
                 source_environment_id=req.source_environment_id,
                 login_name=req.login_user, home_dir=req.home_dir, status_label=req.get_status_display(),
                 connection=connection_data(req), stop_requested=bool(ws and ws.stop_requested),
@@ -439,7 +444,8 @@ def tasks(request):
         data['gpu_requests']=[{'compute_percent':100,'memory_gib':8} for _ in range(count)]
     form = valid(RequestForm(data, user=request.user, mode=mode))
     req = form.save()
-    audit(request.user, 'submit', req.pk)
+    from .approvals import submit_request
+    req = submit_request(req)
     return success(task_data(req), 201)
 
 
@@ -455,6 +461,65 @@ def authorize_task(request, pk):
 
 def authorize_save(request, pk):
     get_object_or_404(tasks_for(request.user, own=True), pk=pk)
+
+
+def extension_data(entry):
+    return {name: getattr(entry, name) for name in ['id', 'request_id', 'previous_ends_at', 'ends_at', 'reason',
+        'status', 'review_reason', 'reviewed_by_id', 'reviewed_at', 'created_at']}
+
+
+@endpoint('GET', 'POST', idempotent=True)
+def extensions(request, pk):
+    req = get_object_or_404(tasks_for(request.user, own=request.method == 'POST'), pk=pk)
+    if request.method == 'GET':
+        return page(request, req.extensions.order_by('-created_at'), extension_data)
+    from .forms import ExtensionForm
+    from .approvals import request_extension
+    form = valid(ExtensionForm(body(request, {'ends_at', 'reason'})))
+    entry = request_extension(req.pk, request.user, **form.cleaned_data)
+    return success(extension_data(entry), 201)
+
+
+@endpoint('POST', staff=True, idempotent=True)
+def extension_review(request, pk):
+    from .models import ExtensionRequest
+    from .approvals import review_extension
+    get_object_or_404(ExtensionRequest, pk=pk)
+    data = body(request, {'action', 'reason'})
+    form = valid(ReviewForm(data))
+    return success(extension_data(review_extension(pk, request.user, form.cleaned_data['action'], form.cleaned_data['reason'])))
+
+
+@endpoint('GET', 'PATCH', staff=True)
+def approval_settings(request):
+    from .management_forms import ApprovalRuleForm
+    from .policies import approval_mode
+    if request.method == 'PATCH':
+        valid(ApprovalRuleForm(body(request, {'scope', 'target', 'mode'}))).save(request.user)
+    from .models import ExtensionRequest
+    return success({'groups': [{'id': group.pk, 'name': group.name, 'mode': group.approval_mode} for group in UserGroup.objects.order_by('pk')],
+        'members': [{'id': user.pk, 'username': user.username, 'group_id': user.profile.group_id,
+            'mode': user.profile.approval_mode, 'effective_mode': approval_mode(user)}
+            for user in get_user_model().objects.select_related('profile__group').order_by('pk')],
+        'pending_tasks': ResourceRequest.objects.filter(status='submitted').count(),
+        'pending_extensions': ExtensionRequest.objects.filter(status='pending').count()})
+
+
+@endpoint('GET', 'PATCH', staff=True)
+def notification_settings(request):
+    from .models import NotificationSettings, Notification
+    from .management_forms import PushSettingsForm
+    from .notifications import EVENTS
+    obj = NotificationSettings.load()
+    if request.method == 'PATCH':
+        data = {name: getattr(obj, name) for name in ['enabled', 'events', 'reminder_minutes']}
+        data.update(body(request, {'enabled', 'events', 'reminder_minutes', 'token'}))
+        obj = valid(PushSettingsForm(data, instance=obj)).save()
+        audit(request.user, 'push_settings_updated', 'platform', enabled=obj.enabled, events=obj.events)
+    return success({'enabled': obj.enabled, 'provider': 'pushplus', 'token_configured': bool(obj.token_ciphertext),
+        'events': obj.events, 'available_events': EVENTS, 'reminder_minutes': obj.reminder_minutes,
+        'daily_requests': obj.quota_used, 'quota_date': obj.quota_date,
+        'recent': list(Notification.objects.order_by('-created_at').values('id', 'event', 'title', 'state', 'attempts', 'error', 'created_at', 'sent_at')[:10])})
 
 
 @endpoint('GET')
@@ -702,12 +767,19 @@ def members(request):
     if request.method == 'GET':
         query = member_list(request.GET.get('q', ''))
         return page(request, query, user_data)
-    data = body(request, MemberForm.base_fields)
+    data = body(request, set(MemberForm.base_fields) | set(GROUP_QUOTA_FIELDS))
     data.setdefault('is_active', True)
     group = UserGroup.objects.filter(is_default=True).first() or UserGroup.objects.order_by('pk').first()
+    if data.get('group') is not None and str(data['group']).isdigit():
+        group = UserGroup.objects.filter(pk=data['group']).first()
     if group:
         data.setdefault('group', group.pk)
         data.setdefault('home_quota_gib', 50 if group.unlimited else min(50, group.home_gib))
+        if any(name in data for name in GROUP_QUOTA_FIELDS):
+            data.setdefault('inherit_quotas', False)
+            data.setdefault('unlimited', False)
+            for name in GROUP_QUOTA_FIELDS:
+                data.setdefault(name, getattr(group, name))
     obj = valid(MemberForm(data, actor=request.user)).save()
     return success(user_data(obj), 201)
 
@@ -720,7 +792,15 @@ def member(request, pk):
     if request.method == 'PATCH':
         data = {name: getattr(obj, name) for name in ('username', 'first_name', 'email', 'is_active', 'is_staff')}
         data.update(group=obj.profile.group_id, home_quota_gib=obj.profile.home_quota_gib)
-        data.update(body(request, MemberForm.base_fields))
+        effective = policy_for(obj)
+        data.update(extension_limit=obj.profile.extension_limit, inherit_quotas=not bool(obj.profile.quota_overrides), unlimited=effective.unlimited)
+        for name in GROUP_QUOTA_FIELDS:
+            data[name] = getattr(effective, name)
+        payload = body(request, set(MemberForm.base_fields) | set(GROUP_QUOTA_FIELDS))
+        if any(name in payload for name in GROUP_QUOTA_FIELDS):
+            payload.setdefault('inherit_quotas', False)
+            payload.setdefault('unlimited', False)
+        data.update(payload)
         obj = valid(MemberForm(data, actor=request.user, member=obj)).save()
     return success(user_data(obj))
 

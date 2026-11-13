@@ -186,6 +186,11 @@ class ImageBuildForm(forms.ModelForm):
                     raise ValidationError('不允许内网构建上下文。')
         return value
 
+class ExtensionForm(forms.Form):
+    ends_at = forms.DateTimeField(label='延期至', widget=forms.DateTimeInput(format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}))
+    reason = forms.CharField(label='原因', max_length=2000, widget=forms.TextInput())
+
+
 class ReviewForm(forms.Form):
     action = forms.ChoiceField(choices=[('approve', '通过'), ('reject', '拒绝'), ('stop', '强制停止'), ('extend', '延长交互任务')])
     reason = forms.CharField(label='原因', widget=forms.Textarea(attrs={'rows': 2}), required=False)

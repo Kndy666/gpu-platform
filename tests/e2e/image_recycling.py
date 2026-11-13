@@ -38,7 +38,7 @@ directory = Path('/check')
 owner_identity = {'login': 'test-owner', 'password': 'isolated-owner-test', 'reader': {'login': 'test-owner-reader'}}
 collector = {'login': 'test-collector', 'password': 'isolated-collector-test'}
 if sys.argv[1] == 'setup':
-    call_command('migrate', run_syncdb=True, verbosity=0)
+    call_command('initdb', verbosity=0)
     user = get_user_model().objects.create_user('registry-validation')
     cfg = zot_config({str(user.pk): owner_identity}, collector)
     cfg['log']['level'] = 'error'

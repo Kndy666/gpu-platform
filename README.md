@@ -84,7 +84,7 @@ git pull --ff-only
 sudo ./deploy/upgrade-app.sh config.yaml
 ```
 
-主控会重新构建应用镜像并执行一次性数据库迁移，将已有资源归属本机节点；迁移后使用新结构。从机仅更新执行组件与通信服务。升级 LXCFS 前先停止该节点用户容器。暂停新任务使用节点维护模式；停用状态同步会保留已有任务和端口记录。
+主控会重新构建应用镜像。从机仅更新执行组件与通信服务。升级 LXCFS 前先停止该节点用户容器。暂停新任务使用节点维护模式；停用状态同步会保留已有任务和端口记录。
 
 ## 本地开发
 
@@ -94,7 +94,7 @@ sudo ./deploy/upgrade-app.sh config.yaml
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.lock
 export DJANGO_DEBUG=1 PLATFORM_HTTPS=0
-.venv/bin/python backend/manage.py migrate --fake-initial
+.venv/bin/python backend/manage.py initdb
 .venv/bin/python backend/manage.py bootstrap
 .venv/bin/python backend/manage.py createsuperuser
 .venv/bin/python backend/manage.py runserver 127.0.0.1:8000

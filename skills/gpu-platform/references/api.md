@@ -22,6 +22,7 @@
 | `/tasks/{id}/logs?tail=200` | GET | 当前容器日志，最多 3000 行 / 250 KB |
 | `/tasks/{id}/stop` | POST | 取消或停止，正文 `{}` |
 | `/tasks/{id}/save` | POST | 保存本人运行中的开发环境（可带 GPU），正文 `{}` |
+| `/tasks/{id}/extensions` | GET / POST | 延期历史 / 提交本人延期申请，字段 ends_at、reason |
 | `/snapshots`、`/snapshots/{id}` | GET | 保存操作及其产物 artifact_id |
 | `/images?available=true`、`/images/{id}` | GET | 可用镜像或镜像详情；kind=permanent/temporary 对应网页镜像分区 |
 | `/images/{id}/keep`、`/images/{id}/recycle` | POST | 长期保留 / 安排回收 |
@@ -71,11 +72,16 @@ python3 scripts/client.py request GET /api/v1/datasets --query node=3 --query q=
 `/me.permissions` 表示当前管理权限。不限额组只改变配额。管理员可管理他人任务、镜像和数据卷；公钥、令牌、构建记录和保存记录保持本人可见。
 
 - `GET /admin/overview`：管理计数。
+- `POST /extensions/{id}/review`：action=approve/reject 审批延期，拒绝需 reason。
+- `GET/PATCH /admin/approvals`：按 group/member 的 scope、目标数字 target、manual/automatic 的 mode 修改审批规则；成员空 mode 表示继承用户组。
+- `GET/PATCH /admin/notifications`：PushPlus 微信推送的 enabled、token、events、reminder_minutes；返回 token_configured 和 recent，密钥不会返回。
 - `GET /admin/performance?node=ID`：各节点实际性能。nodes[] 含 fresh、sampled_at、metrics；metrics 含 cpu（使用率、负载、temperature_c 及温度传感器）、memory、gpus（利用率、显存、温度、功耗）、disks、network（rx_mib_s/tx_mib_s）。缺失的 CPU 温度为 null；fresh=false 表示采样超过 30 秒、节点离线或停用。省略 node 时返回全部节点。
 - `POST /nodes`、`PATCH /nodes/{id}`：登记或修改 name、transport、ssh_port、ssh_user、identity、architecture、enabled、maintenance；identity 为主控密钥目录内的私钥文件名。维护模式暂停新任务派发，保留已有任务同步。
 - `GET /admin/containers?q=...&status=...&mode=...&node=ID`：全体容器，可按名称、所属用户、容器编号、状态和节点筛选；管理员通过 `GET /tasks/{id}/connection` 的 command/config，以目标容器用户名和本人密钥登录。`administrator_access` 返回本人启用公钥的元数据与 ready 状态；可在容器内 sudo。
 - `POST /tasks/{id}/review`：action 为 approve、reject、stop、extend；priority 为 0 或 100，拒绝带 reason，延期带 ends_at 和 reason。
 - `GET/POST /admin/members`，`GET/PATCH /admin/members/{id}`：账号创建与编辑。group 为用户组数字 ID，home_quota_gib 为个人卷额度。新账号需要 username、password；停用账号使用 is_active=false。
+
+成员额度字段与用户组一致；inherit_quotas=true 恢复组默认值，false 使用个人配置，effective_limits 是实际额度。成员 extension_limit 为 null 表示沿用组默认值，0 禁用用户延期；默认每个环境成功延期一次。每次新增时长上限为 interactive_hours，拒绝或待审批不消耗次数。人工审批期间保持旧截止时间，自动审批成功时直接更新。用户组审批模式默认人工，可由成员规则覆盖。
 - `GET/POST /admin/groups`，`GET/PATCH/DELETE /admin/groups/{id}`：用户组。unlimited=true 表示不限组额度，此时清空并省略全部配额字段；改回限额组时须填写完整额度。make_default=true 设置默认组。删除有成员的组时用 JSON `{"destination":目标组ID}` 转移成员。
 - `GET /admin/storage?node=ID`：节点的存储池和使用中的卷，存储池含 node_id、node_name；省略节点时返回全部。
 - `GET /admin/images?node=ID`：节点内尚未回收的镜像及容量统计；省略节点时返回全部。

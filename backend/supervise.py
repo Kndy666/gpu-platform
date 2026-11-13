@@ -5,10 +5,11 @@ import sys
 import time
 
 def main():
-    for args in [['migrate', '--fake-initial', '--noinput'], ['bootstrap']]:
+    for args in [['initdb'], ['bootstrap']]:
         subprocess.run([sys.executable, 'manage.py', *args], check=True)
     processes = [subprocess.Popen(['gunicorn', '--bind=0.0.0.0:8000', '--workers=1', '--threads=4', '--access-logfile=-', 'config.wsgi:application']),
-                 subprocess.Popen([sys.executable, 'manage.py', 'reconcile'])]
+                 subprocess.Popen([sys.executable, 'manage.py', 'reconcile']),
+                 subprocess.Popen([sys.executable, 'manage.py', 'notify'])]
     stopping = []
     def stop(sig, frame): stopping.append(sig)
     signal.signal(signal.SIGTERM, stop)
