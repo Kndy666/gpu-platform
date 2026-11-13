@@ -1,17 +1,7 @@
 {% extends 'portal/base.html' %}
+{% load management %}
 {% block content %}
+{% management_navigation %}
 <div class="page-heading"><h1>{{ section_title }}</h1><div class="actions">{% block manage_actions %}{% endblock %}</div></div>
-<nav class="manage-tabs" aria-label="管理导航">
-<a href="{% url 'management' %}" {% if section == 'overview' %}aria-current="page"{% endif %}>概览</a>
-<a href="{% url 'manage_approvals' %}" {% if section == 'approvals' %}aria-current="page"{% endif %}>审批与推送</a>
-<a href="{% url 'manage_containers' %}" {% if section == 'containers' %}aria-current="page"{% endif %}>容器</a>
-<a href="{% url 'manage_nodes' %}" {% if section == 'nodes' %}aria-current="page"{% endif %}>节点</a>
-<a href="{% url 'manage_performance' %}" {% if section == 'performance' %}aria-current="page"{% endif %}>性能</a>
-<a href="{% url 'manage_members' %}" {% if section == 'members' %}aria-current="page"{% endif %}>成员</a>
-<a href="{% url 'manage_groups' %}" {% if section == 'groups' %}aria-current="page"{% endif %}>用户组</a>
-<a href="{% url 'manage_storage' %}" {% if section == 'storage' %}aria-current="page"{% endif %}>存储</a>
-<a href="{% url 'manage_datasets' %}" {% if section == 'datasets' %}aria-current="page"{% endif %}>公用目录</a>
-<a href="{% url 'manage_images' %}" {% if section == 'images' %}aria-current="page"{% endif %}>镜像</a>
-<a href="{% url 'manage_audits' %}" {% if section == 'audits' %}aria-current="page"{% endif %}>审计</a>
-<a href="{% url 'manage_settings' %}" {% if section == 'settings' %}aria-current="page"{% endif %}>设置</a>
-</nav>{% block manage_content %}{% endblock %}{% endblock %}
+{% block manage_content %}{% endblock %}
+{% endblock %}

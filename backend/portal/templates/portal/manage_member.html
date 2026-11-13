@@ -1,11 +1,28 @@
 {% extends 'portal/manage_base.html' %}
-{% block manage_actions %}<a class="button secondary" href="{% url 'manage_members' %}">返回成员</a>{% endblock %}
 {% block manage_content %}
-<form method="post" class="member-form" data-resource-settings data-member-create="{% if member %}false{% else %}true{% endif %}">{% csrf_token %}
-{{ form.group_defaults|json_script:'member-group-defaults' }}{{ form.non_field_errors }}
-<section class="panel"><div class="manage-form-fields">{% include 'portal/field.html' with field=form.username %}{% include 'portal/field.html' with field=form.first_name %}{% include 'portal/field.html' with field=form.email %}{% include 'portal/field.html' with field=form.password %}{% include 'portal/field.html' with field=form.group %}{% include 'portal/field.html' with field=form.home_quota_gib %}</div></section>
-{% include 'portal/resource_settings.html' %}
-<section class="panel"><div class="check-fields">{% include 'portal/field.html' with field=form.is_active %}{% include 'portal/field.html' with field=form.is_staff %}</div></section>
-<div class="form-actions"><button type="submit" class="button">保存成员</button></div>
+<form method="post" class="settings-editor" data-resource-settings data-member-create="{% if member %}false{% else %}true{% endif %}">
+  {% csrf_token %}
+  {{ form.group_defaults|json_script:'member-group-defaults' }}
+  {{ form.non_field_errors }}
+  <section class="panel identity-editor" aria-label="成员信息">
+    <div class="identity-fields">
+      {% include 'portal/field.html' with field=form.username %}
+      {% include 'portal/field.html' with field=form.first_name %}
+      {% include 'portal/field.html' with field=form.email %}
+      {% include 'portal/field.html' with field=form.group %}
+    </div>
+    <div class="identity-access">
+      {% include 'portal/field.html' with field=form.password %}
+      <div class="check-fields">
+        {% include 'portal/field.html' with field=form.is_active %}
+        {% include 'portal/field.html' with field=form.is_staff %}
+      </div>
+    </div>
+  </section>
+  {% include 'portal/resource_settings.html' %}
+  <div class="editor-actions">
+    <a class="button secondary" href="{% url 'manage_members' %}">取消</a>
+    <button type="submit" class="button">保存成员</button>
+  </div>
 </form>
 {% endblock %}

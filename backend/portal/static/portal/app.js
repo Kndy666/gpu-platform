@@ -1,6 +1,18 @@
 (() => {
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+  const storageNodes = $('[data-storage-user]');
+  if (storageNodes) {
+    $$('[data-storage-node]', storageNodes).forEach(details => {
+      const key = `storage-volumes:${storageNodes.dataset.storageUser}:${details.dataset.storageNode}`;
+      try {
+        if (!details.hasAttribute('data-force-open')) details.open = localStorage.getItem(key) === 'open';
+      } catch (_) {}
+      details.addEventListener('toggle', () => {
+        try { localStorage.setItem(key, details.open ? 'open' : 'closed'); } catch (_) {}
+      });
+    });
+  }
   const performancePanel = $('[data-performance-url]');
   if (performancePanel) {
     const input = $('[data-performance-interval]'), status = $('[data-performance-status]');

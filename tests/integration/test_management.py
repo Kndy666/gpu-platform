@@ -34,7 +34,7 @@ class ManagementTests(TestCase):
             with self.subTest(path=path):
                 response = self.client.get(path)
                 self.assertEqual(response.status_code, 200)
-                self.assertContains(response, 'manage-tabs')
+                self.assertContains(response, 'aria-label="管理分类"')
                 self.assertNotContains(response, 'href="/admin/')
 
     def test_student_cannot_open_or_modify_management(self):

@@ -95,8 +95,11 @@ class ParityTests(TestCase):
         self.assertEqual({r['id']: r['member_count'] for r in rows}, {g.pk: g.member_count for g in html.context['groups']})
         html = self.web.get('/management/storage/')
         data = self.call('get', 'admin/storage').json()['data']
-        self.assertEqual([r['id'] for r in data['pools']], [p.pk for p in html.context['pools']])
-        for volume, row in zip(html.context['page'], data['volumes']['items']):
+        nodes = html.context['storage_nodes']
+        self.assertEqual({r['id'] for r in data['pools']}, {p.pk for node in nodes for p in node['pools']})
+        volumes = {str(volume.pk): volume for node in nodes for volume in node['page']}
+        for row in data['volumes']['items']:
+            volume = volumes[row['id']]
             self.assertEqual(row['pool_name'], volume.pool.name)
             self.assertEqual(row['username'], volume.user.username)
             self.assertEqual(row['busy'], volume.busy)

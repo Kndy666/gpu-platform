@@ -1,4 +1,36 @@
-<section class="panel resource-policy"><div class="manage-form-fields">{% include 'portal/field.html' with field=form.approval_mode %}{% include 'portal/field.html' with field=form.extension_limit %}</div><div class="check-fields">{% include 'portal/field.html' with field=form.unlimited %}</div></section>
-<section class="panel" data-quota-fields><div class="gpu-request-editor"><table><thead><tr><th scope="col">GPU</th><th scope="col">总额度</th><th scope="col">单卡上限</th></tr></thead><tbody><tr><th scope="row">算力 %</th><td>{{ form.gpu_compute_percent }}{{ form.gpu_compute_percent.errors }}</td><td>{{ form.gpu_compute_per_card_percent }}{{ form.gpu_compute_per_card_percent.errors }}</td></tr><tr><th scope="row">显存 GiB</th><td>{{ form.gpu_memory_gib }}{{ form.gpu_memory_gib.errors }}</td><td>{{ form.gpu_memory_per_card_gib }}{{ form.gpu_memory_per_card_gib.errors }}</td></tr></tbody></table></div></section>
-<section class="panel" data-quota-fields><div class="group-fields">{% include 'portal/field.html' with field=form.cpu %}{% include 'portal/field.html' with field=form.memory_gib %}{% include 'portal/field.html' with field=form.concurrent_tasks %}{% include 'portal/field.html' with field=form.interactive_hours %}</div></section>
-<section class="panel" data-quota-fields><div class="group-fields">{% include 'portal/field.html' with field=form.home_gib %}{% include 'portal/field.html' with field=form.workspace_gib %}{% include 'portal/field.html' with field=form.image_gib %}</div></section>
+<section class="panel policy-editor" aria-label="资源额度与使用规则">
+  <div class="policy-limit check-fields">{% include 'portal/field.html' with field=form.unlimited %}</div>
+  <div class="policy-columns">
+    <div class="policy-compute" data-quota-fields>
+      <div class="gpu-request-editor">
+        <table>
+          <thead><tr><th scope="col">GPU</th><th scope="col">总额度</th><th scope="col">单卡上限</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">算力 %</th><td><label class="sr-only" for="{{ form.gpu_compute_percent.id_for_label }}">{{ form.gpu_compute_percent.label }}</label>{{ form.gpu_compute_percent }}{{ form.gpu_compute_percent.errors }}</td><td><label class="sr-only" for="{{ form.gpu_compute_per_card_percent.id_for_label }}">{{ form.gpu_compute_per_card_percent.label }}</label>{{ form.gpu_compute_per_card_percent }}{{ form.gpu_compute_per_card_percent.errors }}</td></tr>
+            <tr><th scope="row">显存 GiB</th><td><label class="sr-only" for="{{ form.gpu_memory_gib.id_for_label }}">{{ form.gpu_memory_gib.label }}</label>{{ form.gpu_memory_gib }}{{ form.gpu_memory_gib.errors }}</td><td><label class="sr-only" for="{{ form.gpu_memory_per_card_gib.id_for_label }}">{{ form.gpu_memory_per_card_gib.label }}</label>{{ form.gpu_memory_per_card_gib }}{{ form.gpu_memory_per_card_gib.errors }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="policy-cpu">
+        {% include 'portal/field.html' with field=form.cpu %}
+        {% include 'portal/field.html' with field=form.memory_gib %}
+      </div>
+    </div>
+    <div class="policy-rules" aria-label="使用规则">
+      {% include 'portal/field.html' with field=form.approval_mode %}
+      <div class="policy-duration" data-quota-fields>
+        {% include 'portal/field.html' with field=form.concurrent_tasks %}
+        {% include 'portal/field.html' with field=form.interactive_hours %}
+      </div>
+      {% include 'portal/field.html' with field=form.extension_limit %}
+    </div>
+  </div>
+  <div class="policy-storage" aria-label="存储额度" {% if not form.home_quota_gib %}data-quota-fields{% endif %}>
+    <div class="policy-home">
+      {% if form.home_quota_gib %}{% include 'portal/field.html' with field=form.home_quota_gib %}{% endif %}
+      <div data-quota-fields>{% include 'portal/field.html' with field=form.home_gib %}</div>
+    </div>
+    <div data-quota-fields>{% include 'portal/field.html' with field=form.workspace_gib %}</div>
+    <div data-quota-fields>{% include 'portal/field.html' with field=form.image_gib %}</div>
+  </div>
+</section>

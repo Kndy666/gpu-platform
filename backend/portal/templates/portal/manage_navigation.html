@@ -1,0 +1,12 @@
+<div class="management-navigation">
+  <nav class="manage-primary" aria-label="管理分类">
+    {% for item in primary %}
+    <a href="{{ item.url }}" {% if item.active %}aria-current="true"{% endif %}>{{ item.label }}{% if item.count %}<span class="nav-count" aria-label="{{ item.count }} 条待审批">{{ item.count }}</span>{% endif %}</a>
+    {% endfor %}
+  </nav>
+  {% if secondary %}
+  <nav class="manage-secondary" aria-label="管理导航">
+    {% for item in secondary %}<a href="{{ item.url }}" {% if item.active %}aria-current="page"{% endif %}>{{ item.label }}</a>{% endfor %}
+  </nav>
+  {% endif %}
+</div>

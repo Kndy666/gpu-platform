@@ -153,7 +153,7 @@ def main():
                         assert dimensions['body'] <= width+1,(width,name,dimensions)
                         if width>=1366:assert dimensions['main']>=width*.8,(width,name,dimensions)
                         if name in ('member','member-edit'):
-                            form=page.locator('.member-form').bounding_box();content=page.locator('.content').bounding_box()
+                            form=page.locator('.settings-editor').bounding_box();content=page.locator('.content').bounding_box()
                             assert form['width']>=content['width']*.85,(width,name,form,content)
                         if name=='dashboard':
                             page.wait_for_selector('.timeline-node')

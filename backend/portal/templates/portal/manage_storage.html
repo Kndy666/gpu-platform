@@ -1,3 +1,50 @@
 {% extends 'portal/manage_base.html' %}
-{% block manage_content %}<div class="storage-grid">{% for pool in pools %}<section class="panel"><div class="section-heading"><h2>{{ pool.node.name }} / {{ pool.name }}</h2><span class="badge {% if pool.healthy %}running{% else %}failed{% endif %}">{% if pool.healthy %}正常{% else %}待检查{% endif %}</span></div><div class="storage-number">{{ pool.available_gib }} <span>GiB 可分配</span></div><div class="meter"><i style="width:{{ pool.percent }}%"></i></div><dl><dt>总容量</dt><dd>{{ pool.capacity_gib }} GiB</dd><dt>已预留</dt><dd>{{ pool.reserved_gib }} GiB</dd><dt>更新时间</dt><dd>{{ pool.observed_at|date:'m/d H:i' }}</dd></dl></section>{% endfor %}</div>
-<div class="section-heading"><h2>数据卷</h2></div><div class="table-wrap"><table><thead><tr><th>成员</th><th>数据卷</th><th>容量</th><th>存储池</th><th>保留至</th><th>状态</th><th></th></tr></thead><tbody>{% for volume in page %}<tr><td><a href="{% url 'manage_member' volume.user_id %}">{{ volume.user.username }}</a></td><td>{% if volume.kind == "home" %}个人卷{% else %}{{ volume.request.purpose }}{% endif %}</td><td>{{ volume.size_gib }} GiB</td><td>{{ volume.node.name }} / {{ volume.pool.name }}</td><td>{% if volume.retain_until %}{{ volume.retain_until|date:'Y/m/d H:i' }}{% else %}—{% endif %}</td><td>{% if volume.state == "deleting" %}<span class="badge preparing">删除中</span>{% elif volume.busy %}<span class="badge running">使用中</span>{% else %}<span class="badge">空闲</span>{% endif %}{% if volume.deletion_error %}<div>{{ volume.deletion_error }}</div>{% endif %}</td><td>{% if not volume.busy and volume.state != "deleting" %}<a class="text-button danger" href="{% url 'manage_volume_delete' volume.pk %}">删除</a>{% endif %}</td></tr>{% empty %}<tr><td colspan="7" class="empty">暂无用户数据卷</td></tr>{% endfor %}</tbody></table></div>{% include 'portal/pagination.html' %}{% endblock %}
+{% block manage_content %}
+<div class="storage-nodes" data-storage-user="{{ user.pk }}">
+  {% for group in storage_nodes %}
+  <section class="storage-node panel" id="storage-node-{{ group.node.pk }}" aria-label="{{ group.node.name }} 存储">
+    <header class="storage-node-header">
+      <div class="storage-node-name"><h2>{{ group.node.name }}</h2><span class="badge {% if group.node.state == 'online' %}running{% elif group.node.state == 'offline' %}failed{% endif %}">{{ group.node.get_state_display }}</span></div>
+      <div class="storage-node-capacity"><strong>{{ group.available_tib|floatformat:1 }}</strong><span>/ {{ group.capacity_tib|floatformat:1 }} TiB 可分配</span></div>
+    </header>
+    <div class="node-pools">
+      {% for pool in group.pools %}
+      <article class="node-pool">
+        <div class="pool-heading"><strong>{{ pool.name }}</strong><span class="badge {% if pool.healthy %}running{% else %}failed{% endif %}">{% if pool.healthy %}正常{% else %}待检查{% endif %}</span></div>
+        <div class="pool-capacity"><strong>{{ pool.available_gib }}</strong><span> / {{ pool.capacity_gib }} GiB 可分配</span></div>
+        <div class="meter" title="磁盘已用 {{ pool.percent }}%"><i style="width:{{ pool.percent }}%"></i></div>
+        <div class="pool-meta"><span>已预留 {{ pool.reserved_gib }} GiB</span><time>{{ pool.observed_at|date:'m/d H:i'|default:'等待同步' }}</time></div>
+      </article>
+      {% empty %}<p class="compact">等待存储池同步</p>{% endfor %}
+    </div>
+    <details class="node-volumes" data-storage-node="{{ group.node.pk }}" {% if group.expanded %}open data-force-open{% endif %}>
+      <summary><span class="volume-toggle-closed">展开数据卷</span><span class="volume-toggle-open">收起数据卷</span><span class="volume-count">{{ group.page.paginator.count }}</span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></svg></summary>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>成员</th><th>数据卷</th><th>容量</th><th>磁盘</th><th>保留至</th><th>状态</th><th><span class="sr-only">操作</span></th></tr></thead>
+          <tbody>
+            {% for volume in group.page %}
+            <tr>
+              <td><a href="{% url 'manage_member' volume.user_id %}">{{ volume.user.username }}</a></td>
+              <td>{% if volume.kind == 'home' %}个人卷{% else %}{{ volume.request.purpose }}{% endif %}</td>
+              <td>{{ volume.size_gib }} GiB</td><td>{{ volume.pool.name }}</td>
+              <td>{% if volume.retain_until %}{{ volume.retain_until|date:'Y/m/d H:i' }}{% else %}—{% endif %}</td>
+              <td>{% if volume.state == 'deleting' %}<span class="badge preparing">删除中</span>{% elif volume.busy %}<span class="badge running">使用中</span>{% else %}<span class="badge">空闲</span>{% endif %}{% if volume.deletion_error %}<div class="volume-error">{{ volume.deletion_error }}</div>{% endif %}</td>
+              <td>{% if not volume.busy and volume.state != 'deleting' %}<a class="text-button danger" href="{% url 'manage_volume_delete' volume.pk %}">删除</a>{% endif %}</td>
+            </tr>
+            {% empty %}<tr><td colspan="7" class="empty">暂无用户数据卷</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if group.page.has_other_pages %}
+      <nav class="pagination" aria-label="{{ group.node.name }} 数据卷分页">
+        {% if group.previous_url %}<a class="button secondary" href="{{ group.previous_url }}">← 上一页</a>{% endif %}
+        <span>{{ group.page.number }} / {{ group.page.paginator.num_pages }}</span>
+        {% if group.next_url %}<a class="button secondary" href="{{ group.next_url }}">下一页 →</a>{% endif %}
+      </nav>
+      {% endif %}
+    </details>
+  </section>
+  {% empty %}<div class="panel empty">暂无计算节点</div>{% endfor %}
+</div>
+{% endblock %}

@@ -60,12 +60,15 @@ class MemberGroupSettingsTests(TestCase):
         self.group.refresh_from_db()
         self.assertEqual((self.group.cpu, self.group.approval_mode, self.group.extension_limit), (80, 'manual', 1))
 
-    def test_approvals_tab_contains_pending_work_and_push_but_no_policy_selectors(self):
+    def test_approvals_navigation_separates_pending_work_and_push_settings(self):
         req = task(self.alice, self.image, purpose='需要人工审核')
         page = self.client.get('/management/approvals/')
         self.assertContains(page, '审批与推送')
         self.assertContains(page, '需要人工审核')
-        self.assertContains(page, 'PushPlus')
+        self.assertNotContains(page, 'name="token"')
+        push = self.client.get('/management/approvals/?tab=push')
+        self.assertContains(push, 'PushPlus')
+        self.assertNotContains(push, '需要人工审核')
         self.assertNotContains(page, 'name="scope"')
         self.assertNotContains(page, 'name="mode"')
         queue = self.client.get('/api/v1/admin/approvals').json()['data']

@@ -30,6 +30,11 @@ def approvals(request):
     from .management_forms import PushSettingsForm
     from .models import ExtensionRequest, Notification, NotificationSettings, ResourceRequest
     settings = NotificationSettings.load()
+    tab = request.GET.get('tab', 'pending')
+    if tab not in {'pending', 'push', 'history'}:
+        tab = 'pending'
+    if request.method == 'POST' and request.POST.get('action') == 'push':
+        tab = 'push'
     push_form = PushSettingsForm(request.POST if request.method == 'POST' and request.POST.get('action') == 'push' else None, instance=settings)
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -37,7 +42,8 @@ def approvals(request):
             obj = push_form.save()
             audit(request.user, 'push_settings_updated', 'platform', enabled=obj.enabled, events=obj.events)
             messages.success(request, '推送设置已保存。')
-            return redirect('manage_approvals')
+            from django.urls import reverse
+            return redirect(reverse('manage_approvals') + '?tab=push')
         elif action == 'extension':
             from .approvals import review_extension
             form_data = request.POST
@@ -66,6 +72,7 @@ def approvals(request):
                 messages.error(request, '请选择有效的审批操作。')
             return redirect('manage_approvals')
     return render(request, 'portal/manage_approvals.html', {'section': 'approvals', 'section_title': '审批与推送',
+        'approval_tab': tab,
         'pending': ResourceRequest.objects.filter(status='submitted').select_related('user', 'node'),
         'extensions': ExtensionRequest.objects.filter(status='pending').select_related('request__user', 'request__node'),
         'push_form': push_form, 'token_configured': bool(settings.token_ciphertext),
@@ -183,12 +190,30 @@ def group_delete(request, pk):
 
 @staff_required
 def storage(request):
+    from .models import ComputeNode
     pools = pool_list()
-    volumes = volumes_for(request.user).exclude(state='deleted').order_by('user__username', 'kind')
-    rows = page(request, volumes)
-    rows.object_list = list(rows.object_list)
-    annotate_volume_usage(rows.object_list)
-    return render(request, 'portal/manage_storage.html', {'section': 'storage', 'section_title': '存储', 'pools': pools, 'page': rows})
+    nodes = {node.pk: {'node': node, 'pools': []} for node in ComputeNode.objects.order_by('pk')}
+    for pool in pools:
+        nodes[pool.node_id]['pools'].append(pool)
+    volumes = volumes_for(request.user).exclude(state='deleted').order_by('user__username', 'kind', 'pk')
+    visible_volumes = []
+    for node_id, group in nodes.items():
+        parameter = f'page_{node_id}'
+        rows = Paginator(volumes.filter(node_id=node_id), 25).get_page(request.GET.get(parameter))
+        rows.object_list = list(rows.object_list)
+        visible_volumes.extend(rows.object_list)
+        group.update(page=rows, capacity_tib=sum(pool.capacity_gib for pool in group['pools']) / 1024,
+                     available_tib=sum(pool.available_gib for pool in group['pools']) / 1024,
+                     expanded=request.GET.get('open_node') == str(node_id))
+        for direction, available, number in [('previous', rows.has_previous(), rows.number - 1),
+                                             ('next', rows.has_next(), rows.number + 1)]:
+            if available:
+                query = request.GET.copy()
+                query[parameter], query['open_node'] = str(number), str(node_id)
+                group[direction + '_url'] = '?' + query.urlencode() + f'#storage-node-{node_id}'
+    annotate_volume_usage(visible_volumes)
+    return render(request, 'portal/manage_storage.html', {'section': 'storage', 'section_title': '存储',
+                  'storage_nodes': list(nodes.values())})
 
 
 @staff_required
