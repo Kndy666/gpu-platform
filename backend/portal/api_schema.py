@@ -40,19 +40,18 @@ SCHEMAS = {
         'reason': S, 'priority': {'type': 'integer', 'enum': [0, 100]}, 'ends_at': DATE}, ['action']),
     'ExtensionRequest': obj({'ends_at': DATE, 'reason': S}, ['ends_at', 'reason']),
     'ExtensionReviewRequest': obj({'action': {'type': 'string', 'enum': ['approve', 'reject']}, 'reason': S}, ['action']),
-    'ApprovalRuleRequest': obj({'scope': {'type': 'string', 'enum': ['group', 'member']}, 'target': I,
-        'mode': {'type': 'string', 'enum': ['', 'manual', 'automatic'], 'description': 'Empty means inherit the group and is only valid for members.'}}, ['scope', 'target', 'mode']),
     'NotificationSettingsRequest': obj({'enabled': B, 'token': {'type': 'string', 'format': 'password', 'writeOnly': True},
         'events': {'type': 'array', 'items': S}, 'reminder_minutes': {'type': 'integer', 'minimum': 1, 'maximum': 1440}}),
     'BuildRequest': obj({'node': I, 'name': S, 'dockerfile': S, 'context_git': {'type': 'string', 'format': 'uri'}}, ['name', 'dockerfile']),
     'MemberRequest': obj({'username': S, 'first_name': S, 'email': {'type': 'string', 'format': 'email'},
         'group': I, 'home_quota_gib': I, 'password': {'type': 'string', 'format': 'password'}, 'is_active': B,
         'is_staff': {**B, 'description': 'Editable by a superuser, matching the member form.'},
-        'inherit_quotas': B, 'unlimited': B, 'extension_limit': {'type': 'integer', 'minimum': 0, 'nullable': True},
+        'unlimited': B, 'extension_limit': {'type': 'integer', 'minimum': 0},
+        'approval_mode': {'type': 'string', 'enum': ['manual', 'automatic']},
         **{key: {'type': 'integer', 'minimum': 0 if key.startswith('gpu_') else 1, 'nullable': True}
            for key in ['gpu_compute_percent', 'gpu_memory_gib', 'gpu_compute_per_card_percent', 'gpu_memory_per_card_gib',
                        'cpu', 'memory_gib', 'workspace_gib', 'home_gib', 'image_gib', 'concurrent_tasks', 'interactive_hours']}}),
-    'GroupRequest': obj({'name': S, 'extension_limit': {'type': 'integer', 'minimum': 0, 'default': 1}, 'unlimited': {**B, 'description': 'true clears all stored quota values; unlimited group responses omit quota fields. Switching to false requires every quota.'}, 'make_default': B,
+    'GroupRequest': obj({'name': S, 'approval_mode': {'type': 'string', 'enum': ['manual', 'automatic']}, 'extension_limit': {'type': 'integer', 'minimum': 0, 'default': 1}, 'unlimited': {**B, 'description': 'true clears all stored quota values; unlimited group responses omit quota fields. Switching to false requires every quota.'}, 'make_default': B,
         **{key: {**I, 'nullable': True} for key in ['cpu', 'memory_gib', 'workspace_gib', 'home_gib', 'image_gib', 'concurrent_tasks', 'interactive_hours']},
         'gpu_compute_percent': {'type': 'integer', 'minimum': 0, 'nullable': True,'description':'Total compute quota in percentage points; 150 permits 100% + 50% across GPUs'},
         'gpu_memory_gib':{'type':'integer','minimum':0,'nullable':True,'description':'Total VRAM quota in GiB'},
@@ -186,12 +185,12 @@ def openapi(request):
                                 '400': {'description': 'Invalid request', 'content': {'application/json': {'schema': {'$ref': '#/components/schemas/Error'}}}},
                                 '401': {'description': 'Missing, expired or revoked Bearer token'}, '403': {'description': 'Insufficient permissions'},
                                 '404': {'description': 'Object not found'}, '409': {'description': 'Conflict or idempotency mismatch'}}}
-            if method == 'GET' and view.__name__ in {'nodes', 'tokens', 'tasks', 'extensions', 'containers', 'keys', 'images', 'builds', 'snapshots', 'volumes', 'members', 'groups', 'storage', 'managed_images', 'audits', 'datasets'}:
+            if method == 'GET' and view.__name__ in {'nodes', 'tokens', 'tasks', 'extensions', 'approval_queue', 'containers', 'keys', 'images', 'builds', 'snapshots', 'volumes', 'members', 'groups', 'storage', 'managed_images', 'audits', 'datasets'}:
                 op['parameters'] += [{'name': name, 'in': 'query', 'schema': {**I, 'maximum': 100} if name == 'page_size' else I} for name in ['page', 'page_size']]
             queries = {'tasks': ['mode', 'status', 'purpose', 'scope'], 'images': ['available', 'kind'], 'timeline': ['date'],
                        'logs': ['tail'], 'datasets': ['path', 'q'], 'download': ['path'], 'members': ['q'], 'audits': ['action'],
-                       'containers':['q','status','mode']}
-            if view.__name__ in {'resources', 'gpus', 'timeline', 'tasks', 'images', 'builds', 'snapshots', 'volumes', 'datasets', 'download', 'containers', 'storage', 'managed_images', 'performance'}:
+                       'containers':['q','status','mode'], 'approval_queue': ['kind']}
+            if view.__name__ in {'resources', 'gpus', 'timeline', 'tasks', 'images', 'builds', 'snapshots', 'volumes', 'datasets', 'download', 'containers', 'storage', 'managed_images', 'performance', 'approval_queue'}:
                 queries.setdefault(view.__name__, []).append('node')
             if method == 'GET':
                 op['parameters'] += [{'name': name, 'in': 'query', 'schema': I if name == 'node' else S} for name in queries.get(view.__name__, [])]

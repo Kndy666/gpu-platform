@@ -9,7 +9,7 @@ from portal.models import *
 from portal.services import approve, reject, request_stop, extend, parse_ssh_key, validate_request, resize_home
 from portal.manifests import task_objects
 from portal.resources import resource_summary
-from tests.factories import fixtures, task
+from tests.factories import fixtures, task, set_member_settings
 
 class BusinessTests(TestCase):
     def setUp(self): self.admin, self.a, self.b, self.image = fixtures()
@@ -46,9 +46,9 @@ class BusinessTests(TestCase):
         self.assertEqual(ResourceRequest.objects.get(pk=req.pk).status, 'submitted')
 
     def test_stale_home_allocation_cannot_exceed_current_group_limit(self):
-        UserGroup.objects.update(home_gib=10)
+        set_member_settings(self.a, home_gib=10)
         req = task(self.a, self.image)
-        with self.assertRaisesMessage(ValidationError, '个人卷额度超过当前用户组上限'):
+        with self.assertRaisesMessage(ValidationError, '个人卷容量超过成员上限'):
             approve(req.pk, self.admin)
         self.assertFalse(VolumeAllocation.objects.exists())
 
@@ -131,7 +131,7 @@ class BusinessTests(TestCase):
         req = task(self.a, self.image)
         approve(req.pk, self.admin)
         home = VolumeAllocation.objects.get(kind='home')
-        UserGroup.objects.update(home_gib=100)
+        set_member_settings(self.a, home_gib=100)
         resize_home(self.a, 80, self.admin)
         home.refresh_from_db()
         self.assertEqual(home.size_gib, 80)

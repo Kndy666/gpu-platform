@@ -15,7 +15,7 @@ from portal.api_auth import TOKEN_PREFIX, issue_token, token_id
 from portal.models import (AuditLog, EnvironmentSnapshot, ImageArtifact, ImageBuild, PlatformSettings,
                            ResourceRequest, SSHKey, StoragePool, SystemObservation, UserGroup, VolumeAllocation, Workspace)
 from portal.services import approve
-from tests.factories import fixtures, task
+from tests.factories import fixtures, task, set_member_settings
 
 
 class APITests(TestCase):
@@ -41,7 +41,7 @@ class APITests(TestCase):
 
     def test_multi_gpu_shares_use_compute_and_vram_group_limits(self):
         group=self.a.profile.group
-        group.gpu_compute_percent=200;group.gpu_memory_gib=16;group.save()
+        set_member_settings(self.a,gpu_compute_percent=200,gpu_memory_gib=16)
         specs=[{'compute_percent':100,'memory_gib':8},{'compute_percent':50,'memory_gib':4}]
         result=self.create_task(gpu_requests=specs)
         self.assertEqual((result['gpu'],result['gpu_requests']),(2,specs))
@@ -69,6 +69,7 @@ class APITests(TestCase):
         group=self.a.profile.group
         group.gpu_compute_percent=75;group.gpu_memory_gib=6
         group.gpu_compute_per_card_percent=50;group.gpu_memory_per_card_gib=4;group.save()
+        set_member_settings(self.a,**{name:getattr(group,name) for name in ['gpu_compute_percent','gpu_memory_gib','gpu_compute_per_card_percent','gpu_memory_per_card_gib']})
         cases=[([{'compute_percent':51,'memory_gib':2}],'单卡上限 50%'),
                ([{'compute_percent':50,'memory_gib':5}],'单卡上限 4 GiB'),
                ([{'compute_percent':50,'memory_gib':2}]*2,'总算力'),
@@ -105,6 +106,7 @@ class APITests(TestCase):
         group=self.a.profile.group
         group.gpu_compute_percent=75;group.gpu_memory_gib=6
         group.gpu_compute_per_card_percent=50;group.gpu_memory_per_card_gib=4;group.save()
+        set_member_settings(self.a,**{name:getattr(group,name) for name in ['gpu_compute_percent','gpu_memory_gib','gpu_compute_per_card_percent','gpu_memory_per_card_gib']})
         limits=self.call('get','gpus').json()['data']['request_limits']
         self.assertEqual((limits['compute_per_card_percent'],limits['memory_per_card_gib']),(50,4))
         specs=[{'compute_percent':'max','memory_gib':'max'}]*2
@@ -114,7 +116,7 @@ class APITests(TestCase):
         self.assertEqual(ResourceRequest.objects.get(pk=data['id']).gpu_requests,expected)
         mixed=self.create_task(gpu_requests=[{'compute_percent':25,'memory_gib':2},{'compute_percent':'max','memory_gib':'max'}])
         self.assertEqual(mixed['gpu_requests'],[{'compute_percent':25,'memory_gib':2},{'compute_percent':50,'memory_gib':4}])
-        group.gpu_compute_percent=40;group.gpu_memory_gib=2;group.save()
+        set_member_settings(self.a,gpu_compute_percent=40,gpu_memory_gib=2)
         self.assertEqual(self.create_task(gpu_requests=specs)['gpu_requests'],[{'compute_percent':20,'memory_gib':1}]*2)
 
     def test_max_gpu_options_fail_when_unresolvable_or_shape_is_invalid(self):
@@ -126,11 +128,11 @@ class APITests(TestCase):
                       {'gpu_requests':[{'compute_percent':True,'memory_gib':'max'}]}, {'request_limits':{'compute_total_percent':999}}]:
             with self.subTest(extra=extra):
                 self.assertEqual(self.call('post','tasks',{'purpose':'bad-max','gpu_requests':specs,**extra}).status_code,400)
-        group=self.a.profile.group;group.gpu_compute_percent=0;group.save()
+        set_member_settings(self.a,gpu_compute_percent=0)
         self.assertEqual(self.call('post','tasks',{'purpose':'zero-quota','gpu_requests':specs}).status_code,400)
 
     def test_unlimited_gpu_max_uses_whole_card_with_reserved_vram_excluded(self):
-        group=self.a.profile.group;group.unlimited=True;group.save()
+        set_member_settings(self.a,unlimited=True)
         SystemObservation.objects.create(name='gpu_inventory',data={'devices':[{'uuid':'GPU-a','index':0,
             'memory_mib':24564,'usable_memory_mib':24052,'sm_count':114,'ready':True,'used_compute_percent':80,'used_memory_mib':16000}]})
         data=self.create_task(gpu_requests=[{'compute_percent':'max','memory_gib':'max'}])

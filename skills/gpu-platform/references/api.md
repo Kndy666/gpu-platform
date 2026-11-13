@@ -73,7 +73,7 @@ python3 scripts/client.py request GET /api/v1/datasets --query node=3 --query q=
 
 - `GET /admin/overview`：管理计数。
 - `POST /extensions/{id}/review`：action=approve/reject 审批延期，拒绝需 reason。
-- `GET/PATCH /admin/approvals`：按 group/member 的 scope、目标数字 target、manual/automatic 的 mode 修改审批规则；成员空 mode 表示继承用户组。
+- `GET /admin/approvals`：分页查询待人工审批任务，kind=extensions 查询延期申请；审批方式在成员和用户组的 approval_mode 字段设置。
 - `GET/PATCH /admin/notifications`：PushPlus 微信推送的 enabled、token、events、reminder_minutes；返回 token_configured 和 recent，密钥不会返回。
 - `GET /admin/performance?node=ID`：各节点实际性能。nodes[] 含 fresh、sampled_at、metrics；metrics 含 cpu（使用率、负载、temperature_c 及温度传感器）、memory、gpus（利用率、显存、温度、功耗）、disks、network（rx_mib_s/tx_mib_s）。缺失的 CPU 温度为 null；fresh=false 表示采样超过 30 秒、节点离线或停用。省略 node 时返回全部节点。
 - `POST /nodes`、`PATCH /nodes/{id}`：登记或修改 name、transport、ssh_port、ssh_user、identity、architecture、enabled、maintenance；identity 为主控密钥目录内的私钥文件名。维护模式暂停新任务派发，保留已有任务同步。
@@ -81,7 +81,7 @@ python3 scripts/client.py request GET /api/v1/datasets --query node=3 --query q=
 - `POST /tasks/{id}/review`：action 为 approve、reject、stop、extend；priority 为 0 或 100，拒绝带 reason，延期带 ends_at 和 reason。
 - `GET/POST /admin/members`，`GET/PATCH /admin/members/{id}`：账号创建与编辑。group 为用户组数字 ID，home_quota_gib 为个人卷额度。新账号需要 username、password；停用账号使用 is_active=false。
 
-成员额度字段与用户组一致；inherit_quotas=true 恢复组默认值，false 使用个人配置，effective_limits 是实际额度。成员 extension_limit 为 null 表示沿用组默认值，0 禁用用户延期；默认每个环境成功延期一次。每次新增时长上限为 interactive_hours，拒绝或待审批不消耗次数。人工审批期间保持旧截止时间，自动审批成功时直接更新。用户组审批模式默认人工，可由成员规则覆盖。
+成员配置字段与用户组一致，创建时复制组默认值，之后各自独立保存；resource_limits 为资源值，effective_limits 是生效配置。extension_limit 为非负整数，0 禁用用户延期；默认每个环境成功延期一次。每次新增时长上限为 interactive_hours，拒绝或待审批不消耗次数。人工审批期间保持旧截止时间，自动审批成功时直接更新。成员与用户组的 approval_mode 可设 manual/automatic，成员使用独立保存的值。
 - `GET/POST /admin/groups`，`GET/PATCH/DELETE /admin/groups/{id}`：用户组。unlimited=true 表示不限组额度，此时清空并省略全部配额字段；改回限额组时须填写完整额度。make_default=true 设置默认组。删除有成员的组时用 JSON `{"destination":目标组ID}` 转移成员。
 - `GET /admin/storage?node=ID`：节点的存储池和使用中的卷，存储池含 node_id、node_name；省略节点时返回全部。
 - `GET /admin/images?node=ID`：节点内尚未回收的镜像及容量统计；省略节点时返回全部。
@@ -100,6 +100,6 @@ SSH 公钥启停会同步到现有运行容器。管理员启用公钥允许接�
 
 需要 Docker 时，在 `/images` 中选择共享镜像“Ubuntu 22.04”。平台启动独立 Rootless Docker，支持前台 `docker run --rm --gpus all IMAGE COMMAND` 作为运行命令；`all` 使用外层任务获分配的 GPU。内层镜像和 Docker 卷位于 `/workspace/.docker`，工作卷保留期对这些数据同样生效。长期使用的内层镜像可推送到自己的外部仓库，或使用 `docker save` 保存到个人卷。平台仓库在容器内提供只读凭据，镜像发布使用网页/API 构建与保存。从开发环境提交运行时，相同容量复用工作卷，容量变化时复制到新卷；使用已有镜像直接申请时创建新工作卷。
 
-GPU：`GET /gpus` 查询逐卡余量及当前用户的 `request_limits`；`POST /tasks` 通过 `gpu_requests` 数组逐卡申请，如 `[{"compute_percent":100,"memory_gib":8},{"compute_percent":50,"memory_gib":4}]`。每个字段可独立用字符串 `"max"` 取最大值：保留手填值，将剩余总额度均分给选最大值的行，并受单卡权限和硬件容量限制；响应返回确定的整数。`gpu` 可省略；配置行对应 CUDA 设备序号，实际物理编号见 `gpu_allocations` 的 `slot`、`uuid`、`index`。用户组 GPU 权限包含总算力 `gpu_compute_percent`、总显存 `gpu_memory_gib`、单卡算力上限 `gpu_compute_per_card_percent` 与单卡显存上限 `gpu_memory_per_card_gib`。
+GPU：`GET /gpus` 查询逐卡余量及当前用户的 `request_limits`；`POST /tasks` 通过 `gpu_requests` 数组逐卡申请，如 `[{"compute_percent":100,"memory_gib":8},{"compute_percent":50,"memory_gib":4}]`。每个字段可独立用字符串 `"max"` 取最大值：保留手填值，将剩余总额度均分给选最大值的行，并受单卡权限和硬件容量限制；响应返回确定的整数。`gpu` 可省略；配置行对应 CUDA 设备序号，实际物理编号见 `gpu_allocations` 的 `slot`、`uuid`、`index`。成员 GPU 配置包含总算力 `gpu_compute_percent`、总显存 `gpu_memory_gib`、单卡算力上限 `gpu_compute_per_card_percent` 与单卡显存上限 `gpu_memory_per_card_gib`。
 
 申请页的余量对应 `GET /resources` 的 `request_capacity`。从带 GPU 或无 GPU 的开发环境提交程序均可使用 `source_environment`；`workspace_gib` 省略时沿用源大小，填写不同容量时新建卷并复制，目标需能容纳原数据。个人卷复用，原工作卷在复制成功后回收。

@@ -39,7 +39,7 @@ API 根路径为 `/api/v1`，网页地址由 `config.yaml` 的 `platform.https_o
 | 数据卷 | `GET /volumes`，`GET/DELETE /volumes/{id}`；删除使用管理员权限 |
 | 公用目录 | `GET /datasets`，`GET /datasets/download` |
 | 管理概览与容器 | `GET /admin/overview`，`GET /admin/containers` |
-| 审批与微信推送 | `GET/PATCH /admin/approvals`，`GET/PATCH /admin/notifications` |
+| 审批与微信推送 | `GET /admin/approvals`，`GET/PATCH /admin/notifications` |
 | 节点实时性能 | `GET /admin/performance?node=ID`；管理员可读 CPU 使用率、温度、内存、逐卡 GPU、磁盘和网络速率 |
 | 成员 | `GET/POST /admin/members`，`GET/PATCH /admin/members/{id}` |
 | 用户组 | `GET/POST /admin/groups`，`GET/PATCH/DELETE /admin/groups/{id}` |
@@ -50,11 +50,11 @@ API 根路径为 `/api/v1`，网页地址由 `config.yaml` 的 `platform.https_o
 
 ## 提交任务
 
-用户组额度是默认值；管理员可在成员编辑页设置个人的 CPU、内存、GPU 总量与单卡上限、工作卷、个人卷、镜像、并发数和使用时长。成员接口使用 `inherit_quotas=true` 沿用组默认值，`false` 启用个人额度，额度字段与用户组一致；PATCH 任意额度字段会启用成员配置。`effective_limits` 返回实际生效额度，`quota_overrides` 返回成员覆盖值。已有容器的资源分配保持不变，新申请与后续派发使用当前额度。
+用户组和成员编辑使用相同的资源与审批设置字段。创建成员时将选中用户组的配置复制到成员，之后成员的 CPU、内存、GPU、存储、并发、时长、延期次数及审批方式独立保存。`resource_limits` 返回成员资源值，`effective_limits` 是生效配置；编辑成员使用与用户组相同的平铺字段。成员和组的 `approval_mode` 均为 manual 或 automatic，`extension_limit` 均为非负整数，页面直接编辑实际值。
 
-审批方式由成员配置优先，其次采用用户组配置。`PATCH /admin/approvals` 使用 `{"scope":"member","target":成员ID,"mode":"automatic"}`；scope 可为 group，mode 可为 manual 或 automatic；成员的空 mode 表示沿用用户组。默认人工审批。规则变更用于后续新建和延期申请，已有待审核申请继续保留。
+`GET /admin/approvals` 分页返回待人工审批的新建任务，`?kind=extensions` 返回待审批延期，支持 node 筛选。审批方式在成员与用户组接口中设置；审批操作仍使用任务及延期的 review 接口。“审批与推送”页面集中显示待审申请和推送配置。
 
-本人可通过 `POST /tasks/{id}/extensions` 提交 `ends_at` 和 `reason`。每个开发环境默认允许成功延期一次；用户组 `extension_limit` 可修改默认次数，成员的同名字段为 null 时继承、0 时关闭。每次新增的时长上限等于新建开发环境的 `interactive_hours`。人工审批通过前保持原结束时间；拒绝不消耗次数；自动审批通过后立即更新截止时间。`extension_count` 返回已成功延期次数，管理员通过 `POST /extensions/{id}/review` 提交 action=approve/reject，拒绝需 reason。延期只更新运行容器的截止时间注解。
+本人可通过 `POST /tasks/{id}/extensions` 提交 `ends_at` 和 `reason`。每个开发环境默认允许成功延期一次；用户组 `extension_limit` 可修改默认次数，成员的同名字段独立保存，0 时关闭。每次新增的时长上限等于新建开发环境的 `interactive_hours`。人工审批通过前保持原结束时间；拒绝不消耗次数；自动审批通过后立即更新截止时间。`extension_count` 返回已成功延期次数，管理员通过 `POST /extensions/{id}/review` 提交 action=approve/reject，拒绝需 reason。延期只更新运行容器的截止时间注解。
 
 `GET/PATCH /admin/notifications` 配置 PushPlus 个人微信推送：enabled、写入用的 token、events 和 reminder_minutes。GET 只返回 token_configured，空 token 保留原密钥。可选事件在 available_events 中查询。推送通过独立后台队列发送，限制为最多每分钟 5 次请求、每天 200 次请求；失败自动重试，recent 返回发送状态。默认关闭，填写 Token 并启用后才开始入队。
 

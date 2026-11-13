@@ -29,5 +29,9 @@ class Command(BaseCommand):
                 admin.save(update_fields=['password'])
                 group, _ = UserGroup.objects.get_or_create(name='管理员', defaults={'unlimited': True})
                 admin.profile.group = group
-                admin.profile.save(update_fields=['group'])
+                from portal.policies import settings_from_group
+                values = settings_from_group(group)
+                for name, value in values.items():
+                    setattr(admin.profile, name, value)
+                admin.profile.save(update_fields=['group', *values])
         self.stdout.write('Bootstrap completed; existing policies preserved.')

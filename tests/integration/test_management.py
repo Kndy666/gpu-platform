@@ -3,7 +3,7 @@ from django.test import TestCase
 
 from portal.models import ImageArtifact, PlatformSettings, UserGroup, VolumeAllocation
 from portal.services import approve
-from tests.factories import fixtures, task
+from tests.factories import fixtures, task, member_form_data
 
 
 class ManagementTests(TestCase):
@@ -17,7 +17,12 @@ class ManagementTests(TestCase):
         self.client.force_login(self.admin)
 
     def member_data(self, **overrides):
-        data = dict(username=self.a.username, first_name='', email='', group=str(self.default_group.pk), home_quota_gib=50, is_active='on')
+        data = member_form_data(self.a)
+        if 'group' in overrides:
+            group = UserGroup.objects.get(pk=overrides['group'])
+            from portal.models import GROUP_QUOTA_FIELDS
+            data.update({name:getattr(group,name) for name in GROUP_QUOTA_FIELDS})
+            data.update(approval_mode=group.approval_mode,extension_limit=group.extension_limit,unlimited=group.unlimited)
         data.update(overrides)
         return data
 
@@ -73,6 +78,8 @@ class ManagementTests(TestCase):
         data = {field: getattr(policy, field) for field in ('gpu_compute_percent', 'gpu_memory_gib', 'gpu_compute_per_card_percent', 'gpu_memory_per_card_gib', 'cpu', 'memory_gib', 'workspace_gib', 'home_gib', 'image_gib', 'concurrent_tasks', 'interactive_hours')}
         data['concurrent_tasks'] = 3
         data['name'] = policy.name
+        data['approval_mode'] = policy.approval_mode
+        data['extension_limit'] = policy.extension_limit
         self.assertEqual(self.client.post(f'/management/groups/{self.default_group.pk}/', data).status_code, 302)
         policy.refresh_from_db()
         self.assertEqual(policy.concurrent_tasks, 3)

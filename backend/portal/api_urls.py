@@ -41,7 +41,7 @@ ROUTES = [
     ('datasets', api.datasets, 'Browse public data', None),
     ('datasets/download', api.download, 'Download a public data file', None),
     ('admin/overview', api.overview, 'Management counts', None),
-    ('admin/approvals', api.approval_settings, 'Approval policies for groups and members', 'ApprovalRuleRequest'),
+    ('admin/approvals', api.approval_queue, 'Pending tasks and extension requests awaiting manual review', None),
     ('admin/notifications', api.notification_settings, 'Configure WeChat event delivery through PushPlus', 'NotificationSettingsRequest'),
     ('admin/performance', api.performance, 'Live CPU, memory, GPU, disk and network metrics by node', None),
     ('admin/members', api.members, 'List or create accounts', 'MemberRequest'),

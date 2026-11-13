@@ -1,11 +1,10 @@
 {% extends 'portal/manage_base.html' %}
 {% block manage_actions %}<a class="button secondary" href="{% url 'manage_members' %}">返回成员</a>{% endblock %}
 {% block manage_content %}
-<form method="post" class="member-form" data-member-quotas>{% csrf_token %}
-{{ form.group_defaults|json_script:'member-group-defaults' }}
-{{ form.non_field_errors }}
-<section class="panel"><div class="manage-form-fields">{% include 'portal/field.html' with field=form.username %}{% include 'portal/field.html' with field=form.first_name %}{% include 'portal/field.html' with field=form.email %}{% include 'portal/field.html' with field=form.password %}{% include 'portal/field.html' with field=form.group %}{% include 'portal/field.html' with field=form.home_quota_gib %}{% include 'portal/field.html' with field=form.extension_limit %}</div></section>
-<section class="panel"><div class="check-fields">{% include 'portal/field.html' with field=form.inherit_quotas %}<div data-member-unlimited>{% include 'portal/field.html' with field=form.unlimited %}</div></div><div class="manage-form-fields member-resource-fields" data-member-resource-fields>{% for field in form.resource_fields %}{% include 'portal/field.html' %}{% endfor %}</div></section>
+<form method="post" class="member-form" data-resource-settings data-member-create="{% if member %}false{% else %}true{% endif %}">{% csrf_token %}
+{{ form.group_defaults|json_script:'member-group-defaults' }}{{ form.non_field_errors }}
+<section class="panel"><div class="manage-form-fields">{% include 'portal/field.html' with field=form.username %}{% include 'portal/field.html' with field=form.first_name %}{% include 'portal/field.html' with field=form.email %}{% include 'portal/field.html' with field=form.password %}{% include 'portal/field.html' with field=form.group %}{% include 'portal/field.html' with field=form.home_quota_gib %}</div></section>
+{% include 'portal/resource_settings.html' %}
 <section class="panel"><div class="check-fields">{% include 'portal/field.html' with field=form.is_active %}{% include 'portal/field.html' with field=form.is_staff %}</div></section>
 <div class="form-actions"><button type="submit" class="button">保存成员</button></div>
 </form>

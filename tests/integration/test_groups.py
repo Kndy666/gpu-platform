@@ -4,7 +4,7 @@ from django.test import TestCase
 
 from portal.models import UserGroup, UserProfile
 from portal.services import policy_for
-from tests.factories import fixtures
+from tests.factories import fixtures, member_form_data
 
 
 class GroupTests(TestCase):
@@ -18,7 +18,7 @@ class GroupTests(TestCase):
 
     def group_data(self, **overrides):
         data = {field: getattr(self.default, field) for field in ['gpu_compute_percent','gpu_memory_gib','gpu_compute_per_card_percent','gpu_memory_per_card_gib','cpu','memory_gib','workspace_gib','home_gib','image_gib','concurrent_tasks','interactive_hours']}
-        data.update(name='推理用户')
+        data.update(name='推理用户',approval_mode='manual',extension_limit=1)
         data.update(overrides)
         return data
 
@@ -27,7 +27,7 @@ class GroupTests(TestCase):
         self.assertEqual(response.status_code, 302)
         group = UserGroup.objects.get(name='推理用户')
         self.assertEqual(group.gpu_compute_percent, 100)
-        response = self.client.post(f'/management/members/{self.a.pk}/', {'username':'alice','group':group.pk,'home_quota_gib':50,'is_active':'on'})
+        response = self.client.post(f'/management/members/{self.a.pk}/', member_form_data(self.a,group=group.pk))
         self.assertEqual(response.status_code, 302)
         self.a.refresh_from_db()
         self.assertEqual(policy_for(self.a).pk, group.pk)
@@ -66,11 +66,12 @@ class GroupTests(TestCase):
         self.assertEqual(response.status_code,200)
         self.assertTrue(UserGroup.objects.filter(pk=self.default.pk).exists())
 
-    def test_delete_rejects_destination_with_insufficient_home_quota(self):
+    def test_delete_preserves_member_settings_when_destination_defaults_are_lower(self):
         destination = UserGroup.objects.create(name='小组',home_gib=10)
         response = self.client.post(f'/management/groups/{self.default.pk}/delete/', {'destination':destination.pk})
-        self.assertEqual(response.status_code,200)
-        self.assertEqual(UserProfile.objects.filter(group=self.default).count(),3)
+        self.assertEqual(response.status_code,302)
+        self.assertEqual(UserProfile.objects.filter(group=destination).count(),3)
+        self.assertEqual(policy_for(self.a).home_gib,50)
 
     def test_deleted_seed_group_does_not_reappear_after_bootstrap(self):
         empty = UserGroup.objects.create(name='长期用户')
@@ -84,9 +85,9 @@ class GroupTests(TestCase):
         self.assertEqual(self.client.post('/management/groups/new/',self.group_data()).status_code,302)
         self.assertFalse(UserGroup.objects.filter(name='推理用户').exists())
 
-    def test_group_home_limit_cannot_drop_below_member_allocation(self):
+    def test_group_defaults_change_does_not_lower_existing_member_capacity(self):
         response = self.client.post(f'/management/groups/{self.default.pk}/', self.group_data(home_gib=10))
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, '部分成员的个人卷额度超过此值')
+        self.assertEqual(response.status_code, 302)
         self.default.refresh_from_db()
-        self.assertGreaterEqual(self.default.home_gib, self.a.profile.home_quota_gib)
+        self.assertEqual(self.default.home_gib, 10)
+        self.assertEqual(policy_for(self.a).home_gib, 50)

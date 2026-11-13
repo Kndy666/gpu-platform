@@ -24,3 +24,31 @@ def task(user, image, **kwargs):
     data.update(kwargs)
     data.setdefault('gpu_requests',[{'compute_percent':100,'memory_gib':8} for _ in range(data['gpu'])])
     return ResourceRequest.objects.create(**data)
+
+
+def set_member_settings(user, **values):
+    from portal.models import GROUP_QUOTA_FIELDS
+    profile = user.profile
+    profile.refresh_from_db()
+    limits = dict(profile.resource_limits)
+    for name, value in values.items():
+        if name in {'extension_limit', 'approval_mode'}:
+            setattr(profile, name, value)
+        else:
+            limits[name] = value
+    if limits['unlimited']:
+        limits.update({name: None for name in GROUP_QUOTA_FIELDS})
+    profile.resource_limits = limits
+    profile.save(update_fields=['resource_limits', 'extension_limit', 'approval_mode'])
+
+
+def member_form_data(user, **values):
+    from portal.models import GROUP_QUOTA_FIELDS
+    from portal.services import policy_for
+    policy = policy_for(user)
+    data = {name: getattr(policy, name) for name in GROUP_QUOTA_FIELDS}
+    data.update(username=user.username, first_name=user.first_name, email=user.email, is_active=user.is_active,
+                is_staff=user.is_staff, group=user.profile.group_id, home_quota_gib=user.profile.home_quota_gib,
+                unlimited=policy.unlimited, extension_limit=policy.extension_limit, approval_mode=policy.approval_mode)
+    data.update(values)
+    return data

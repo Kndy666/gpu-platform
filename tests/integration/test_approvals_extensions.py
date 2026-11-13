@@ -11,7 +11,7 @@ from portal.management_forms import MemberForm
 from portal.models import ExtensionRequest, UserGroup, VolumeAllocation, Workspace
 from portal.policies import approval_mode, extension_limit
 from portal.services import approve, policy_for, validate_request
-from tests.factories import fixtures, task
+from tests.factories import fixtures, task, set_member_settings, member_form_data
 
 
 class ApprovalExtensionTests(TestCase):
@@ -52,10 +52,15 @@ class ApprovalExtensionTests(TestCase):
         self.assertEqual(req.extension_count, 0)
         self.assertEqual(request_extension(req.pk, self.alice, req.ends_at + timedelta(hours=1), '重试').status, 'pending')
 
-    def test_group_default_and_member_extension_override(self):
+    def test_group_defaults_only_initialize_new_members(self):
         req = self.environment()
         self.assertEqual(extension_limit(self.alice), 1)
         UserGroup.objects.filter(pk=self.alice.profile.group_id).update(extension_limit=0)
+        from django.contrib.auth import get_user_model
+        new=get_user_model().objects.create_user('new-default-member')
+        self.assertEqual(extension_limit(new),0)
+        self.assertEqual(extension_limit(self.alice),1)
+        set_member_settings(self.alice,extension_limit=0)
         with self.assertRaisesRegex(ValidationError, '次数'):
             request_extension(req.pk, self.alice, req.ends_at + timedelta(hours=1), '继续')
         self.alice.profile.extension_limit = 2
@@ -107,11 +112,15 @@ class ApprovalExtensionTests(TestCase):
         self.assertEqual(args[2], {'metadata': {'annotations': {'platform.ends-at': entry.ends_at.isoformat()}}})
         factory.return_value.delete_owned.assert_not_called()
 
-    def test_approval_inheritance_and_explicit_member_rule(self):
+    def test_group_approval_defaults_and_independent_member_rules(self):
         group = self.alice.profile.group
         self.assertEqual(approval_mode(self.alice), 'manual')
         group.approval_mode = 'automatic'
         group.save(update_fields=['approval_mode'])
+        from django.contrib.auth import get_user_model
+        self.assertEqual(approval_mode(get_user_model().objects.create_user('auto-member')),'automatic')
+        self.assertEqual(approval_mode(self.alice),'manual')
+        set_member_settings(self.alice,approval_mode='automatic')
         req = task(self.alice, self.image)
         self.assertNotEqual(submit_request(req).status, 'submitted')
         self.assertTrue(VolumeAllocation.objects.filter(request=req).exists())
@@ -120,14 +129,13 @@ class ApprovalExtensionTests(TestCase):
         second = task(self.alice, self.image)
         self.assertEqual(submit_request(second).status, 'submitted')
 
-    def test_member_quota_overrides_are_independent_of_group_defaults(self):
+    def test_member_limits_are_independent_of_group_defaults(self):
         group = self.alice.profile.group
-        self.alice.profile.quota_overrides = {'cpu': 200, 'memory_gib': 400}
-        self.alice.profile.save(update_fields=['quota_overrides'])
+        set_member_settings(self.alice,cpu=200,memory_gib=400)
         group.cpu = 8
         group.save(update_fields=['cpu'])
         self.assertEqual(policy_for(self.alice).cpu, 200)
-        self.assertEqual(policy_for(self.bob).cpu, 8)
+        self.assertEqual(policy_for(self.bob).cpu, 80)
         self.assertEqual(policy_for(self.alice).memory_gib, 400)
         validate_request(task(self.alice, self.image, cpu=128, memory_gib=256))
 
@@ -135,7 +143,7 @@ class ApprovalExtensionTests(TestCase):
         group = self.alice.profile.group
         from portal.models import GROUP_QUOTA_FIELDS
         payload = {'username': 'alice', 'first_name': '', 'email': '', 'is_active': True, 'group': group.pk,
-            'home_quota_gib': 80, 'inherit_quotas': False, 'unlimited': False, 'extension_limit': 3,
+            'home_quota_gib': 80, 'unlimited': False, 'extension_limit': 3, 'approval_mode':'manual',
             **{name: getattr(group, name) for name in GROUP_QUOTA_FIELDS}}
         payload.update(home_gib=100, cpu=160)
         form = MemberForm(payload, actor=self.admin, member=self.alice)
@@ -167,7 +175,7 @@ class ApprovalExtensionTests(TestCase):
 
     def test_unlimited_member_override_without_numeric_fields(self):
         payload = {'username': 'alice', 'first_name': '', 'email': '', 'is_active': True,
-            'group': self.alice.profile.group_id, 'home_quota_gib': 50, 'unlimited': 'on'}
+            'group': self.alice.profile.group_id, 'home_quota_gib': 50, 'unlimited': 'on', 'extension_limit':1, 'approval_mode':'manual'}
         form = MemberForm(payload, actor=self.admin, member=self.alice)
         self.assertTrue(form.is_valid(), form.errors)
         form.save()
@@ -200,7 +208,7 @@ class ApprovalExtensionTests(TestCase):
         self.assertEqual(self.client.get('/management/approvals/').status_code, 200)
         self.client.defaults['HTTP_AUTHORIZATION'] = 'Bearer ' + issue_token(self.admin)['token']
         import json
-        response = self.client.patch('/api/v1/admin/approvals', json.dumps({'scope': 'member', 'target': self.alice.pk, 'mode': 'automatic'}), content_type='application/json')
+        response = self.client.patch('/api/v1/admin/members/'+str(self.alice.pk), json.dumps({'approval_mode': 'automatic'}), content_type='application/json')
         self.assertEqual(response.status_code, 200, response.content)
         self.assertEqual(approval_mode(self.alice), 'automatic')
 

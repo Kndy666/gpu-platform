@@ -27,20 +27,13 @@ staff_required = user_passes_test(lambda user: user.is_active and user.is_staff)
 
 @staff_required
 def approvals(request):
-    from .management_forms import ApprovalRuleForm, PushSettingsForm
+    from .management_forms import PushSettingsForm
     from .models import ExtensionRequest, Notification, NotificationSettings, ResourceRequest
     settings = NotificationSettings.load()
     push_form = PushSettingsForm(request.POST if request.method == 'POST' and request.POST.get('action') == 'push' else None, instance=settings)
     if request.method == 'POST':
         action = request.POST.get('action')
-        if action == 'rule':
-            form = ApprovalRuleForm(request.POST)
-            if form.is_valid():
-                form.save(request.user)
-                messages.success(request, '审批方式已保存，将用于后续申请。')
-                return redirect('manage_approvals')
-            messages.error(request, form.errors.as_text())
-        elif action == 'push' and push_form.is_valid():
+        if action == 'push' and push_form.is_valid():
             obj = push_form.save()
             audit(request.user, 'push_settings_updated', 'platform', enabled=obj.enabled, events=obj.events)
             messages.success(request, '推送设置已保存。')
@@ -75,7 +68,6 @@ def approvals(request):
     return render(request, 'portal/manage_approvals.html', {'section': 'approvals', 'section_title': '审批与推送',
         'pending': ResourceRequest.objects.filter(status='submitted').select_related('user', 'node'),
         'extensions': ExtensionRequest.objects.filter(status='pending').select_related('request__user', 'request__node'),
-        'groups': UserGroup.objects.order_by('name'), 'members': get_user_model().objects.select_related('profile__group').order_by('username'),
         'push_form': push_form, 'token_configured': bool(settings.token_ciphertext),
         'notifications': Notification.objects.order_by('-created_at')[:10]})
 

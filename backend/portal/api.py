@@ -199,9 +199,8 @@ def user_data(user):
     return {'id': user.pk, 'username': user.username, 'first_name': user.first_name, 'email': user.email,
             'is_active': user.is_active, 'is_staff': user.is_staff, 'is_superuser': user.is_superuser,
             'group': group_data(user.profile.group), 'home_quota_gib': user.profile.home_quota_gib,
-            'quota_overrides': user.profile.quota_overrides, 'effective_limits': group_data(policy_for(user)),
-            'extension_limit': extension_limit(user), 'extension_limit_override': user.profile.extension_limit,
-            'approval_mode': approval_mode(user), 'approval_mode_override': user.profile.approval_mode}
+            'resource_limits': user.profile.resource_limits, 'effective_limits': group_data(policy_for(user)),
+            'extension_limit': extension_limit(user), 'approval_mode': approval_mode(user)}
 
 
 def connection_data(req):
@@ -490,19 +489,14 @@ def extension_review(request, pk):
     return success(extension_data(review_extension(pk, request.user, form.cleaned_data['action'], form.cleaned_data['reason'])))
 
 
-@endpoint('GET', 'PATCH', staff=True)
-def approval_settings(request):
-    from .management_forms import ApprovalRuleForm
-    from .policies import approval_mode
-    if request.method == 'PATCH':
-        valid(ApprovalRuleForm(body(request, {'scope', 'target', 'mode'}))).save(request.user)
+@endpoint('GET', staff=True)
+def approval_queue(request):
     from .models import ExtensionRequest
-    return success({'groups': [{'id': group.pk, 'name': group.name, 'mode': group.approval_mode} for group in UserGroup.objects.order_by('pk')],
-        'members': [{'id': user.pk, 'username': user.username, 'group_id': user.profile.group_id,
-            'mode': user.profile.approval_mode, 'effective_mode': approval_mode(user)}
-            for user in get_user_model().objects.select_related('profile__group').order_by('pk')],
-        'pending_tasks': ResourceRequest.objects.filter(status='submitted').count(),
-        'pending_extensions': ExtensionRequest.objects.filter(status='pending').count()})
+    if request.GET.get('kind', 'tasks') == 'extensions':
+        query = ExtensionRequest.objects.filter(status='pending').select_related('request__user', 'request__node').order_by('created_at', 'pk')
+        return page(request, node_filter(request, query, 'request__node'), extension_data)
+    query = ResourceRequest.objects.filter(status='submitted').select_related('user', 'image', 'node', 'workspace').order_by('created_at', 'pk')
+    return page(request, node_filter(request, query), lambda req: task_data(req, detail=False))
 
 
 @endpoint('GET', 'PATCH', staff=True)
@@ -775,11 +769,11 @@ def members(request):
     if group:
         data.setdefault('group', group.pk)
         data.setdefault('home_quota_gib', 50 if group.unlimited else min(50, group.home_gib))
-        if any(name in data for name in GROUP_QUOTA_FIELDS):
-            data.setdefault('inherit_quotas', False)
-            data.setdefault('unlimited', False)
-            for name in GROUP_QUOTA_FIELDS:
-                data.setdefault(name, getattr(group, name))
+        data.setdefault('unlimited', False if any(name in data for name in GROUP_QUOTA_FIELDS) else group.unlimited)
+        data.setdefault('extension_limit', group.extension_limit)
+        data.setdefault('approval_mode', group.approval_mode)
+        for name in GROUP_QUOTA_FIELDS:
+            data.setdefault(name, getattr(group, name))
     obj = valid(MemberForm(data, actor=request.user)).save()
     return success(user_data(obj), 201)
 
@@ -793,12 +787,11 @@ def member(request, pk):
         data = {name: getattr(obj, name) for name in ('username', 'first_name', 'email', 'is_active', 'is_staff')}
         data.update(group=obj.profile.group_id, home_quota_gib=obj.profile.home_quota_gib)
         effective = policy_for(obj)
-        data.update(extension_limit=obj.profile.extension_limit, inherit_quotas=not bool(obj.profile.quota_overrides), unlimited=effective.unlimited)
+        data.update(extension_limit=obj.profile.extension_limit, approval_mode=obj.profile.approval_mode, unlimited=effective.unlimited)
         for name in GROUP_QUOTA_FIELDS:
             data[name] = getattr(effective, name)
         payload = body(request, set(MemberForm.base_fields) | set(GROUP_QUOTA_FIELDS))
         if any(name in payload for name in GROUP_QUOTA_FIELDS):
-            payload.setdefault('inherit_quotas', False)
             payload.setdefault('unlimited', False)
         data.update(payload)
         obj = valid(MemberForm(data, actor=request.user, member=obj)).save()

@@ -116,9 +116,9 @@ class UserProfile(models.Model):
     gid = models.PositiveIntegerField(default=1000)
     home_quota_gib = models.PositiveIntegerField(default=50, verbose_name='个人卷 GiB')
     registry_secret = models.CharField(max_length=100, blank=True)
-    quota_overrides = models.JSONField(default=dict, blank=True, verbose_name='成员自定义额度')
-    extension_limit = models.PositiveIntegerField(null=True, blank=True, verbose_name='每个环境可延期次数')
-    approval_mode = models.CharField(max_length=12, choices=[('', '沿用用户组'), *APPROVAL_CHOICES], blank=True, default='', verbose_name='审批方式')
+    resource_limits = models.JSONField(default=dict, verbose_name='成员资源额度')
+    extension_limit = models.PositiveIntegerField(default=1, verbose_name='每个环境可延期次数')
+    approval_mode = models.CharField(max_length=12, choices=APPROVAL_CHOICES, default='manual', verbose_name='审批方式')
 
     class Meta:
         verbose_name = '用户与个人卷'

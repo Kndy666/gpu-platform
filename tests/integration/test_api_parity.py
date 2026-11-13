@@ -15,7 +15,7 @@ from portal.api_urls import ROUTES
 from portal.models import (AuditLog, EnvironmentSnapshot, ImageArtifact, ImageBuild, ResourceRequest,
                            StoragePool, SystemObservation, UserGroup, VolumeAllocation, Workspace)
 from portal.services import approve
-from tests.factories import fixtures, task
+from tests.factories import fixtures, task, set_member_settings
 
 
 class ParityTests(TestCase):
@@ -127,8 +127,7 @@ class ParityTests(TestCase):
         fields = ['gpu','cpu','memory_gib','workspace_gib','starts_at','ends_at','working_dir','image_id','login_name','status']
         self.assertEqual({k:getattr(rows[0], k) for k in fields}, {k:getattr(rows[1], k) for k in fields})
         group = self.a.profile.group
-        group.cpu = 1
-        group.save(update_fields=['cpu'])
+        set_member_settings(self.a,cpu=1)
         before = ResourceRequest.objects.count()
         self.assertEqual(self.web.post('/environments/new/', payload).status_code, 200)
         self.assertEqual(self.call('post', 'tasks', payload).status_code, 400)

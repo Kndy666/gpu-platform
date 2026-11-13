@@ -93,7 +93,7 @@ def validate_request(req):
     if not req.user.is_active:
         raise ValidationError('账号已停用。')
     if not policy.unlimited and req.user.profile.home_quota_gib > policy.home_gib:
-        raise ValidationError('个人卷额度超过当前用户组上限，请管理员调整。')
+        raise ValidationError('个人卷容量超过成员上限，请管理员调整。')
     if not req.image.verified or (req.image.owner_id != req.user_id and not req.image.shared):
         raise ValidationError('镜像不可用。')
     from .gpu_math import validate_gpu_requests,choose_devices
@@ -107,9 +107,9 @@ def validate_request(req):
                 if spec['memory_gib']>policy.gpu_memory_per_card_gib:
                     raise ValidationError(f'第 {slot} 张 GPU 显存超过单卡上限 {policy.gpu_memory_per_card_gib} GiB。')
             if req.gpu_compute_total>policy.gpu_compute_percent:
-                raise ValidationError(f'GPU 总算力超过用户组上限 {policy.gpu_compute_percent}%。')
+                raise ValidationError(f'GPU 总算力超过成员上限 {policy.gpu_compute_percent}%。')
             if req.gpu_memory_total_gib>policy.gpu_memory_gib:
-                raise ValidationError(f'GPU 总显存超过用户组上限 {policy.gpu_memory_gib} GiB。')
+                raise ValidationError(f'GPU 总显存超过成员上限 {policy.gpu_memory_gib} GiB。')
         inventory=SystemObservation.objects.filter(node=req.node, name='gpu_inventory').first()
         if inventory:
             devices=inventory.data.get('devices',[])
@@ -118,7 +118,7 @@ def validate_request(req):
     for field in ('cpu', 'memory_gib', 'workspace_gib'):
         value = getattr(req, field)
         if (not policy.unlimited and value > getattr(policy, field)) or value < (0 if field == 'gpu' else 1):
-            raise ValidationError(f'{field} 超出用户组配额。')
+            raise ValidationError(f'{field} 超出成员额度。')
     observed = SystemObservation.objects.filter(node=req.node, name='resources', observed_at__gte=timezone.now()-timedelta(minutes=2)).first()
     if observed:
         for field in ('gpu', 'cpu', 'memory_gib'):
@@ -179,7 +179,7 @@ def home_resize_delta(user, size, node=None):
         raise ValidationError('个人卷正在删除，请等待完成。')
     policy = policy_for(user)
     if size < 1 or (not policy.unlimited and size > policy.home_gib):
-        raise ValidationError('个人卷容量超出用户组额度。')
+        raise ValidationError('个人卷容量超出成员额度。')
     if not volume:
         return None, 0
     delta = size - volume.size_gib

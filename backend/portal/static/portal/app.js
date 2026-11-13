@@ -1,29 +1,6 @@
 (() => {
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
-  const memberQuotas = $('[data-member-quotas]');
-  if (memberQuotas) {
-    const inherited = $('[name=inherit_quotas]', memberQuotas), unlimited = $('[name=unlimited]', memberQuotas);
-    const fields = $('[data-member-resource-fields]', memberQuotas), mode = $('[data-member-unlimited]', memberQuotas);
-    const group = $('[name=group]', memberQuotas), defaults = JSON.parse($('#member-group-defaults').textContent);
-    group.addEventListener('change', () => {
-      if (!inherited.checked) return;
-      const values = defaults[group.value];
-      if (!values) return;
-      unlimited.checked = values.unlimited;
-      $$('input', fields).forEach(input => {input.value = values[input.name] ?? '';});
-      updateMemberQuotas();
-    });
-    const updateMemberQuotas = () => {
-      mode.hidden = inherited.checked;
-      unlimited.disabled = inherited.checked;
-      fields.hidden = inherited.checked || unlimited.checked;
-      $$('input', fields).forEach(input => {input.disabled = fields.hidden; input.required = !fields.hidden;});
-    };
-    inherited.addEventListener('change', updateMemberQuotas);
-    unlimited.addEventListener('change', updateMemberQuotas);
-    updateMemberQuotas();
-  }
   const performancePanel = $('[data-performance-url]');
   if (performancePanel) {
     const input = $('[data-performance-interval]'), status = $('[data-performance-status]');
@@ -84,18 +61,29 @@
     button.setAttribute('aria-pressed', String(visible));
     button.querySelector('use').setAttribute('href', visible ? '#i-eye-off' : '#i-eye');
   }));
-  const groupForm = $('[data-group-limits]');
-  if (groupForm) {
-    const unlimited = $('[name=unlimited]', groupForm);
-    const updateLimits = () => $$('[data-quota-fields]', groupForm).forEach(panel => {
+  $$('[data-resource-settings]').forEach(form => {
+    const unlimited = $('[name=unlimited]', form);
+    const update = () => $$('[data-quota-fields]', form).forEach(panel => {
       panel.hidden = unlimited.checked;
-      $$('input', panel).forEach(input => {
-        input.disabled = unlimited.checked; input.required = !unlimited.checked;
-        if (unlimited.checked) input.value = '';
-      });
+      $$('input', panel).forEach(input => {input.disabled = unlimited.checked; input.required = !unlimited.checked;});
     });
-    unlimited.addEventListener('change', updateLimits); updateLimits();
-  }
+    unlimited.addEventListener('change', update);
+    if (form.dataset.memberCreate === 'true') {
+      const group = $('[name=group]', form), defaults = JSON.parse($('#member-group-defaults').textContent);
+      group.addEventListener('change', () => {
+        const values = defaults[group.value];
+        if (!values) return;
+        Object.entries(values).forEach(([name, value]) => {
+          const field = $(`[name="${name}"]`, form);
+          if (!field) return;
+          if (field.type === 'checkbox') field.checked = value;
+          else field.value = value ?? '';
+        });
+        update();
+      });
+    }
+    update();
+  });
   const requestForm = $('[data-request-mode]');
   if (requestForm) {
     const gpuData = $('#id_gpu_requests',requestForm), gpuRows = $('[data-gpu-rows]',requestForm);

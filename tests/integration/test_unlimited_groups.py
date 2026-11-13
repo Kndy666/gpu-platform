@@ -15,7 +15,7 @@ from portal.api_auth import issue_token
 from portal.queues import queue_objects
 from portal.services import approve, policy_for, resize_home
 from portal.snapshots import sync_snapshots
-from tests.factories import fixtures, task
+from tests.factories import fixtures, task, member_form_data
 
 
 class UnlimitedGroupTests(TestCase):
@@ -25,7 +25,9 @@ class UnlimitedGroupTests(TestCase):
         cls.group = UserGroup.objects.create(name='管理员', unlimited=True, gpu_compute_percent=0, cpu=1, memory_gib=1,
             home_gib=1, workspace_gib=1, image_gib=1, concurrent_tasks=1, interactive_hours=1)
         cls.user.profile.group = cls.group
-        cls.user.profile.save(update_fields=['group'])
+        from portal.policies import settings_from_group
+        for name,value in settings_from_group(cls.group).items():setattr(cls.user.profile,name,value)
+        cls.user.profile.save()
 
     def test_compute_storage_and_duration_exceed_old_limits(self):
         for i in range(2):
@@ -97,11 +99,10 @@ class UnlimitedGroupTests(TestCase):
         self.assertIn('pods', regular['spec']['resourceGroups'][0]['coveredResources'])
 
     def test_unlimited_group_form_and_member_allocation(self):
-        form = GroupForm({'name': '管理员', 'unlimited': 'on'}, instance=self.group)
+        form = GroupForm({'name': '管理员', 'unlimited': 'on', 'approval_mode':'manual', 'extension_limit':1}, instance=self.group)
         self.assertTrue(form.is_valid(), form.errors)
         self.assertTrue(form.save().unlimited)
-        form = MemberForm({'username': self.user.username, 'group': self.group.pk, 'home_quota_gib': 200,
-                           'is_active': 'on'}, actor=self.admin, member=self.user)
+        form = MemberForm(member_form_data(self.user,home_quota_gib=200), actor=self.admin, member=self.user)
         self.assertTrue(form.is_valid(), form.errors)
         self.client.force_login(self.admin)
         response = self.client.get('/management/groups/')

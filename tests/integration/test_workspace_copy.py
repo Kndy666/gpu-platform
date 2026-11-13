@@ -7,7 +7,7 @@ from portal.services import approve,work_volume,work_owner,request_stop
 from portal.reconcile import Reconciler,mark_finished
 from portal.volumes import volume_busy
 from portal.workspace_copy import ensure_workspace_copy,copy_name,copy_job,COPY_SCRIPT
-from tests.factories import fixtures,task
+from tests.factories import fixtures,task,set_member_settings
 from tests.integration.test_reconcile import FakeKube
 
 
@@ -94,7 +94,7 @@ class WorkspaceCopyTests(TestCase):
         self.assertFalse(kube.created)
 
     def test_quota_counts_replacement_size_and_pool_still_reserves_temporary_space(self):
-        group=self.user.profile.group;group.workspace_gib=120;group.save(update_fields=['workspace_gib'])
+        set_member_settings(self.user,workspace_gib=120)
         source=self.source();pool=StoragePool.objects.get();before=pool.reserved_gib
         target=self.target(source,120)
         pool.refresh_from_db();self.assertEqual(pool.reserved_gib,before+120)
