@@ -16,7 +16,7 @@ from .forms import SSHKeyForm, RequestForm, ImageBuildForm, ReviewForm
 from .models import ResourceRequest, SSHKey, VolumeAllocation, ImageArtifact, ImageBuild, SystemObservation, EnvironmentSnapshot
 from .services import audit, approve, reject, request_stop, extend
 from .access import tasks_for
-from .queries import resource_overview, image_catalog, audit_list
+from .queries import resource_overview, image_catalog
 
 def history_page(request, queryset, parameter='page', size=20):
     page = Paginator(queryset, size).get_page(request.GET.get(parameter))
@@ -244,10 +244,7 @@ def available_resources(request):
 
 @user_passes_test(lambda u: u.is_active and u.is_staff)
 def management(request):
-    from django.contrib.auth import get_user_model
-    return render(request, 'portal/management.html', {'section': 'overview', 'section_title': '管理', 'pending': ResourceRequest.objects.filter(status='submitted').select_related('user', 'image', 'workspace'),
-        'active': tasks_for(request.user).filter(status__in=['approved', 'running', 'starting', 'queued', 'scheduled', 'preparing']).select_related('user', 'workspace'),
-        'members': get_user_model().objects.count(), 'audits': audit_list()[:12]})
+    return redirect('manage_nodes')
 
 def health(request):
     obs = SystemObservation.objects.filter(name='reconciler').order_by('-observed_at').first()

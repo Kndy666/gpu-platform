@@ -240,4 +240,5 @@ class WorkflowTests(TestCase):
 
     def test_management_requires_staff_and_renders_for_admin(self):
         self.client.force_login(self.a);self.assertEqual(self.client.get('/management/').status_code,302)
-        self.client.force_login(self.admin);self.assertEqual(self.client.get('/management/').status_code,200)
+        self.client.force_login(self.admin)
+        self.assertRedirects(self.client.get('/management/'), '/management/nodes/')

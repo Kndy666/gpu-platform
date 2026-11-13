@@ -27,7 +27,7 @@ class ManagementTests(TestCase):
         return data
 
     def test_all_management_pages_use_portal_layout(self):
-        paths = ['/management/', '/management/members/', '/management/members/new/',
+        paths = ['/management/nodes/', '/management/members/', '/management/members/new/',
                  f'/management/members/{self.a.pk}/', '/management/groups/', f'/management/groups/{self.default_group.pk}/',
                  '/management/storage/', '/management/images/', '/management/audits/', '/management/settings/']
         for path in paths:

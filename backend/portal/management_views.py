@@ -7,6 +7,7 @@ from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.http import JsonResponse
 from django.template.loader import render_to_string
+from django.urls import reverse
 from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_POST
 
@@ -14,7 +15,8 @@ from .configuration import config
 from .audit_display import audit_presentation
 from .image_lifecycle import keep_image, recycle_image
 from .management_forms import MemberForm, GroupForm, DeleteGroupForm, RecycleSettingsForm
-from .models import PlatformSettings, UserGroup, VolumeAllocation
+from .models import ComputeNode, PlatformSettings, UserGroup, VolumeAllocation
+from .nodes import selected_node
 from .services import audit
 from .volumes import annotate_volume_usage, request_volume_deletion, volume_busy
 from .access import image_actions_for, volumes_for
@@ -42,7 +44,6 @@ def approvals(request):
             obj = push_form.save()
             audit(request.user, 'push_settings_updated', 'platform', enabled=obj.enabled, events=obj.events)
             messages.success(request, '推送设置已保存。')
-            from django.urls import reverse
             return redirect(reverse('manage_approvals') + '?tab=push')
         elif action == 'extension':
             from .approvals import review_extension
@@ -71,7 +72,7 @@ def approvals(request):
             else:
                 messages.error(request, '请选择有效的审批操作。')
             return redirect('manage_approvals')
-    title = {'pending': '待审批', 'push': '推送设置', 'history': '发送记录'}[tab]
+    title = {'pending': '待审批', 'push': '推送设置', 'history': '推送记录'}[tab]
     return render(request, 'portal/manage_approvals.html', {'section': 'approvals', 'section_title': title,
         'approval_tab': tab,
         'pending': ResourceRequest.objects.filter(status='submitted').select_related('user', 'node'),
@@ -99,7 +100,7 @@ def performance_data(request):
 
 @staff_required
 def nodes(request, pk=None):
-    from .models import ComputeNode, default_node_id
+    from .models import default_node_id
     from .nodes import NodeForm
     default_node_id()
     node = get_object_or_404(ComputeNode, pk=pk) if pk else None
@@ -121,10 +122,15 @@ def page(request, queryset):
 def containers(request):
     from .models import ResourceRequest
     from .views import history_page
-    query=request.GET.get('q','').strip();status=request.GET.get('status','');mode=request.GET.get('mode','')
-    return render(request,'portal/manage_containers.html',{'section':'containers','section_title':'容器',
-        'tasks':history_page(request,container_list(query,status,mode),'page',25),'query':query,'status':status,'mode':mode,
-        'states':ResourceRequest.State.choices,'ssh_access':administrator_access(request.user)})
+    node = selected_node(request.GET.get('node'))
+    query = request.GET.get('q', '').strip()
+    status = request.GET.get('status', '')
+    mode = request.GET.get('mode', '')
+    tasks = container_list(query, status, mode).filter(node=node)
+    return render(request, 'portal/manage_containers.html', {'section': 'containers', 'section_title': '容器',
+        'node': node, 'nodes': ComputeNode.objects.order_by('pk'),
+        'tasks': history_page(request, tasks, size=25), 'query': query, 'status': status, 'mode': mode,
+        'states': ResourceRequest.State.choices, 'ssh_access': administrator_access(request.user)})
 
 
 @staff_required
@@ -191,7 +197,6 @@ def group_delete(request, pk):
 
 @staff_required
 def storage(request):
-    from .models import ComputeNode
     pools = pool_list()
     nodes = {node.pk: {'node': node, 'pools': []} for node in ComputeNode.objects.order_by('pk')}
     for pool in pools:
@@ -234,9 +239,12 @@ def volume_delete(request, pk):
 
 @staff_required
 def images(request):
-    images = managed_image_list()
-    return render(request, 'portal/manage_images.html', {'section': 'images', 'section_title': '镜像回收', 'page': page(request, images),
-        **image_summary(images)})
+    from .views import history_page
+    node = selected_node(request.GET.get('node'))
+    images = managed_image_list().filter(node=node)
+    return render(request, 'portal/manage_images.html', {'section': 'images', 'section_title': '镜像',
+        'node': node, 'nodes': ComputeNode.objects.order_by('pk'),
+        'page': history_page(request, images, size=25), **image_summary(images)})
 
 
 @staff_required
@@ -267,7 +275,7 @@ def image_action(request, pk, action):
         from django.contrib.auth.views import redirect_to_login
         return redirect_to_login(request.get_full_path())
     visible = image_actions_for(request.user)
-    get_object_or_404(visible, pk=pk)
+    image = get_object_or_404(visible, pk=pk)
     if action not in {'keep', 'recycle'}:
         raise PermissionDenied
     try:
@@ -276,4 +284,6 @@ def image_action(request, pk, action):
         messages.error(request, '；'.join(exc.messages))
     else:
         messages.success(request, '镜像已长期保留。' if action == 'keep' else '镜像将在 24 小时后回收，可在此之前保留。')
-    return redirect('manage_images' if request.user.is_staff and request.POST.get('origin') == 'management' else 'images')
+    if request.user.is_staff and request.POST.get('origin') == 'management':
+        return redirect(reverse('manage_images') + f'?node={image.node_id}')
+    return redirect('images')

@@ -373,4 +373,7 @@
 
 document.querySelectorAll('[data-node-select=request]').forEach(select => select.addEventListener('change', () => { const url = new URL(location.href); url.searchParams.set('node', select.value); url.searchParams.delete('image'); url.searchParams.delete('source'); location.assign(url); }));
 
+document.querySelectorAll('[data-node-filter]').forEach(select => {
+  select.addEventListener('change', () => select.form.requestSubmit());
+});
 document.querySelectorAll('[data-dataset-node]').forEach(select => select.addEventListener('change', () => { select.form.elements.path.value = ''; select.form.requestSubmit(); }));

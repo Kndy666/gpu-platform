@@ -14,7 +14,6 @@ def management_navigation(context):
         current = 'approvals-' + context.get('approval_tab', 'pending')
     approval_url = reverse('manage_approvals')
     groups = [
-        ('概览', 'i-grid', [('overview', '概览', reverse('management'))]),
         ('资源管理', 'i-chip', [
             ('nodes', '节点', reverse('manage_nodes')),
             ('performance', '性能', reverse('manage_performance')),
@@ -30,10 +29,10 @@ def management_navigation(context):
         ('审批与推送', 'i-check', [
             ('approvals-pending', '待审批', approval_url + '?tab=pending'),
             ('approvals-push', '推送设置', approval_url + '?tab=push'),
-            ('approvals-history', '发送记录', approval_url + '?tab=history'),
+            ('approvals-history', '推送记录', approval_url + '?tab=history'),
         ]),
         ('系统', 'i-settings', [
-            ('settings', '保留设置', reverse('manage_settings')),
+            ('settings', '设置', reverse('manage_settings')),
             ('audits', '审计记录', reverse('manage_audits')),
         ]),
     ]

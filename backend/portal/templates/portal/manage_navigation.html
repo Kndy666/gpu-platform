@@ -6,9 +6,6 @@
   <nav class="admin-navigation" aria-label="管理分类">
     <a class="admin-back" href="{% url 'dashboard' %}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg>返回工作台</a>
     {% for group in navigation %}
-      {% if group.items|length == 1 %}
-        {% for item in group.items %}<a class="admin-home" href="{{ item.url }}" {% if item.active %}aria-current="page"{% endif %}><svg aria-hidden="true"><use href="#{{ group.icon }}"/></svg>{{ item.label }}</a>{% endfor %}
-      {% else %}
       <details class="admin-nav-group" name="management-section" {% if group.active %}open{% endif %}>
         <summary {% if group.active %}class="current-group"{% endif %}>
           <svg aria-hidden="true"><use href="#{{ group.icon }}"/></svg>
@@ -19,7 +16,6 @@
           {% for item in group.items %}<a href="{{ item.url }}" {% if item.active %}aria-current="page"{% endif %}>{{ item.label }}</a>{% endfor %}
         </div>
       </details>
-      {% endif %}
     {% endfor %}
   </nav>
 </details>
