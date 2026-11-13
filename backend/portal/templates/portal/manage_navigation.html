@@ -7,13 +7,13 @@
     <a class="admin-back" href="{% url 'dashboard' %}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg>返回工作台</a>
     {% for group in navigation %}
       {% if group.items|length == 1 %}
-        {% for item in group.items %}<a class="admin-home" href="{{ item.url }}" {% if item.active %}aria-current="page"{% endif %}>{{ item.label }}</a>{% endfor %}
+        {% for item in group.items %}<a class="admin-home" href="{{ item.url }}" {% if item.active %}aria-current="page"{% endif %}><svg aria-hidden="true"><use href="#{{ group.icon }}"/></svg>{{ item.label }}</a>{% endfor %}
       {% else %}
       <details class="admin-nav-group" name="management-section" {% if group.active %}open{% endif %}>
         <summary {% if group.active %}class="current-group"{% endif %}>
+          <svg aria-hidden="true"><use href="#{{ group.icon }}"/></svg>
           <span>{{ group.label }}</span>
-          {% if group.count %}<span class="admin-pending-count" aria-label="{{ group.count }} 条待审批">{{ group.count }}</span>{% endif %}
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+          {% if group.count %}<span class="admin-pending-count" aria-label="{{ group.count }} 条待审批">{% if group.count > 99 %}99+{% else %}{{ group.count }}{% endif %}</span>{% else %}<svg class="admin-nav-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>{% endif %}
         </summary>
         <div class="admin-nav-links">
           {% for item in group.items %}<a href="{{ item.url }}" {% if item.active %}aria-current="page"{% endif %}>{{ item.label }}</a>{% endfor %}

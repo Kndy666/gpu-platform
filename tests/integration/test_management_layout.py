@@ -65,6 +65,10 @@ class ManagementLayoutTests(TestCase):
         self.assertIn('aria-label="管理分类"', sidebar)
         self.assertIn('成员与权限', sidebar)
         self.assertIn('href="/management/storage/"', sidebar)
+        menu = sidebar.split('<nav class="admin-navigation"', 1)[1]
+        self.assertEqual(menu.count('<use href='), 5)
+        for icon in ['i-grid', 'i-chip', 'i-admin', 'i-check', 'i-settings']:
+            self.assertIn(f'<use href="#{icon}"/>', menu)
         self.assertNotIn('aria-label="管理分类"', content)
         self.assertNotContains(response, 'class="manage-primary"')
         self.assertNotContains(response, 'class="manage-secondary"')
