@@ -223,13 +223,16 @@ def data_owner():
 
 
 def prepare_data_directory(path, mountpoint, owner, mode):
-    """Own project data paths below the data mount, leaving the mount root intact."""
+    """Own configured data paths and their parents within the data mount."""
     path, mountpoint = Path(path), Path(mountpoint)
     parts = path.relative_to(mountpoint).parts
-    if not parts or '..' in parts:
-        raise RuntimeError('Data directory must be below its filesystem mount')
+    if '..' in parts:
+        raise RuntimeError('Data directory must be inside its filesystem mount')
     descriptor = os.open(mountpoint, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
+        if not parts:
+            os.fchown(descriptor, owner.pw_uid, owner.pw_gid)
+            os.fchmod(descriptor, mode)
         for index, part in enumerate(parts):
             directory_mode = mode if index == len(parts) - 1 else 0o755
             created = False

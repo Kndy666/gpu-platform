@@ -57,6 +57,13 @@ class InstallerSimulationTests(TestCase):
                                                  SimpleNamespace(pw_uid=2100, pw_gid=2200), 0o700)
             self.assertFalse((mount/'outside/volumes').exists())
 
+    def test_configured_data_directory_can_be_a_mount_root(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(installer.os, 'fchown') as chown:
+            path = Path(directory)
+            installer.prepare_data_directory(path, path, SimpleNamespace(pw_uid=2100, pw_gid=2200), 0o755)
+            self.assertEqual(chown.call_args.args[1:], (2100, 2200))
+            self.assertEqual(path.stat().st_mode & 0o777, 0o755)
+
     def test_worker_client_is_installed_outside_the_private_checkout(self):
         spec = importlib.util.spec_from_file_location('node_services_test', ROOT/'deploy/node_services.py')
         services = importlib.util.module_from_spec(spec)
