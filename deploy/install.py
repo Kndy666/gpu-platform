@@ -214,21 +214,50 @@ def install_node_agent(cfg):
     from metrics_service import install_metrics
     install_metrics(ROOT, agent_config)
 
-def prepare_datasets(storage):
-    path = Path(storage['datasets'])
-    owner = storage.get('datasets_owner')
-    if not owner and path.exists() and path.stat().st_uid != 0:
-        return
-    owner = owner or os.environ.get('SUDO_USER')
-    if owner and (owner != 'root' or storage.get('datasets_owner')):
-        account = pwd.getpwnam(owner)
-        uid, gid = account.pw_uid, account.pw_gid
-    else:
-        # Root-only installations use the workspace's standard data identity.
-        uid, gid = 1000, 1000
-    if uid == 0:
-        raise RuntimeError('storage.datasets_owner must name a non-root user')
-    run(['install', '-d', '-m', '0755', '-o', str(uid), '-g', str(gid), str(path)])
+def data_owner():
+    if 'SUDO_UID' in os.environ:
+        return pwd.getpwuid(int(os.environ['SUDO_UID']))
+    if os.environ.get('SUDO_USER'):
+        return pwd.getpwnam(os.environ['SUDO_USER'])
+    return pwd.getpwuid(os.getuid())
+
+
+def prepare_data_directory(path, mountpoint, owner, mode):
+    """Own project data paths below the data mount, leaving the mount root intact."""
+    path, mountpoint = Path(path), Path(mountpoint)
+    parts = path.relative_to(mountpoint).parts
+    if not parts or '..' in parts:
+        raise RuntimeError('Data directory must be below its filesystem mount')
+    descriptor = os.open(mountpoint, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        for index, part in enumerate(parts):
+            directory_mode = mode if index == len(parts) - 1 else 0o755
+            created = False
+            try:
+                os.mkdir(part, directory_mode, dir_fd=descriptor)
+                created = True
+            except FileExistsError:
+                pass
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+            if created or index == len(parts) - 1 or mountpoint != Path('/'):
+                os.fchown(descriptor, owner.pw_uid, owner.pw_gid)
+                os.fchmod(descriptor, directory_mode)
+    finally:
+        os.close(descriptor)
+
+
+def prepare_data_directories(storage, facts):
+    owner = data_owner()
+    for pool in facts['pools']:
+        prepare_data_directory(pool['path'], pool['mount']['target'], owner, 0o700)
+    datasets = Path(storage['datasets'])
+    ancestor = datasets
+    while not ancestor.exists():
+        ancestor = ancestor.parent
+    mountpoint = capture(['findmnt', '-n', '-T', ancestor, '-o', 'TARGET'])
+    prepare_data_directory(datasets, mountpoint, owner, 0o755)
 
 def apply(cfg, facts, out):
     if os.geteuid() != 0: raise RuntimeError('Installation requires sudo')
@@ -238,9 +267,7 @@ def apply(cfg, facts, out):
     if not worker and cfg['platform']['public_host'] == 'gpu.example.edu': raise RuntimeError('Configure public_host first')
     if facts['gpu_inventory']:
         run([ROOT/'deploy/toolkit.sh'])
-    prepare_datasets(cfg['storage'])
-    for path in [p['path'] for p in cfg['storage']['pools']]:
-        Path(path).mkdir(parents=True, exist_ok=True)
+    prepare_data_directories(cfg['storage'], facts)
     cache = out/'cache'; cache.mkdir(exist_ok=True)
     install_k3s(cfg, facts, cache)
     storage_dependencies(cfg)
@@ -276,7 +303,8 @@ def apply(cfg, facts, out):
     ver = locked_versions()
     rawfile_url = f"https://github.com/openebs/rawfile-localpv/releases/download/v{ver['rawfile_localpv']}/rawfile-localpv-{ver['rawfile_localpv']}.tgz"
     download(['https://ghfast.top/' + rawfile_url, rawfile_url], cache/'rawfile.tgz', ver['rawfile_chart_sha256'])
-    h(['upgrade', '--install', 'rawfile', cache/'rawfile.tgz', '-n', 'openebs', '-f', out/'rawfile-values.yaml', '--wait', '--timeout', '10m'])
+    h(['upgrade', '--install', 'rawfile', cache/'rawfile.tgz', '-n', 'openebs', '-f', out/'rawfile-values.yaml',
+       '--post-renderer', ROOT/'deploy/rawfile_permissions.py', '--wait', '--timeout', '10m'])
     kueue_chart = cache / f"kueue-{ver['kueue']}.tgz"
     if not kueue_chart.exists():
         h(['pull', 'oci://registry.k8s.io/kueue/charts/kueue', '--version', ver['kueue'], '--destination', cache])

@@ -17,33 +17,45 @@ spec = importlib.util.spec_from_file_location('platform_installer', ROOT/'deploy
 installer = importlib.util.module_from_spec(spec); spec.loader.exec_module(installer)
 
 class InstallerSimulationTests(TestCase):
-    def test_dataset_directory_uses_installing_or_configured_user(self):
-        for configured, sudo_user, expected_user in [('', 'operator', 'operator'), ('data-owner', 'operator', 'data-owner')]:
-            with self.subTest(configured=configured), tempfile.TemporaryDirectory() as directory:
-                path = Path(directory)/'datasets'
-                with patch.dict(os.environ, {'SUDO_USER': sudo_user}), \
-                        patch.object(installer.pwd, 'getpwnam', return_value=SimpleNamespace(pw_uid=2100, pw_gid=2200)) as account, \
-                        patch.object(installer, 'run') as run:
-                    installer.prepare_datasets({'datasets': str(path), 'datasets_owner': configured})
-                account.assert_called_once_with(expected_user)
-                run.assert_called_once_with(['install', '-d', '-m', '0755', '-o', '2100', '-g', '2200', str(path)])
+    def test_data_owner_uses_sudo_caller_or_current_user_including_root(self):
+        cases = [({'SUDO_UID': '2100', 'SUDO_USER': 'operator'}, 0, 2100), ({}, 2200, 2200), ({}, 0, 0)]
+        for environment, current, expected in cases:
+            with self.subTest(environment=environment, current=current), \
+                    patch.dict(os.environ, environment, clear=True), patch.object(installer.os, 'getuid', return_value=current), \
+                    patch.object(installer.pwd, 'getpwuid') as account:
+                self.assertIs(installer.data_owner(), account.return_value)
+                account.assert_called_once_with(expected)
+        with patch.dict(os.environ, {'SUDO_USER': 'operator'}, clear=True), patch.object(installer.pwd, 'getpwnam') as account:
+            self.assertIs(installer.data_owner(), account.return_value)
+            account.assert_called_once_with('operator')
 
-    def test_dataset_directory_retains_existing_non_root_ownership(self):
-        with patch.object(installer, 'Path') as path, patch.object(installer, 'run') as run:
-            path.return_value.exists.return_value = True
-            path.return_value.stat.return_value.st_uid = 2100
-            installer.prepare_datasets({'datasets': '/data/datasets'})
-            run.assert_not_called()
+    def test_data_directories_set_owner_and_modes_under_strict_umask(self):
+        with tempfile.TemporaryDirectory() as directory:
+            mount = Path(directory)
+            mount_mode = mount.stat().st_mode
+            owner = SimpleNamespace(pw_uid=2100, pw_gid=2200)
+            previous = os.umask(0o077)
+            try:
+                with patch.object(installer.os, 'fchown') as chown:
+                    installer.prepare_data_directory(mount/'platform/volumes', mount, owner, 0o700)
+                    installer.prepare_data_directory(mount/'platform/datasets', mount, owner, 0o755)
+                    self.assertEqual(chown.call_count, 4)
+                    self.assertTrue(all(call.args[1:] == (2100, 2200) for call in chown.call_args_list))
+            finally:
+                os.umask(previous)
+            self.assertEqual(mount.stat().st_mode, mount_mode)
+            for path, mode in [('platform', 0o755), ('platform/volumes', 0o700), ('platform/datasets', 0o755)]:
+                self.assertEqual((mount/path).stat().st_mode & 0o777, mode)
 
-    def test_root_owned_dataset_directory_gets_workspace_identity_without_sudo_user(self):
-        for environment in ({}, {'SUDO_USER': 'root'}):
-            with self.subTest(environment=environment), patch.dict(os.environ, environment, clear=True), \
-                    patch.object(installer, 'Path') as path, patch.object(installer, 'run') as run:
-                path.return_value.exists.return_value = True
-                path.return_value.stat.return_value.st_uid = 0
-                path.return_value.__str__.return_value = '/data/datasets'
-                installer.prepare_datasets({'datasets': '/data/datasets'})
-                run.assert_called_once_with(['install', '-d', '-m', '0755', '-o', '1000', '-g', '1000', '/data/datasets'])
+    def test_data_directories_reject_symlink_ancestors(self):
+        with tempfile.TemporaryDirectory() as directory:
+            mount = Path(directory)
+            (mount/'outside').mkdir()
+            (mount/'platform').symlink_to(mount/'outside', target_is_directory=True)
+            with self.assertRaises(OSError):
+                installer.prepare_data_directory(mount/'platform/volumes', mount,
+                                                 SimpleNamespace(pw_uid=2100, pw_gid=2200), 0o700)
+            self.assertFalse((mount/'outside/volumes').exists())
 
     def test_worker_client_is_installed_outside_the_private_checkout(self):
         spec = importlib.util.spec_from_file_location('node_services_test', ROOT/'deploy/node_services.py')
