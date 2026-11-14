@@ -32,6 +32,7 @@ cp config.example.yaml config.yaml
 | `network.public_ports_approved` | 确认开放网页和 SSH 端口后设为 `true` |
 | `storage.pools` | 数据盘上的卷目录和存储类 |
 | `storage.datasets` | 公用数据目录 |
+| `storage.datasets_owner` | 可填写管理数据的系统用户名。留空时沿用已有普通用户属主，新建目录归执行 sudo 的用户；直接使用 root 安装时采用 UID/GID 1000。新建目录权限为 0755 |
 | `controller.key_directory` | 主控专用 SSH 私钥与 `known_hosts` 目录，只挂载通信 socket 给面板 |
 | `nodes` | 首次登记从机的名称、反向 SSH 端口、账户、密钥文件名和 CPU 架构 |
 

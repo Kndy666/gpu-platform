@@ -42,6 +42,7 @@ network:
     - https://k8s.m.daocloud.io
 storage:
   datasets: /data/platform/datasets
+  datasets_owner: ''
   registry_budget_gib: 300
   pools:
   - name: disk1

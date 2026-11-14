@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import pwd
 import re
 import secrets
 import shutil
@@ -213,6 +214,22 @@ def install_node_agent(cfg):
     from metrics_service import install_metrics
     install_metrics(ROOT, agent_config)
 
+def prepare_datasets(storage):
+    path = Path(storage['datasets'])
+    owner = storage.get('datasets_owner')
+    if not owner and path.exists() and path.stat().st_uid != 0:
+        return
+    owner = owner or os.environ.get('SUDO_USER')
+    if owner and (owner != 'root' or storage.get('datasets_owner')):
+        account = pwd.getpwnam(owner)
+        uid, gid = account.pw_uid, account.pw_gid
+    else:
+        # Root-only installations use the workspace's standard data identity.
+        uid, gid = 1000, 1000
+    if uid == 0:
+        raise RuntimeError('storage.datasets_owner must name a non-root user')
+    run(['install', '-d', '-m', '0755', '-o', str(uid), '-g', str(gid), str(path)])
+
 def apply(cfg, facts, out):
     if os.geteuid() != 0: raise RuntimeError('Installation requires sudo')
     install_workspace_security()
@@ -221,7 +238,8 @@ def apply(cfg, facts, out):
     if not worker and cfg['platform']['public_host'] == 'gpu.example.edu': raise RuntimeError('Configure public_host first')
     if facts['gpu_inventory']:
         run([ROOT/'deploy/toolkit.sh'])
-    for path in [p['path'] for p in cfg['storage']['pools']] + [cfg['storage']['datasets']]:
+    prepare_datasets(cfg['storage'])
+    for path in [p['path'] for p in cfg['storage']['pools']]:
         Path(path).mkdir(parents=True, exist_ok=True)
     cache = out/'cache'; cache.mkdir(exist_ok=True)
     install_k3s(cfg, facts, cache)
