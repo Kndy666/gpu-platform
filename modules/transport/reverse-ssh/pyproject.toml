@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gpu-platform-transport-reverse-ssh"
+version = "0.4.0"
+requires-python = ">=3.10"
+dependencies = ["gpu-platform-contracts==0.4.0"]
+
+[project.entry-points."gpu_platform.slots.transport"]
+"reverse-ssh" = "gpu_platform_transport_reverse_ssh.module:Module"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"*" = ["*.yaml", "*.json", "host/*", "images/*", "locale/**/*"]

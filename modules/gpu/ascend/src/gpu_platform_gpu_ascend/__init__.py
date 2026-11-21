@@ -1,0 +1,1 @@
+"""Exclusive Ascend NPU allocation."""

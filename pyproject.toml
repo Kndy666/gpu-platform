@@ -1,0 +1,91 @@
+[project]
+name = "gpu-platform"
+version = "0.4.0"
+requires-python = ">=3.10"
+dependencies = [
+  "gpu-platform-contracts==0.4.0",
+  "gpu-platform-control==0.4.0",
+  "gpu-platform-panel==0.4.0",
+  "gpu-platform-node==0.4.0",
+  "gpu-platform-installer==0.4.0",
+  "gpu-platform-auth-local==0.4.0",
+  "gpu-platform-transport-local==0.4.0",
+  "gpu-platform-transport-reverse-ssh==0.4.0",
+  "gpu-platform-entry-local==0.4.0",
+  "gpu-platform-entry-controller-forward==0.4.0",
+  "gpu-platform-runtime-k3s==0.4.0",
+  "gpu-platform-storage-rawfile==0.4.0",
+  "gpu-platform-registry-zot==0.4.0",
+  "gpu-platform-build-buildkit==0.4.0",
+  "gpu-platform-gpu-nvidia-mps==0.4.0",
+  "gpu-platform-gpu-ascend==0.4.0",
+  "gpu-platform-metrics-host==0.4.0",
+  "gpu-platform-notify-pushplus==0.4.0"
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["packages/*", "modules/*/*"]
+
+[tool.uv.sources]
+gpu-platform-contracts = { workspace = true }
+gpu-platform-control = { workspace = true }
+gpu-platform-panel = { workspace = true }
+gpu-platform-node = { workspace = true }
+gpu-platform-installer = { workspace = true }
+gpu-platform-auth-local = { workspace = true }
+gpu-platform-transport-local = { workspace = true }
+gpu-platform-transport-reverse-ssh = { workspace = true }
+gpu-platform-entry-local = { workspace = true }
+gpu-platform-entry-controller-forward = { workspace = true }
+gpu-platform-runtime-k3s = { workspace = true }
+gpu-platform-storage-rawfile = { workspace = true }
+gpu-platform-registry-zot = { workspace = true }
+gpu-platform-build-buildkit = { workspace = true }
+gpu-platform-gpu-nvidia-mps = { workspace = true }
+gpu-platform-gpu-ascend = { workspace = true }
+gpu-platform-metrics-host = { workspace = true }
+gpu-platform-notify-pushplus = { workspace = true }
+
+[dependency-groups]
+dev = ["pytest>=8,<10", "pytest-django>=4.9,<5", "ruff>=0.9", "mypy>=1.14", "import-linter>=2.1", "build>=1.2", "types-PyYAML", "types-requests"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "gpu_platform_control.settings.test"
+testpaths = ["packages", "modules", "tests/e2e"]
+addopts = "--import-mode=importlib"
+pythonpath = [
+  "packages/contracts/src",
+  "packages/control/src",
+  "packages/panel/src",
+  "packages/node/src",
+  "packages/installer/src",
+  "modules/auth/local/src",
+  "modules/transport/local/src",
+  "modules/transport/reverse-ssh/src",
+  "modules/entry/local/src",
+  "modules/entry/controller-forward/src",
+  "modules/runtime/k3s/src",
+  "modules/storage/rawfile/src",
+  "modules/registry/zot/src",
+  "modules/build/buildkit/src",
+  "modules/gpu/nvidia-mps/src",
+  "modules/gpu/ascend/src",
+  "modules/metrics/host/src",
+  "modules/notify/pushplus/src"
+]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 110
+exclude = []
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+check_untyped_defs = true

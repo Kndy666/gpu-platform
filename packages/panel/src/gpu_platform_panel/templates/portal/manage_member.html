@@ -1,0 +1,28 @@
+{% extends 'portal/manage_base.html' %}{% load i18n %}
+{% block manage_content %}
+<form method="post" class="settings-editor" data-resource-settings data-member-create="{% if member %}false{% else %}true{% endif %}">
+  {% csrf_token %}
+  {{ form.group_defaults|json_script:'member-group-defaults' }}
+  {{ form.non_field_errors }}
+  <section class="panel identity-editor" aria-label="{% translate 'Member details' %}">
+    <div class="identity-fields">
+      {% include 'portal/field.html' with field=form.username %}
+      {% include 'portal/field.html' with field=form.first_name %}
+      {% include 'portal/field.html' with field=form.email %}
+      {% include 'portal/field.html' with field=form.group %}
+    </div>
+    <div class="identity-access">
+      {% include 'portal/field.html' with field=form.password %}
+      <div class="check-fields">
+        {% include 'portal/field.html' with field=form.is_active %}
+        {% include 'portal/field.html' with field=form.is_staff %}
+      </div>
+    </div>
+  </section>
+  {% include 'portal/resource_settings.html' %}
+  <div class="editor-actions">
+    <a class="button secondary" href="{% url 'manage_members' %}">{% translate 'Cancel' %}</a>
+    <button type="submit" class="button">{% translate 'Save member' %}</button>
+  </div>
+</form>
+{% endblock %}

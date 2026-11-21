@@ -1,0 +1,21 @@
+{% load i18n %}<details class="admin-menu" data-admin-menu open>
+  <summary class="admin-menu-toggle">
+    <span>{% translate 'Administration navigation' %}</span><span class="admin-current-title">{{ current_title }}</span>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+  </summary>
+  <nav class="admin-navigation" aria-label="{% translate 'Administration sections' %}">
+    <a class="admin-back" href="{% url 'dashboard' %}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg>{% translate 'Back to dashboard' %}</a>
+    {% for group in navigation %}
+      <details class="admin-nav-group" name="management-section" {% if group.active %}open{% endif %}>
+        <summary {% if group.active %}class="current-group"{% endif %}>
+          <svg aria-hidden="true"><use href="#{{ group.icon }}"/></svg>
+          <span>{{ group.label }}</span>
+          {% if group.count %}<span class="admin-pending-count" aria-label="{% blocktranslate with value0=group.count %}{{ value0 }} requests pending{% endblocktranslate %}">{% if group.count > 99 %}99+{% else %}{{ group.count }}{% endif %}</span>{% else %}<svg class="admin-nav-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>{% endif %}
+        </summary>
+        <div class="admin-nav-links">
+          {% for item in group.items %}<a href="{{ item.url }}" {% if item.active %}aria-current="page"{% endif %}>{{ item.label }}</a>{% endfor %}
+        </div>
+      </details>
+    {% endfor %}
+  </nav>
+</details>

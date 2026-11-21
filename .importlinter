@@ -1,0 +1,461 @@
+[importlinter]
+root_packages =
+    gpu_platform_contracts
+    gpu_platform_control
+    gpu_platform_panel
+    gpu_platform_node
+    gpu_platform_installer
+    gpu_platform_storage_rawfile
+    gpu_platform_registry_zot
+    gpu_platform_auth_local
+    gpu_platform_transport_reverse_ssh
+    gpu_platform_transport_local
+    gpu_platform_entry_local
+    gpu_platform_entry_controller_forward
+    gpu_platform_build_buildkit
+    gpu_platform_runtime_k3s
+    gpu_platform_metrics_host
+    gpu_platform_notify_pushplus
+    gpu_platform_gpu_nvidia_mps
+    gpu_platform_gpu_ascend
+include_external_packages = True
+
+[importlinter:contract:gpu_platform_contracts]
+name = gpu_platform_contracts dependency boundary
+type = forbidden
+source_modules =
+    gpu_platform_contracts
+forbidden_modules =
+    gpu_platform_control
+    gpu_platform_panel
+    gpu_platform_node
+    gpu_platform_installer
+    gpu_platform_storage_rawfile
+    gpu_platform_registry_zot
+    gpu_platform_auth_local
+    gpu_platform_transport_reverse_ssh
+    gpu_platform_transport_local
+    gpu_platform_entry_local
+    gpu_platform_entry_controller_forward
+    gpu_platform_build_buildkit
+    gpu_platform_runtime_k3s
+    gpu_platform_metrics_host
+    gpu_platform_notify_pushplus
+    gpu_platform_gpu_nvidia_mps
+    django
+    requests
+    yaml
+    ninja
+    gpu_platform_gpu_ascend
+allow_indirect_imports = True
+
+[importlinter:contract:gpu_platform_control]
+name = gpu_platform_control dependency boundary
+type = forbidden
+source_modules =
+    gpu_platform_control
+forbidden_modules =
+    gpu_platform_panel
+    gpu_platform_node
+    gpu_platform_installer
+    gpu_platform_storage_rawfile
+    gpu_platform_registry_zot
+    gpu_platform_auth_local
+    gpu_platform_transport_reverse_ssh
+    gpu_platform_transport_local
+    gpu_platform_entry_local
+    gpu_platform_entry_controller_forward
+    gpu_platform_build_buildkit
+    gpu_platform_runtime_k3s
+    gpu_platform_metrics_host
+    gpu_platform_notify_pushplus
+    gpu_platform_gpu_nvidia_mps
+    gpu_platform_gpu_ascend
+allow_indirect_imports = True
+
+[importlinter:contract:gpu_platform_panel]
+name = gpu_platform_panel dependency boundary
+type = forbidden
+source_modules =
+    gpu_platform_panel
+forbidden_modules =
+    gpu_platform_control.core
+    gpu_platform_control.api
+    gpu_platform_control.slots
+    gpu_platform_control.loop
+    gpu_platform_node
+    gpu_platform_installer
+    gpu_platform_storage_rawfile
+    gpu_platform_registry_zot
+    gpu_platform_auth_local
+    gpu_platform_transport_reverse_ssh
+    gpu_platform_transport_local
+    gpu_platform_entry_local
+    gpu_platform_entry_controller_forward
+    gpu_platform_build_buildkit
+    gpu_platform_runtime_k3s
+    gpu_platform_metrics_host
+    gpu_platform_notify_pushplus
+    gpu_platform_gpu_nvidia_mps
+    gpu_platform_gpu_ascend
+allow_indirect_imports = True
+
+[importlinter:contract:gpu_platform_node]
+name = gpu_platform_node dependency boundary
+type = forbidden
+source_modules =
+    gpu_platform_node
+forbidden_modules =
+    gpu_platform_control
+    gpu_platform_panel
+    gpu_platform_installer
+    gpu_platform_storage_rawfile
+    gpu_platform_registry_zot
+    gpu_platform_auth_local
+    gpu_platform_transport_reverse_ssh
+    gpu_platform_transport_local
+    gpu_platform_entry_local
+    gpu_platform_entry_controller_forward
+    gpu_platform_build_buildkit
+    gpu_platform_runtime_k3s
+    gpu_platform_metrics_host
+    gpu_platform_notify_pushplus
+    gpu_platform_gpu_nvidia_mps
+    gpu_platform_gpu_ascend
+allow_indirect_imports = True
+
+[importlinter:contract:gpu_platform_installer]
+name = gpu_platform_installer dependency boundary
+type = forbidden
+source_modules =
+    gpu_platform_installer
+forbidden_modules =
+    gpu_platform_control
+    gpu_platform_panel
+    gpu_platform_node
+    gpu_platform_storage_rawfile
+    gpu_platform_registry_zot
+    gpu_platform_auth_local
+    gpu_platform_transport_reverse_ssh
+    gpu_platform_transport_local
+    gpu_platform_entry_local
+    gpu_platform_entry_controller_forward
+    gpu_platform_build_buildkit
+    gpu_platform_runtime_k3s
+    gpu_platform_metrics_host
+    gpu_platform_notify_pushplus
+    gpu_platform_gpu_nvidia_mps
+    gpu_platform_gpu_ascend
+allow_indirect_imports = True
+
+[importlinter:contract:gpu_platform_storage_rawfile]
+name = gpu_platform_storage_rawfile dependency boundary
+type = forbidden
+source_modules =
+    gpu_platform_storage_rawfile
+forbidden_modules =
+    gpu_platform_control
+    gpu_platform_panel
+    gpu_platform_node
+    gpu_platform_installer
+    gpu_platform_registry_zot
+    gpu_platform_auth_local
+    gpu_platform_transport_reverse_ssh
+    gpu_platform_transport_local
+    gpu_platform_entry_local
+    gpu_platform_entry_controller_forward
+    gpu_platform_build_buildkit
+    gpu_platform_runtime_k3s
+    gpu_platform_metrics_host
+    gpu_platform_notify_pushplus
+    gpu_platform_gpu_nvidia_mps
+    gpu_platform_gpu_ascend
+allow_indirect_imports = True
+
+[importlinter:contract:gpu_platform_registry_zot]
+name = gpu_platform_registry_zot dependency boundary
+type = forbidden
+source_modules =
+    gpu_platform_registry_zot
+forbidden_modules =
+    gpu_platform_control
+    gpu_platform_panel
+    gpu_platform_node
+    gpu_platform_installer
+    gpu_platform_storage_rawfile
+    gpu_platform_auth_local
+    gpu_platform_transport_reverse_ssh
+    gpu_platform_transport_local
+    gpu_platform_entry_local
+    gpu_platform_entry_controller_forward
+    gpu_platform_build_buildkit
+    gpu_platform_runtime_k3s
+    gpu_platform_metrics_host
+    gpu_platform_notify_pushplus
+    gpu_platform_gpu_nvidia_mps
+    gpu_platform_gpu_ascend
+allow_indirect_imports = True
+
+[importlinter:contract:gpu_platform_auth_local]
+name = gpu_platform_auth_local dependency boundary
+type = forbidden
+source_modules =
+    gpu_platform_auth_local
+forbidden_modules =
+    gpu_platform_control
+    gpu_platform_panel
+    gpu_platform_node
+    gpu_platform_installer
+    gpu_platform_storage_rawfile
+    gpu_platform_registry_zot
+    gpu_platform_transport_reverse_ssh
+    gpu_platform_transport_local
+    gpu_platform_entry_local
+    gpu_platform_entry_controller_forward
+    gpu_platform_build_buildkit
+    gpu_platform_runtime_k3s
+    gpu_platform_metrics_host
+    gpu_platform_notify_pushplus
+    gpu_platform_gpu_nvidia_mps
+    gpu_platform_gpu_ascend
+allow_indirect_imports = True
+
+[importlinter:contract:gpu_platform_transport_reverse_ssh]
+name = gpu_platform_transport_reverse_ssh dependency boundary
+type = forbidden
+source_modules =
+    gpu_platform_transport_reverse_ssh
+forbidden_modules =
+    gpu_platform_control
+    gpu_platform_panel
+    gpu_platform_node
+    gpu_platform_installer
+    gpu_platform_storage_rawfile
+    gpu_platform_registry_zot
+    gpu_platform_auth_local
+    gpu_platform_transport_local
+    gpu_platform_entry_local
+    gpu_platform_entry_controller_forward
+    gpu_platform_build_buildkit
+    gpu_platform_runtime_k3s
+    gpu_platform_metrics_host
+    gpu_platform_notify_pushplus
+    gpu_platform_gpu_nvidia_mps
+    gpu_platform_gpu_ascend
+allow_indirect_imports = True
+
+[importlinter:contract:gpu_platform_transport_local]
+name = gpu_platform_transport_local dependency boundary
+type = forbidden
+source_modules =
+    gpu_platform_transport_local
+forbidden_modules =
+    gpu_platform_control
+    gpu_platform_panel
+    gpu_platform_node
+    gpu_platform_installer
+    gpu_platform_storage_rawfile
+    gpu_platform_registry_zot
+    gpu_platform_auth_local
+    gpu_platform_transport_reverse_ssh
+    gpu_platform_entry_local
+    gpu_platform_entry_controller_forward
+    gpu_platform_build_buildkit
+    gpu_platform_runtime_k3s
+    gpu_platform_metrics_host
+    gpu_platform_notify_pushplus
+    gpu_platform_gpu_nvidia_mps
+    gpu_platform_gpu_ascend
+allow_indirect_imports = True
+
+[importlinter:contract:gpu_platform_entry_local]
+name = gpu_platform_entry_local dependency boundary
+type = forbidden
+source_modules =
+    gpu_platform_entry_local
+forbidden_modules =
+    gpu_platform_control
+    gpu_platform_panel
+    gpu_platform_node
+    gpu_platform_installer
+    gpu_platform_storage_rawfile
+    gpu_platform_registry_zot
+    gpu_platform_auth_local
+    gpu_platform_transport_reverse_ssh
+    gpu_platform_transport_local
+    gpu_platform_entry_controller_forward
+    gpu_platform_build_buildkit
+    gpu_platform_runtime_k3s
+    gpu_platform_metrics_host
+    gpu_platform_notify_pushplus
+    gpu_platform_gpu_nvidia_mps
+    gpu_platform_gpu_ascend
+allow_indirect_imports = True
+
+[importlinter:contract:gpu_platform_entry_controller_forward]
+name = gpu_platform_entry_controller_forward dependency boundary
+type = forbidden
+source_modules =
+    gpu_platform_entry_controller_forward
+forbidden_modules =
+    gpu_platform_control
+    gpu_platform_panel
+    gpu_platform_node
+    gpu_platform_installer
+    gpu_platform_storage_rawfile
+    gpu_platform_registry_zot
+    gpu_platform_auth_local
+    gpu_platform_transport_reverse_ssh
+    gpu_platform_transport_local
+    gpu_platform_entry_local
+    gpu_platform_build_buildkit
+    gpu_platform_runtime_k3s
+    gpu_platform_metrics_host
+    gpu_platform_notify_pushplus
+    gpu_platform_gpu_nvidia_mps
+    gpu_platform_gpu_ascend
+allow_indirect_imports = True
+
+[importlinter:contract:gpu_platform_build_buildkit]
+name = gpu_platform_build_buildkit dependency boundary
+type = forbidden
+source_modules =
+    gpu_platform_build_buildkit
+forbidden_modules =
+    gpu_platform_control
+    gpu_platform_panel
+    gpu_platform_node
+    gpu_platform_installer
+    gpu_platform_storage_rawfile
+    gpu_platform_registry_zot
+    gpu_platform_auth_local
+    gpu_platform_transport_reverse_ssh
+    gpu_platform_transport_local
+    gpu_platform_entry_local
+    gpu_platform_entry_controller_forward
+    gpu_platform_runtime_k3s
+    gpu_platform_metrics_host
+    gpu_platform_notify_pushplus
+    gpu_platform_gpu_nvidia_mps
+    gpu_platform_gpu_ascend
+allow_indirect_imports = True
+
+[importlinter:contract:gpu_platform_runtime_k3s]
+name = gpu_platform_runtime_k3s dependency boundary
+type = forbidden
+source_modules =
+    gpu_platform_runtime_k3s
+forbidden_modules =
+    gpu_platform_control
+    gpu_platform_panel
+    gpu_platform_node
+    gpu_platform_installer
+    gpu_platform_storage_rawfile
+    gpu_platform_registry_zot
+    gpu_platform_auth_local
+    gpu_platform_transport_reverse_ssh
+    gpu_platform_transport_local
+    gpu_platform_entry_local
+    gpu_platform_entry_controller_forward
+    gpu_platform_build_buildkit
+    gpu_platform_metrics_host
+    gpu_platform_notify_pushplus
+    gpu_platform_gpu_nvidia_mps
+    gpu_platform_gpu_ascend
+allow_indirect_imports = True
+
+[importlinter:contract:gpu_platform_metrics_host]
+name = gpu_platform_metrics_host dependency boundary
+type = forbidden
+source_modules =
+    gpu_platform_metrics_host
+forbidden_modules =
+    gpu_platform_control
+    gpu_platform_panel
+    gpu_platform_node
+    gpu_platform_installer
+    gpu_platform_storage_rawfile
+    gpu_platform_registry_zot
+    gpu_platform_auth_local
+    gpu_platform_transport_reverse_ssh
+    gpu_platform_transport_local
+    gpu_platform_entry_local
+    gpu_platform_entry_controller_forward
+    gpu_platform_build_buildkit
+    gpu_platform_runtime_k3s
+    gpu_platform_notify_pushplus
+    gpu_platform_gpu_nvidia_mps
+    gpu_platform_gpu_ascend
+allow_indirect_imports = True
+
+[importlinter:contract:gpu_platform_notify_pushplus]
+name = gpu_platform_notify_pushplus dependency boundary
+type = forbidden
+source_modules =
+    gpu_platform_notify_pushplus
+forbidden_modules =
+    gpu_platform_control
+    gpu_platform_panel
+    gpu_platform_node
+    gpu_platform_installer
+    gpu_platform_storage_rawfile
+    gpu_platform_registry_zot
+    gpu_platform_auth_local
+    gpu_platform_transport_reverse_ssh
+    gpu_platform_transport_local
+    gpu_platform_entry_local
+    gpu_platform_entry_controller_forward
+    gpu_platform_build_buildkit
+    gpu_platform_runtime_k3s
+    gpu_platform_metrics_host
+    gpu_platform_gpu_nvidia_mps
+    gpu_platform_gpu_ascend
+allow_indirect_imports = True
+
+[importlinter:contract:gpu_platform_gpu_nvidia_mps]
+name = gpu_platform_gpu_nvidia_mps dependency boundary
+type = forbidden
+source_modules =
+    gpu_platform_gpu_nvidia_mps
+forbidden_modules =
+    gpu_platform_control
+    gpu_platform_panel
+    gpu_platform_node
+    gpu_platform_installer
+    gpu_platform_storage_rawfile
+    gpu_platform_registry_zot
+    gpu_platform_auth_local
+    gpu_platform_transport_reverse_ssh
+    gpu_platform_transport_local
+    gpu_platform_entry_local
+    gpu_platform_entry_controller_forward
+    gpu_platform_build_buildkit
+    gpu_platform_runtime_k3s
+    gpu_platform_metrics_host
+    gpu_platform_notify_pushplus
+    gpu_platform_gpu_ascend
+allow_indirect_imports = True
+
+[importlinter:contract:gpu_platform_gpu_ascend]
+name = gpu_platform_gpu_ascend dependency boundary
+type = forbidden
+source_modules =
+    gpu_platform_gpu_ascend
+forbidden_modules =
+    gpu_platform_control
+    gpu_platform_panel
+    gpu_platform_node
+    gpu_platform_installer
+    gpu_platform_storage_rawfile
+    gpu_platform_registry_zot
+    gpu_platform_auth_local
+    gpu_platform_transport_reverse_ssh
+    gpu_platform_transport_local
+    gpu_platform_entry_local
+    gpu_platform_entry_controller_forward
+    gpu_platform_build_buildkit
+    gpu_platform_runtime_k3s
+    gpu_platform_metrics_host
+    gpu_platform_notify_pushplus
+    gpu_platform_gpu_nvidia_mps
+allow_indirect_imports = True

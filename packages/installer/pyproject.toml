@@ -1,0 +1,19 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gpu-platform-installer"
+version = "0.4.0"
+description = "Configuration, compatibility checks, and Compose deployment tools"
+requires-python = ">=3.10"
+dependencies = ["gpu-platform-contracts", "PyYAML>=6.0", "typer>=0.12"]
+
+[project.scripts]
+platformctl = "gpu_platform_installer.cli:app"
+
+[tool.uv.sources]
+gpu-platform-contracts = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gpu_platform_installer"]

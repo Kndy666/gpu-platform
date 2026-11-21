@@ -1,0 +1,3 @@
+{% load i18n %}{% if user.is_staff and task.status == 'running' and task.workspace.connection.port and not task.workspace.stop_requested and not task.workspace.cleanup_complete %}
+<a class="task-action-icon" href="{% url 'task' task.pk %}?from=management#connection" title="{% translate 'SSH connection' %}" aria-label="{% blocktranslate with value0=task.purpose %}SSH connection: {{ value0 }}{% endblocktranslate %}"><svg><use href="#i-terminal"/></svg></a>
+{% endif %}

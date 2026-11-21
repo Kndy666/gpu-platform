@@ -1,0 +1,11 @@
+{% load i18n %}
+<section class="panel policy-editor" aria-label="{% translate 'Quotas and usage rules' %}">
+<div class="policy-limit check-fields">{% include 'portal/field.html' with field=form.unlimited %}</div>
+<div class="policy-columns"><div class="policy-compute" data-quota-fields>
+{% for group in form.allocation_policy_groups %}<div class="gpu-request-editor"><table>
+<thead><tr><th>{{ group.name }}</th><th>{% translate 'Total quota' %}</th><th>{% translate 'Per-device limit' %}</th></tr></thead>
+<tbody>{% for row in group.rows %}<tr><th>{{ row.label }}</th><td><label class="sr-only" for="{{ row.total.id_for_label }}">{{ row.total.label }}</label>{{ row.total }}{{ row.total.errors }}</td><td>{% if row.per_allocation %}<label class="sr-only" for="{{ row.per_allocation.id_for_label }}">{{ row.per_allocation.label }}</label>{{ row.per_allocation }}{{ row.per_allocation.errors }}{% endif %}</td></tr>{% endfor %}</tbody></table></div>{% endfor %}
+<div class="policy-cpu">{% for field in form.compute_fields %}{% include 'portal/field.html' %}{% endfor %}</div></div>
+<div class="policy-rules">{% include 'portal/field.html' with field=form.approval_mode %}<div class="policy-duration" data-quota-fields>{% include 'portal/field.html' with field=form.concurrent_tasks %}{% include 'portal/field.html' with field=form.interactive_hours %}</div>{% include 'portal/field.html' with field=form.extension_limit %}</div></div>
+<div class="policy-storage">{% if form.home_size_gib %}{% include 'portal/field.html' with field=form.home_size_gib %}{% endif %}{% for field in form.storage_fields %}<div>{% include 'portal/field.html' %}</div>{% endfor %}</div>
+</section>

@@ -1,0 +1,23 @@
+{% extends 'portal/base.html' %}{% load i18n %}{% block content %}
+<div class="page-heading"><h1>{% translate 'API access' %}</h1><div class="actions"><a class="button secondary" href="/api/v1/openapi.json">{% translate 'API documentation' %}</a><a class="button" href="/api/v1/skill.zip">{% translate 'Download Agent Skill' %}</a></div></div>
+<section class="panel">
+  <h2>{% translate 'Endpoint' %}</h2><pre id="api-url">{{ api_url }}</pre><button type="button" class="button secondary" data-copy="api-url">{% translate 'Copy address' %}</button>
+</section>
+<section class="panel">
+  <h2>{% translate 'Access tokens' %}</h2>
+  <form method="post" class="token-issue-form">{% csrf_token %}{% include 'portal/field.html' with field=form.name %}{% include 'portal/field.html' with field=form.expires_in %}<button type="submit" class="button">{% translate 'Create token' %}</button></form>
+</section>
+<div class="section-heading"><h2>{% translate 'Token created' %} <span class="count">{{ tokens|length }}</span></h2></div>
+<div class="table-wrap"><table class="token-table"><thead><tr><th>{% translate 'Token' %}</th><th>{% translate 'Created' %}</th><th>{% translate 'Validity' %}</th><th class="task-actions-heading">{% translate 'Actions' %}</th></tr></thead><tbody>
+{% for token in tokens %}<tr>
+  <td class="token-identity"><strong>{{ token.name }}</strong><input id="token-{{ token.id }}" class="token-value" type="password" value="{{ token.token }}" readonly autocomplete="off" aria-label="{% blocktranslate with value0=token.name %}Token for {{ value0 }}{% endblocktranslate %}"></td>
+  <td class="token-created">{% if token.created_at %}<time>{{ token.created_at|date:'Y/m/d H:i' }}</time>{% else %}<span class="table-sub">{% translate 'Unrecorded' %}</span>{% endif %}</td>
+  <td class="token-expiry">{% if token.status == 'expired' %}<span class="badge failed">{% translate 'Expired' %}</span>{% elif token.status == 'invalidated' %}<span class="badge canceled">{% translate 'Invalid' %}</span>{% endif %}{% if token.expires_at %}<time>{{ token.expires_at|date:'Y/m/d H:i' }}</time>{% else %}<span class="badge {% if token.status == 'active' %}succeeded{% endif %}">{% if token.status == 'active' %}{% translate 'Never expires' %}{% else %}{% translate 'Permanent' %}{% endif %}</span>{% endif %}</td>
+  <td class="task-actions-cell token-controls"><div class="task-row-actions">
+    <button type="button" class="task-action-icon" data-token-reveal="token-{{ token.id }}" title="{% translate 'Show token' %}" aria-label="{% translate 'Show token' %}" aria-pressed="false"><svg aria-hidden="true"><use href="#i-eye"/></svg></button>
+    <button type="button" class="task-action-icon" data-copy="token-{{ token.id }}" data-icon-action title="{% translate 'Copy token' %}" aria-label="{% translate 'Copy token' %}"><svg aria-hidden="true"><use href="#i-copy"/></svg></button>
+    <form method="post" action="{% url 'delete_api_token' token.id %}">{% csrf_token %}<button type="submit" class="task-action-icon danger" title="{% translate 'Delete token' %}" aria-label="{% blocktranslate with value0=token.name %}Delete token: {{ value0 }}{% endblocktranslate %}"><svg aria-hidden="true"><use href="#i-trash"/></svg></button></form>
+  </div></td>
+</tr>{% empty %}<tr><td colspan="4" class="empty">{% translate 'No tokens' %}</td></tr>{% endfor %}
+</tbody></table></div>
+{% endblock %}

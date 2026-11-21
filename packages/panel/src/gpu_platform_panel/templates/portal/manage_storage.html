@@ -1,0 +1,50 @@
+{% extends 'portal/manage_base.html' %}{% load i18n management %}
+{% block manage_content %}
+<div class="storage-nodes" data-storage-user="{{ user.pk }}">
+  {% for group in storage_nodes %}
+  <section class="storage-node panel" id="storage-node-{{ group.node.pk }}" aria-label="{% blocktranslate with value0=group.node.name %}{{ value0 }} storage{% endblocktranslate %}">
+    <header class="storage-node-header">
+      <div class="storage-node-name"><h2>{{ group.node.name }}</h2><span class="badge {% if group.node.state == 'online' %}running{% elif group.node.state == 'offline' %}failed{% endif %}">{{ group.node.get_state_display }}</span></div>
+      <div class="storage-node-capacity"><strong>{% resource_pair group.available_gib group.capacity_gib "GiB" %}</strong></div>
+    </header>
+    <div class="node-pools">
+      {% for pool in group.pools %}
+      <article class="node-pool">
+        <div class="pool-heading"><strong>{{ pool.name }}</strong><span class="badge {% if pool.healthy %}running{% else %}failed{% endif %}">{% if pool.healthy %}{% translate 'Ready' %}{% else %}{% translate 'Pending check' %}{% endif %}</span></div>
+        <div class="pool-capacity"><strong>{% resource_pair pool.available_gib pool.capacity_gib "GiB" %}</strong><span></span></div>
+        <div class="meter" title="{% blocktranslate with value0=pool.percent %}Disk usage {{ value0 }}%{% endblocktranslate %}"><i style="width:{{ pool.percent }}%"></i></div>
+        <div class="pool-meta"><span>{% translate 'Reserved' %} {{ pool.reserved_gib|quantity }}</span><time>{{ pool.observed_at|date:'m/d H:i'|default:_("Pending synchronization") }}</time></div>
+      </article>
+      {% empty %}<p class="compact">{% translate 'Waiting for storage pool report' %}</p>{% endfor %}
+    </div>
+    <details class="node-volumes" data-storage-node="{{ group.node.pk }}" {% if group.expanded %}open data-force-open{% endif %}>
+      <summary><span class="volume-toggle-closed">{% translate 'Expand volumes' %}</span><span class="volume-toggle-open">{% translate 'Collapse volumes' %}</span><span class="volume-count">{{ group.page.paginator.count }}</span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></svg></summary>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>{% translate 'Members' %}</th><th>{% translate 'Volumes' %}</th><th>{% translate 'Capacity' %}</th><th>{% translate 'Disk' %}</th><th>{% translate 'Retain until' %}</th><th>{% translate 'State' %}</th><th><span class="sr-only">{% translate 'Actions' %}</span></th></tr></thead>
+          <tbody>
+            {% for volume in group.page %}
+            <tr>
+              <td><a href="{% url 'manage_member' volume.user_id %}">{{ volume.user.username }}</a></td>
+              <td>{% if volume.kind == 'home' %}{% translate 'Home volume' %}{% else %}{{ volume.request.purpose }}{% endif %}</td>
+              <td>{{ volume.size_gib|quantity }}</td><td>{{ volume.pool.name }}</td>
+              <td>{% if volume.retain_until %}{{ volume.retain_until|date:'Y/m/d H:i' }}{% else %}—{% endif %}</td>
+              <td>{% if volume.state == 'deleting' %}<span class="badge preparing">{% translate 'Deleting' %}</span>{% elif volume.busy %}<span class="badge running">{% translate 'In use' %}</span>{% else %}<span class="badge">{% translate 'Idle' %}</span>{% endif %}{% if volume.deletion_error %}<div class="volume-error">{{ volume.deletion_error }}</div>{% endif %}</td>
+              <td>{% if not volume.busy and volume.state != 'deleting' %}<a class="text-button danger" href="{% url 'manage_volume_delete' volume.pk %}">{% translate 'Delete' %}</a>{% endif %}</td>
+            </tr>
+            {% empty %}<tr><td colspan="7" class="empty">{% translate 'No user volumes' %}</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if group.page.has_other_pages %}
+      <nav class="pagination" aria-label="{% blocktranslate with value0=group.node.name %}{{ value0 }} volume pages{% endblocktranslate %}">
+        {% if group.previous_url %}<a class="button secondary" href="{{ group.previous_url }}">{% translate '← Previous' %}</a>{% endif %}
+        <span>{{ group.page.number }} / {{ group.page.paginator.num_pages }}</span>
+        {% if group.next_url %}<a class="button secondary" href="{{ group.next_url }}">{% translate 'Next →' %}</a>{% endif %}
+      </nav>
+      {% endif %}
+    </details>
+  </section>
+  {% empty %}<div class="panel empty">{% translate 'No compute nodes' %}</div>{% endfor %}
+</div>
+{% endblock %}

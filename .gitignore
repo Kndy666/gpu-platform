@@ -3,7 +3,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .coverage
-runtime/
+/runtime/
 config.yaml
 *.sqlite3*
 *.pem
@@ -13,8 +13,6 @@ config.yaml
 .env.*
 !.env.example
 /config.*.yaml
-!/config.example.yaml
-!/config.worker.example.yaml
 *.log
 *.tmp
 *.bak
@@ -28,4 +26,10 @@ config.yaml
 .vscode/
 dist/
 .tools/
-backend/staticfiles/
+*.egg-info/
+.ruff_cache/
+.mypy_cache/
+.import_linter_cache/
+/build/
+/packages/*/build/
+/modules/*/*/build/

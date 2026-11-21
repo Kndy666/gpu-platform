@@ -1,0 +1,1477 @@
+# Simplified Chinese translations.
+msgid ""
+msgstr "Project-Id-Version: gpu-platform-control 0.4.0\nLanguage: zh_Hans\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\n"
+
+msgid " GPUs"
+msgstr " 张"
+
+msgid " cores"
+msgstr " 核"
+
+msgid " public data"
+msgstr " 公用目录"
+
+msgid " · Run"
+msgstr " · 运行"
+
+msgid "1 day"
+msgstr "1 天"
+
+msgid "1 year"
+msgstr "1 年"
+
+msgid "30 days"
+msgstr "30 天"
+
+msgid "7 days"
+msgstr "7 天"
+
+msgid "90 days"
+msgstr "90 天"
+
+msgid "A deployment has one local node."
+msgstr "只能有一个本机执行节点。"
+
+msgid "API token"
+msgstr "API 令牌"
+
+msgid "Accounts removed"
+msgstr "已移除账号"
+
+msgid "Action recorded."
+msgstr "操作已记录。"
+
+msgid "Actions"
+msgstr "操作"
+
+msgid "Actor"
+msgstr "操作人"
+
+msgid "Add SSH key"
+msgstr "添加 SSH 公钥"
+
+msgid "Add an SSH public key before submitting a task."
+msgstr "请先添加 SSH 公钥。"
+
+msgid "Add member"
+msgstr "增加成员"
+
+msgid "Adjust the per-device requests or GPU count to fit the available quotas."
+msgstr "当前配置无法同时满足各卡额度，请调整其他行或 GPU 数量。"
+
+msgid "Administrator"
+msgstr "管理员"
+
+msgid "Administrator permission is required."
+msgstr "需要管理员权限。"
+
+msgid "Allocated"
+msgstr "已分配"
+
+msgid "An extension request is already pending."
+msgstr "已有一份延期申请正在审批。"
+
+msgid "An extension requires ends_at."
+msgstr "延期需要 ends_at。"
+
+msgid "Approval policy"
+msgstr "审批方式"
+
+msgid "Approve"
+msgstr "通过"
+
+msgid "Approve request"
+msgstr "批准申请"
+
+msgid "Approved"
+msgstr "已通过"
+
+msgid "Approved by the member approval policy"
+msgstr "按成员审批配置自动通过"
+
+msgid "Architecture"
+msgstr "架构"
+
+msgid "Ask another administrator to change your administrator privileges."
+msgstr "请通过另一位管理员调整自己的管理权限。"
+
+msgid "Audit log"
+msgstr "审计记录"
+
+msgid "Automatic approval"
+msgstr "自动通过"
+
+msgid "Automatic approval failed: "
+msgstr "自动审批未完成："
+
+msgid "Available"
+msgstr "可用"
+
+msgid "Available GPUs cannot satisfy the per-device compute and memory requests."
+msgstr "没有足够的 GPU 满足每卡显存和算力申请。"
+
+msgid "Awaiting review"
+msgstr "待审核"
+
+msgid "Batch tasks run until the command exits. Omit ends_at."
+msgstr "运行程序由命令结束时间决定，请省略 ends_at。"
+
+msgid "Buffer percentage"
+msgstr "缓冲比例"
+
+msgid "Build context Git URL (optional, HTTPS)"
+msgstr "构建上下文 Git URL（可选，HTTPS）"
+
+msgid "Build contexts require a public Git host."
+msgstr "不允许内网构建上下文。"
+
+msgid "Build log"
+msgstr "构建日志"
+
+msgid "Building"
+msgstr "构建中"
+
+msgid "CPU architecture"
+msgstr "CPU 架构"
+
+msgid "CPU cores"
+msgstr "CPU 核"
+
+msgid "Cancel task"
+msgstr "取消任务"
+
+msgid "Canceled"
+msgstr "人工取消"
+
+msgid "Canceling"
+msgstr "正在取消"
+
+msgid "Capacity GiB"
+msgstr "容量 GiB"
+
+msgid "Change password"
+msgstr "修改密码"
+
+msgid "Check the request fields."
+msgstr "请检查请求字段。"
+
+msgid "Choose a later end time and provide a reason."
+msgstr "请选择更晚的结束时间，并填写原因。"
+
+msgid "Choose a later end time."
+msgstr "请选择更晚的结束时间。"
+
+msgid "Clean data"
+msgstr "清理数据"
+
+msgid "Clean test environments"
+msgstr "清理测试环境"
+
+msgid "Command"
+msgstr "运行命令"
+
+msgid "Completed"
+msgstr "完成"
+
+msgid "Compute nodes"
+msgstr "计算节点"
+
+msgid "Concurrent tasks"
+msgstr "并发任务数"
+
+msgid "Configuration scope"
+msgstr "配置范围"
+
+msgid "Configured environment"
+msgstr "已配置的环境"
+
+msgid "Connection method"
+msgstr "连接方式"
+
+msgid "Containers"
+msgstr "容器"
+
+msgid "Content digest"
+msgstr "内容指纹"
+
+msgid "Create API token"
+msgstr "生成 API 令牌"
+
+msgid "Create group"
+msgstr "新建用户组"
+
+msgid "Created"
+msgstr "创建时间"
+
+msgid "Current accounts"
+msgstr "当前账号数"
+
+msgid "Current tasks"
+msgstr "当前任务数"
+
+msgid "Database schema differs from the models: "
+msgstr "数据库结构与当前模型不一致："
+
+msgid "Default for new members"
+msgstr "新成员默认加入"
+
+msgid "Default group"
+msgstr "默认用户组"
+
+msgid "Delete group"
+msgstr "删除用户组"
+
+msgid "Delete task record"
+msgstr "删除任务记录"
+
+msgid "Delete volume"
+msgstr "删除数据卷"
+
+msgid "Deletion error"
+msgstr "删除错误"
+
+msgid "Delivered to channel"
+msgstr "已提交渠道"
+
+msgid "Delivery failed"
+msgstr "发送失败"
+
+msgid "Description"
+msgstr "说明"
+
+msgid "Destination group"
+msgstr "迁入用户组"
+
+msgid "Details"
+msgstr "详情"
+
+msgid "Development environments"
+msgstr "开发环境"
+
+msgid "Disable SSH key"
+msgstr "停用 SSH 公钥"
+
+msgid "Disabled"
+msgstr "已停用"
+
+msgid "Disconnected"
+msgstr "未连接"
+
+#, python-brace-format
+msgid "Each environment may run for up to {value_0} hours."
+msgstr "单次环境最长 {value_0} 小时。"
+
+#, python-brace-format
+msgid "Each extension may add up to {value_0} hours."
+msgstr "每次最多延长 {value_0} 小时，与新建环境一致。"
+
+msgid "Email"
+msgstr "邮箱"
+
+msgid "Enable"
+msgstr "启用"
+
+msgid "Enable SSH key"
+msgstr "启用 SSH 公钥"
+
+msgid "Enable account"
+msgstr "启用账号"
+
+msgid "Enable notifications"
+msgstr "启用微信推送"
+
+msgid "Enable reporting"
+msgstr "启用同步"
+
+msgid "Enable status reporting"
+msgstr "启用状态同步"
+
+msgid "Enabled public keys"
+msgstr "可用公钥数"
+
+msgid "End"
+msgstr "结束"
+
+msgid "Ends at"
+msgstr "结束时间"
+
+msgid "Enter 1–1440 minutes."
+msgstr "请输入 1–1440 分钟。"
+
+msgid "Enter a command to run."
+msgstr "请填写运行命令。"
+
+msgid "Enter a complete 32-character PushPlus token."
+msgstr "请输入完整的 32 位 PushPlus Token。"
+
+msgid "Enter a reason for the extension."
+msgstr "请填写延期原因。"
+
+msgid "Enter a receiver token to enable notifications."
+msgstr "启用推送前请填写 Token。"
+
+msgid "Enter a valid HTTPS Git URL."
+msgstr "请输入有效的 HTTPS Git URL。"
+
+msgid "Enter a valid quota."
+msgstr "请输入有效的配额。"
+
+#, python-brace-format
+msgid "Enter a value from 1 to {value_0}."
+msgstr "请输入 1–{value_0}。"
+
+msgid "Enter the member quota."
+msgstr "请填写成员额度。"
+
+msgid "Environment expired"
+msgstr "交互任务到期"
+
+msgid "Environment expiring"
+msgstr "环境即将到期"
+
+msgid "Environment images"
+msgstr "环境镜像"
+
+msgid "Environment save"
+msgstr "环境保存"
+
+msgid "Environment saved"
+msgstr "环境已保存"
+
+msgid "Environment snapshots"
+msgstr "运行快照"
+
+msgid "Environment started"
+msgstr "容器已启动"
+
+msgid "Environment variables"
+msgstr "环境变量"
+
+msgid "Environment variables must be a JSON object with up to 64 entries."
+msgstr "环境变量必须是 JSON 对象，最多 64 项。"
+
+msgid "Error"
+msgstr "错误"
+
+msgid "Execution mode"
+msgstr "运行模式"
+
+msgid "Exit code"
+msgstr "退出码"
+
+msgid "Expand home volume"
+msgstr "扩容个人卷"
+
+msgid "Extend environment"
+msgstr "延长交互任务"
+
+msgid "Extend environment time"
+msgstr "延长环境时段"
+
+msgid "Extend until"
+msgstr "延期至"
+
+msgid "Extension approved"
+msgstr "延期通过"
+
+msgid "Extension approved."
+msgstr "延期已通过。"
+
+msgid "Extension rejected"
+msgstr "延期拒绝"
+
+msgid "Extension request"
+msgstr "延期申请"
+
+msgid "Extension request submitted."
+msgstr "延期申请已提交。"
+
+msgid "Extension requested"
+msgstr "申请延期"
+
+msgid "Extension review completed."
+msgstr "延期审批已完成。"
+
+msgid "Extensions per environment"
+msgstr "每个环境可延期次数"
+
+msgid "Extensions require an active development environment."
+msgstr "仅可为尚未结束的开发环境申请延期。"
+
+msgid "Extensions used"
+msgstr "已延期次数"
+
+msgid "Failed"
+msgstr "失败"
+
+msgid "Fingerprint"
+msgstr "指纹"
+
+msgid "Finish this node's tasks and release their resources before changing its connection."
+msgstr "请先结束并释放该节点的任务，再修改连接配置。"
+
+msgid "For example: laptop, agent"
+msgstr "例如：笔记本、Agent"
+
+msgid "Force stop"
+msgstr "强制停止"
+
+msgid "Free GiB"
+msgstr "空闲 GiB"
+
+msgid "Full name"
+msgstr "姓名"
+
+msgid "GPU compute limit per device %"
+msgstr "单卡算力上限 %"
+
+msgid "GPU count"
+msgstr "GPU 数量"
+
+msgid "GPU inventory is unavailable. Try again after the next report."
+msgstr "GPU 设备信息不足，请稍后重试。"
+
+msgid "GPU memory limit per device GiB"
+msgstr "单卡显存上限 GiB"
+
+#, python-brace-format
+msgid "GPU {value_0} compute exceeds the per-device limit of {value_1}%."
+msgstr "第 {value_0} 张 GPU 算力超过单卡上限 {value_1}%。"
+
+#, python-brace-format
+msgid "GPU {value_0} compute must be between 2% and 100%."
+msgstr "第 {value_0} 张 GPU 的算力需为 2–100%。"
+
+#, python-brace-format
+msgid "GPU {value_0} has an invalid request format."
+msgstr "第 {value_0} 张 GPU 的配置格式不正确。"
+
+#, python-brace-format
+msgid "GPU {value_0} memory exceeds the per-device limit of {value_1} GiB."
+msgstr "第 {value_0} 张 GPU 显存超过单卡上限 {value_1} GiB。"
+
+#, python-brace-format
+msgid "GPU {value_0} requires at least 1 GiB of memory."
+msgstr "第 {value_0} 张 GPU 的显存至少为 1 GiB。"
+
+msgid "Git URL"
+msgstr "Git 地址"
+
+msgid "Group deleted."
+msgstr "用户组已删除。"
+
+msgid "Group name"
+msgstr "用户组名称"
+
+msgid "Group saved."
+msgstr "用户组已保存。"
+
+msgid "Healthy"
+msgstr "健康"
+
+msgid "High"
+msgstr "高"
+
+msgid "Home volume"
+msgstr "个人卷"
+
+msgid "Home volume GiB"
+msgstr "个人卷 GiB"
+
+#, python-brace-format
+msgid "Home volume capacity exceeds your limit of {value_0} GiB."
+msgstr "个人卷容量超过成员上限 {value_0} GiB。"
+
+msgid "Home volume capacity exceeds your quota."
+msgstr "个人卷容量超出成员额度。"
+
+msgid "Home volume capacity exceeds your quota. Ask an administrator to adjust it."
+msgstr "个人卷容量超过成员上限，请管理员调整。"
+
+msgid "Home volume deletion requires an administrator."
+msgstr "个人卷需要管理员操作。"
+
+msgid "Home volume limit GiB"
+msgstr "个人卷上限 GiB"
+
+msgid "Idempotency-Key must contain 1–128 visible ASCII characters."
+msgstr "Idempotency-Key 需为 1–128 位可见 ASCII 字符。"
+
+msgid "Image build"
+msgstr "镜像构建"
+
+msgid "Image build completed"
+msgstr "镜像构建完成"
+
+msgid "Image build failed"
+msgstr "镜像构建失败"
+
+msgid "Image quota GiB"
+msgstr "镜像额度 GiB"
+
+msgid "Image recycled"
+msgstr "镜像已回收"
+
+msgid "Image recycling has started."
+msgstr "镜像已经开始回收。"
+
+msgid "Image reference"
+msgstr "镜像地址"
+
+msgid "Image retained."
+msgstr "镜像已长期保留。"
+
+msgid "Images"
+msgstr "镜像"
+
+msgid "Images removed"
+msgstr "已移除镜像"
+
+msgid "Initial password"
+msgstr "初始密码"
+
+msgid "Invalid SSH username."
+msgstr "无效 SSH 用户名。"
+
+msgid "Invalid environment variable format."
+msgstr "环境变量格式不正确。"
+
+msgid "Invalid execution mode."
+msgstr "无效运行模式。"
+
+msgid "Invalid node"
+msgstr "无效节点"
+
+msgid "Invalid public key. RSA keys require at least 3072 bits."
+msgstr "无效公钥；RSA 至少 3072 bit。"
+
+msgid "Invalid receiver field."
+msgstr "接收信息字段格式无效。"
+
+msgid "Invalid resource extensions."
+msgstr "扩展资源配置无效。"
+
+msgid "Invalid username or password."
+msgstr "用户名或密码错误。"
+
+msgid "Jobs"
+msgstr "运行程序"
+
+msgid "Keep at least one user group."
+msgstr "至少保留一个用户组。"
+
+msgid "Keep image"
+msgstr "保留镜像"
+
+msgid "Keep or increase the home volume capacity."
+msgstr "个人卷支持扩容，请保留当前容量或增加容量。"
+
+msgid "Key name"
+msgstr "密钥名称"
+
+msgid "Live"
+msgstr "实时"
+
+msgid "Local"
+msgstr "本机"
+
+msgid "Long-running program"
+msgstr "程序长时间运行"
+
+msgid "Long-running task reminder"
+msgstr "长时间运行提醒"
+
+msgid "Long-term members"
+msgstr "长期用户"
+
+msgid "Maintenance"
+msgstr "维护中"
+
+msgid "Manual approval"
+msgstr "人工审批"
+
+msgid "Maximum environment duration (hours)"
+msgstr "环境最长时段（小时）"
+
+msgid "Member resource quotas"
+msgstr "成员资源额度"
+
+msgid "Member settings saved."
+msgstr "成员设置已保存。"
+
+msgid "Members and accounts"
+msgstr "成员与账号"
+
+msgid "Members moved"
+msgstr "已迁移成员"
+
+msgid "Memory"
+msgstr "内存"
+
+msgid "Memory GiB"
+msgstr "内存 GiB"
+
+msgid "Metrics stale"
+msgstr "采样过期"
+
+msgid "Move members to"
+msgstr "将成员移至"
+
+msgid "Name"
+msgstr "名称"
+
+msgid "New development environment"
+msgstr "新建开发环境"
+
+msgid "New end time"
+msgstr "新的结束时间"
+
+msgid "New password"
+msgstr "新密码"
+
+msgid "No"
+msgstr "否"
+
+msgid "No images available"
+msgstr "暂无可用镜像"
+
+msgid "No running development environments"
+msgstr "暂无运行中的开发环境"
+
+msgid "Node name"
+msgstr "节点名称"
+
+msgid "Node offline"
+msgstr "节点离线"
+
+msgid "Node performance"
+msgstr "节点性能"
+
+msgid "Node service account"
+msgstr "从机服务账户"
+
+msgid "Node settings saved. Connection status will update on the next report."
+msgstr "节点设置已保存，后台将同步连接状态。"
+
+msgid "Nodes"
+msgstr "节点"
+
+msgid "Normal"
+msgstr "普通"
+
+msgid "Notes"
+msgstr "备注"
+
+msgid "Notification channel is unavailable."
+msgstr "通知渠道不可用。"
+
+msgid "Notification events"
+msgstr "推送事件"
+
+msgid "Notification history"
+msgstr "推送记录"
+
+msgid "Notification settings"
+msgstr "推送设置"
+
+msgid "Notification settings saved."
+msgstr "推送设置已保存。"
+
+msgid "Notified at"
+msgstr "通知时间"
+
+msgid "Object name"
+msgstr "对象名称"
+
+msgid "Observed data"
+msgstr "观测数据"
+
+msgid "Offline"
+msgstr "离线"
+
+msgid "Online"
+msgstr "在线"
+
+msgid "Only pending requests can be rejected."
+msgstr "只能拒绝待审核申请。"
+
+msgid "Owner"
+msgstr "所属用户"
+
+msgid "Pause admission"
+msgstr "暂停接单"
+
+msgid "Pending approval"
+msgstr "待审批"
+
+msgid "Pending synchronization"
+msgstr "等待同步"
+
+msgid "Per-device requests"
+msgstr "逐卡配置"
+
+msgid "Permanent"
+msgstr "永久"
+
+msgid "Permission denied."
+msgstr "无权操作。"
+
+msgid "Platform"
+msgstr "平台"
+
+msgid "Preparing environment"
+msgstr "准备环境"
+
+msgid "Priority"
+msgstr "优先级"
+
+msgid "Provide a username and password."
+msgstr "请提供用户名和密码。"
+
+msgid "Provide a valid Bearer token."
+msgstr "请提供有效的 Bearer 访问令牌。"
+
+msgid "Public datasets"
+msgstr "公用目录"
+
+msgid "Public key"
+msgstr "公钥"
+
+msgid "Public key added. Running environments are being updated."
+msgstr "公钥已添加，正在同步至运行中的容器。"
+
+msgid "Public key disabled. Running environments are being updated."
+msgstr "公钥已停用，正在同步至运行中的容器。"
+
+msgid "Public key enabled. Running environments are being updated."
+msgstr "公钥已启用，正在同步至运行中的容器。"
+
+msgid "Public key fingerprint"
+msgstr "公钥指纹"
+
+msgid "Queued"
+msgstr "排队中"
+
+msgid "Queued for build"
+msgstr "待构建"
+
+msgid "Queued tasks"
+msgstr "排队任务"
+
+msgid "Reason"
+msgstr "原因"
+
+msgid "Recycle at"
+msgstr "回收时间"
+
+msgid "Recycled"
+msgstr "已回收"
+
+msgid "Recycled at"
+msgstr "回收完成时间"
+
+msgid "Recycling"
+msgstr "回收中"
+
+msgid "Recycling error"
+msgstr "回收错误"
+
+msgid "Reject"
+msgstr "拒绝"
+
+msgid "Reject request"
+msgstr "拒绝申请"
+
+msgid "Rejected"
+msgstr "已拒绝"
+
+msgid "Rejection requires an administrator and a reason."
+msgstr "拒绝需要管理员及明确原因。"
+
+msgid "Reminder before expiry (minutes)"
+msgstr "到期前提醒（分钟）"
+
+msgid "Request approved"
+msgstr "申请已通过"
+
+msgid "Request extension"
+msgstr "申请延期"
+
+msgid "Request rejected"
+msgstr "申请已拒绝"
+
+msgid "Request submitted"
+msgstr "申请已提交"
+
+msgid "Required receiver field."
+msgstr "请填写必需的接收信息。"
+
+msgid "Reserved GiB"
+msgstr "已预留 GiB"
+
+msgid "Resize work volume"
+msgstr "调整工作卷容量"
+
+msgid "Resource observation"
+msgstr "资源观测"
+
+msgid "Resource request"
+msgstr "资源申请"
+
+msgid "Resources released"
+msgstr "资源已释放"
+
+msgid "Retain until"
+msgstr "保留至"
+
+msgid "Retention after failure (hours)"
+msgstr "失败后保留（小时）"
+
+msgid "Retention after success or cancellation (hours)"
+msgstr "成功或取消后保留（小时）"
+
+msgid "Retention settings saved. They apply when tasks end and snapshot retention starts."
+msgstr "保留时间已保存，将用于后续结束的任务和开始计时的快照。"
+
+msgid "Reverse SSH port on the control host"
+msgstr "主机上的反向 SSH 端口"
+
+msgid "Review completed."
+msgstr "审批已完成。"
+
+msgid "Review notes"
+msgstr "审核意见"
+
+msgid "Reviewed at"
+msgstr "审核时间"
+
+msgid "Reviewer"
+msgstr "审核人"
+
+msgid "Revoke API token"
+msgstr "撤销 API 令牌"
+
+msgid "Running"
+msgstr "运行中"
+
+msgid "SSH keys"
+msgstr "SSH 公钥"
+
+msgid "SSH node"
+msgstr "SSH 从机"
+
+msgid "SSH port"
+msgstr "SSH 端口"
+
+msgid "SSH ports range from 1 to 65535."
+msgstr "SSH 端口范围为 1–65535。"
+
+msgid "Save environment"
+msgstr "保存环境"
+
+msgid "Save failed"
+msgstr "保存失败"
+
+msgid "Saved"
+msgstr "已保存"
+
+msgid "Saved image"
+msgstr "保存的镜像"
+
+msgid "Saving"
+msgstr "保存中"
+
+msgid "Saving environment."
+msgstr "正在保存环境。"
+
+msgid "Schedule image recycling"
+msgstr "安排镜像回收"
+
+msgid "Scheduled"
+msgstr "已预约"
+
+msgid "Select a Git host configured by an administrator."
+msgstr "请选择管理员配置的 Git 站点。"
+
+msgid "Select a development environment."
+msgstr "请选择开发环境。"
+
+msgid "Select a user group."
+msgstr "请选择用户组。"
+
+msgid "Select a valid review action."
+msgstr "请选择有效的审批操作。"
+
+msgid "Select an image on the target node with a matching architecture."
+msgstr "请选择目标节点上架构匹配的镜像。"
+
+msgid "Select an image."
+msgstr "请选择镜像。"
+
+msgid "Select approve or reject, and provide a reason for rejection."
+msgstr "请选择通过或拒绝，拒绝时填写原因。"
+
+msgid "Select one of your running development environments."
+msgstr "请选择自己运行中的开发环境。"
+
+msgid "Select the node's SSH identity."
+msgstr "请选择节点专属密钥。"
+
+msgid "Select valid start and end times."
+msgstr "请选择有效的开始和结束时间。"
+
+msgid "Sending"
+msgstr "发送中"
+
+msgid "Set a resource limit."
+msgstr "请设置资源限额。"
+
+msgid "Set an initial password."
+msgstr "请设置初始密码。"
+
+msgid "Set as default group"
+msgstr "设为默认组"
+
+msgid "Set compute and memory for each GPU."
+msgstr "请为每张 GPU 设置算力和显存。"
+
+msgid "Settings"
+msgstr "设置"
+
+msgid "Shared"
+msgstr "共享"
+
+msgid "Shared base images are retained."
+msgstr "共享基础镜像继续保留。"
+
+msgid "Shared images"
+msgstr "共享镜像数"
+
+msgid "Simplified Chinese"
+msgstr "简体中文"
+
+msgid "Size (bytes)"
+msgstr "大小（字节）"
+
+msgid "Source development environment"
+msgstr "源开发环境"
+
+msgid "Source environment"
+msgstr "源环境"
+
+msgid "Start"
+msgstr "开始"
+
+msgid "Started at"
+msgstr "启动时间"
+
+msgid "Starting"
+msgstr "启动中"
+
+msgid "Starts at"
+msgstr "开始时间"
+
+msgid "State"
+msgstr "状态"
+
+msgid "Stop requested"
+msgstr "已请求停止"
+
+msgid "Stop task"
+msgstr "停止任务"
+
+msgid "Stopped by user"
+msgstr "用户主动停止"
+
+msgid "Stopping"
+msgstr "正在停止"
+
+msgid "Storage"
+msgstr "存储"
+
+msgid "Storage capacity is insufficient for this volume."
+msgstr "没有单块磁盘具备足够的可分配容量（含空闲缓冲）。"
+
+msgid "Storage pool"
+msgstr "存储池"
+
+msgid "Submit a public key in OpenSSH format."
+msgstr "请提交公钥（不支持 authorized_keys 选项或私钥）。"
+
+msgid "Submit image build"
+msgstr "提交镜像构建"
+
+msgid "Submit request"
+msgstr "提交申请"
+
+msgid "Succeeded"
+msgstr "成功"
+
+msgid "Synchronization completed"
+msgstr "同步完成"
+
+msgid "System event"
+msgstr "系统事件"
+
+msgid "Target"
+msgstr "对象"
+
+msgid "Task ended"
+msgstr "任务已结束"
+
+msgid "Task instance"
+msgstr "运行实例"
+
+msgid "Task name"
+msgstr "任务名称"
+
+msgid "Task started"
+msgstr "任务已启动"
+
+msgid "Task stop requested."
+msgstr "已请求停止任务。"
+
+msgid "Tasks removed"
+msgstr "已移除任务"
+
+msgid "Temporary members"
+msgstr "临时用户"
+
+msgid "Test image versions removed"
+msgstr "已移除测试镜像版本"
+
+msgid "The JSON body is invalid."
+msgstr "JSON 正文格式错误。"
+
+msgid "The JSON body must be an object."
+msgstr "JSON 正文必须是对象。"
+
+msgid "The database schema is incomplete. Restore a complete database before migration."
+msgstr "数据库结构不完整，请使用当前版本的完整数据库。"
+
+msgid "The end time changed. Submit a new extension request."
+msgstr "环境结束时间已更改，请重新申请延期。"
+
+msgid "The environment is being saved. Submit after the save completes."
+msgstr "这个环境正在保存，请稍后再提交。"
+
+msgid "The home volume is being deleted. Wait for deletion to finish."
+msgstr "个人卷正在删除，请等待完成。"
+
+msgid "The home volume storage pool has insufficient capacity."
+msgstr "个人卷所在磁盘可分配容量不足。"
+
+msgid "The image is in use. Recycle it after its tasks release their resources."
+msgstr "镜像仍在使用，释放任务后可回收。"
+
+msgid "The image is unavailable."
+msgstr "镜像不可用。"
+
+msgid "The image requires a verified digest."
+msgstr "镜像尚无已验证 digest。"
+
+msgid "The image will be recycled in 24 hours. You can keep it before then."
+msgstr "镜像将在 24 小时后回收，可在此之前保留。"
+
+msgid "The local node identity and connection are configured by the installer."
+msgstr "主机节点的标识和连接方式固定。"
+
+msgid "The node could not confirm the new expiry."
+msgstr "节点尚未确认新的到期时间。"
+
+msgid "The operation failed. Check its status before retrying."
+msgstr "操作暂时无法完成，请稍后查询状态。"
+
+msgid "The parameter must be an integer."
+msgstr "参数必须是整数。"
+
+#, python-brace-format
+msgid "The parameter must be between {value_0} and {value_1}."
+msgstr "参数范围为 {value_0}–{value_1}。"
+
+msgid "The platform administrator account requires active administrator privileges."
+msgstr "平台管理员需要保持启用和管理权限。"
+
+msgid "The request body exceeds the size limit."
+msgstr "请求正文过大。"
+
+msgid "The request conflicts with an existing record."
+msgstr "请求与现有记录冲突。"
+
+msgid "The requested item is unavailable."
+msgstr "对象不存在或不可访问。"
+
+msgid "The selected node has paused admission."
+msgstr "所选节点已暂停接单。"
+
+msgid "The selected node is offline. Admission resumes when it reconnects."
+msgstr "所选节点离线，暂不能提交或批准新任务。"
+
+msgid "The selected node is unavailable for image builds."
+msgstr "所选节点暂不能构建镜像。"
+
+msgid "The source environment, image, and work volume must belong to the same node."
+msgstr "源开发环境、镜像与工作卷必须位于同一节点。"
+
+msgid "The source work volume is unavailable."
+msgstr "源环境的工作卷已回收或正在删除。"
+
+msgid "The user requires a group assignment."
+msgstr "用户尚未加入用户组。"
+
+msgid "The volume is in use. Stop its tasks and wait for resource release."
+msgstr "数据卷仍被任务或环境保存操作使用，请先停止任务并等待资源释放。"
+
+#, python-brace-format
+msgid "The working directory must be within /workspace or {value_0}."
+msgstr "运行路径必须位于 /workspace 或 {value_0}。"
+
+msgid "This Idempotency-Key was used with different parameters."
+msgstr "同一 Idempotency-Key 已用于不同参数。"
+
+msgid "This account is disabled."
+msgstr "账号已停用。"
+
+msgid "This environment has used all its extensions."
+msgstr "这个环境的延期次数已用完。"
+
+#, python-brace-format
+msgid "This environment variable is reserved: {value_0}"
+msgstr "不允许覆盖受保护环境变量：{value_0}"
+
+msgid "This extension request has already been reviewed."
+msgstr "这份延期申请已处理。"
+
+msgid "This member requires manual approval."
+msgstr "该成员需要人工审批。"
+
+msgid "This operation requires additional permissions."
+msgstr "无权执行此操作。"
+
+msgid "This public key is already registered."
+msgstr "此公钥已添加。"
+
+msgid "This request method is unavailable."
+msgstr "不支持此请求方法。"
+
+msgid "This username is already in use."
+msgstr "用户名已存在。"
+
+msgid "Token created."
+msgstr "令牌已生成。"
+
+msgid "Token deleted."
+msgstr "令牌已删除。"
+
+msgid "Token lifetime"
+msgstr "令牌有效期"
+
+msgid "Token names must contain at most 100 characters."
+msgstr "令牌名称须为 100 字以内的文本。"
+
+msgid "Total GPU compute %"
+msgstr "总算力 %"
+
+#, python-brace-format
+msgid "Total GPU compute exceeds your limit of {value_0}%."
+msgstr "GPU 总算力超过成员上限 {value_0}%。"
+
+msgid "Total GPU memory GiB"
+msgstr "总显存 GiB"
+
+#, python-brace-format
+msgid "Total GPU memory exceeds your limit of {value_0} GiB."
+msgstr "GPU 总显存超过成员上限 {value_0} GiB。"
+
+msgid "Total capacity GiB"
+msgstr "总容量 GiB"
+
+msgid "Type"
+msgstr "类型"
+
+msgid "Unknown fields: "
+msgstr "不支持的字段："
+
+msgid "Unknown receiver field."
+msgstr "不支持的接收信息字段。"
+
+msgid "Unknown resource."
+msgstr "资源项不可用。"
+
+msgid "Unlimited resources"
+msgstr "资源不限额"
+
+msgid "Unsupported language."
+msgstr "不支持的语言。"
+
+msgid "Update approval policy"
+msgstr "修改审批方式"
+
+msgid "Update base image"
+msgstr "更新基础镜像"
+
+msgid "Update environment SSH access"
+msgstr "更新容器 SSH 权限"
+
+msgid "Update group"
+msgstr "修改用户组"
+
+msgid "Update group quotas"
+msgstr "修改角色配额"
+
+msgid "Update member"
+msgstr "修改成员"
+
+msgid "Update notification settings"
+msgstr "修改微信推送设置"
+
+msgid "Update retention settings"
+msgstr "修改回收设置"
+
+msgid "Updated"
+msgstr "更新时间"
+
+msgid "Updating device inventory"
+msgstr "设备同步中"
+
+msgid "Use 1–32 letters, digits, underscores, hyphens, or dots, beginning with a letter or underscore. System account names are reserved."
+msgstr "用户名需为 1–32 位字母、数字、下划线、短横线或点，以字母或下划线开头，并避开系统账号名称。"
+
+msgid "Use NAME=value on each line."
+msgstr "每行填写 NAME=value。"
+
+msgid "Use an HTTPS Git URL with credentials supplied separately."
+msgstr "只允许无内嵌凭证的 HTTPS Git URL。"
+
+msgid "Use application/json for the request body."
+msgstr "请求正文请使用 application/json。"
+
+msgid "Used bytes"
+msgstr "已用字节"
+
+msgid "User"
+msgstr "用户"
+
+msgid "User groups"
+msgstr "用户组"
+
+msgid "Username"
+msgstr "用户名"
+
+msgid "Users and home volumes"
+msgstr "用户与个人卷"
+
+msgid "Validity"
+msgstr "有效期"
+
+msgid "Verified"
+msgstr "已验证"
+
+msgid "Version name"
+msgstr "版本名称"
+
+msgid "Volume deleted"
+msgstr "数据卷已删除"
+
+msgid "Volume deletion scheduled."
+msgstr "已安排删除数据卷。"
+
+msgid "Volume name"
+msgstr "卷名称"
+
+msgid "Volume type"
+msgstr "数据卷类型"
+
+msgid "Volumes"
+msgstr "数据卷"
+
+msgid "Volumes removed"
+msgstr "已移除数据卷"
+
+msgid "Wait for your current image build to finish."
+msgstr "请等待上一份镜像构建结束。"
+
+msgid "Waiting for delivery"
+msgstr "等待发送"
+
+msgid "Waiting for metrics"
+msgstr "等待采样"
+
+msgid "Waiting to save"
+msgstr "等待保存"
+
+msgid "Waiting to start"
+msgstr "等待启动"
+
+msgid "Work volume"
+msgstr "工作卷"
+
+msgid "Work volume GiB"
+msgstr "工作卷 GiB"
+
+msgid "Work volume expiring"
+msgstr "工作卷即将到期"
+
+msgid "Work volume expiry reminder"
+msgstr "工作卷到期提醒"
+
+msgid "Work volume quota is exhausted. Recycle retained volumes or ask an administrator to adjust the quota."
+msgstr "工作卷总额度不足，请联系管理员调整额度或回收保留卷。"
+
+msgid "Work volume recycled"
+msgstr "工作卷已回收"
+
+msgid "Work volume retention (days)"
+msgstr "工作卷保留（天）"
+
+msgid "Working directory"
+msgstr "运行路径"
+
+msgid "Yes"
+msgstr "是"
+
+msgid "You can request extensions for your own environments."
+msgstr "只能为自己的环境申请延期。"
+
+msgid "You need permission to manage this image."
+msgstr "无权操作此镜像。"
+
+msgid "cores"
+msgstr "核"
+
+msgid "enabled must be a boolean."
+msgstr "enabled 必须是布尔值。"
+
+msgid "environment must map names to single-line strings."
+msgstr "environment 需为名称到单行字符串值的对象。"
+
+#, python-brace-format
+msgid "expires_in must be an integer from 0 to {value_0} seconds; 0 means no expiry."
+msgstr "expires_in 须为 0–{value_0} 的整数秒数，0 表示永久。"
+
+msgid "kind must be permanent or temporary."
+msgstr "kind 需为 permanent 或 temporary。"
+
+msgid "mode must be interactive or batch."
+msgstr "mode 需为 interactive 或 batch。"
+
+#, python-brace-format
+msgid "{value_0} GPU · {value_1} cores"
+msgstr "{value_0} GPU · {value_1} 核"
+
+#, python-brace-format
+msgid "{value_0} GPU · {value_1} cores · {value_2} GiB"
+msgstr "{value_0} GPU · {value_1} 核 · {value_2} GiB"
+
+#, python-brace-format
+msgid "{value_0} GPUs"
+msgstr "{value_0} 张"
+
+#, python-brace-format
+msgid "{value_0} days"
+msgstr "{value_0} 天"
+
+#, python-brace-format
+msgid "{value_0} exceeds the node capacity."
+msgstr "{value_0} 超出服务器可分配总量。"
+
+#, python-brace-format
+msgid "{value_0} exceeds your quota."
+msgstr "{value_0} 超出成员额度。"
+
+#, python-brace-format
+msgid "{value_0} seconds"
+msgstr "{value_0} 秒"
+
+msgid "Provide a valid access token."
+msgstr "请提供有效的访问令牌。"
+
+msgid "The request could not be processed."
+msgstr "无法处理此请求。"
+
+msgid "This HTTP method is unavailable for this operation."
+msgstr "此操作不支持该 HTTP 方法。"
+
+msgid "Save"
+msgstr "保存"
+
+msgid "No compute nodes are configured."
+msgstr "尚未配置计算节点。"
+
+msgid "Select a node defined in the cluster configuration."
+msgstr "请选择集群配置中定义的节点。"
+
+msgid "This feature is unavailable on the selected node."
+msgstr "所选节点不提供此功能。"
+
+msgid "GPU {value_0} compute must be between 1% and 100%."
+msgstr "第 {value_0} 张 GPU 的算力必须在 1% 到 100% 之间。"
+
+msgid "Use 1–32 lowercase letters, digits, underscores, or hyphens, beginning with a letter or underscore. System account names are reserved."
+msgstr "使用 1–32 位小写字母、数字、下划线或连字符，以字母或下划线开头。系统账号名不可用。"
+
+msgid "The selected node is unavailable."
+msgstr "所选节点不可用。"
+
+msgid "Image quota is exhausted."
+msgstr "镜像配额已用尽。"
+
+msgid "The image architecture does not match the destination node."
+msgstr "镜像架构与目标节点不匹配。"
+
+msgid "Select a different destination node."
+msgstr "请选择另一个目标节点。"
+
+msgid "Use relative dataset paths within the public directory."
+msgstr "请使用公共目录内的相对路径。"
+
+msgid "Synchronization failed."
+msgstr "同步失败。"
+
+msgid "The copied image exceeds its reserved size."
+msgstr "复制的镜像超出了预留大小。"
+
+msgid "Waiting for the node to confirm the copied image."
+msgstr "等待节点确认复制的镜像。"
+
+msgid "Task canceled."
+msgstr "任务已取消。"
+
+msgid "The builder did not return an image."
+msgstr "构建器未返回镜像。"
+
+msgid "The operation failed. Review the execution logs for details."
+msgstr "操作失败，请查看执行日志了解详情。"
+
+msgid "Cleaning up"
+msgstr "清理中"
+
+msgid "Enter a valid date and time."
+msgstr "请输入有效的日期和时间。"
+
+msgid "The resource request exceeds its limits or is unavailable."
+msgstr "请求的资源超出配额或暂不可用。"
+
+msgid "Volume capacity must be positive."
+msgstr "目录卷容量必须为正数。"
+
+msgid "The current password is incorrect."
+msgstr "当前密码不正确。"
+
+msgid "The new passwords do not match."
+msgstr "两次输入的新密码不一致。"
+
+msgid "Upgrade this node to a compatible protocol version before starting new tasks."
+msgstr "请先将此节点升级到兼容的协议版本，再启动新任务。"
+
+msgid "Enter an HTTPS Git repository URL without embedded credentials."
+msgstr "请输入 HTTPS Git 仓库地址，请勿在地址中包含账号或密码。"
+
+msgid "The selected image is unavailable."
+msgstr "所选镜像不可用。"
+
+msgid "Bandwidth must be zero or greater."
+msgstr "带宽必须大于或等于零。"
+
+msgid "Wait for the current image copy to finish before changing its sharing mode."
+msgstr "请等待当前镜像复制完成后再更改副本的共享方式。"

@@ -1,0 +1,5 @@
+{% extends 'portal/manage_base.html' %}{% load i18n %}
+{% block manage_content %}
+<div class="performance-toolbar"><div class="performance-refresh"><label for="performance-interval">{% translate 'Refresh interval' %}</label><input id="performance-interval" data-performance-interval type="number" min="1" max="3600" step="1" value="5" inputmode="numeric" required><span>{% translate 'seconds' %}</span><button class="button secondary" type="button" data-performance-refresh>{% translate 'Refresh now' %}</button><button class="text-button" type="button" data-performance-pause aria-pressed="false">{% translate 'Pause' %}</button></div><span role="status" data-performance-status>{% translate 'Refreshing automatically' %}</span></div>
+<div data-performance-url="{% url 'manage_performance_data' %}">{% include 'portal/performance_nodes.html' %}</div>
+{% endblock %}

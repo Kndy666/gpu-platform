@@ -1,0 +1,118 @@
+cluster:
+  public_host: localhost
+  default_language: en
+  ssh_ports: [30022, 30121]
+  control_image: ghcr.io/kndy666/gpu-platform-control:0.4.0
+  node_image: ghcr.io/kndy666/gpu-platform-node:0.4.0
+  state_directory: /var/lib/gpu-platform
+defaults:
+  slots:
+    runtime:
+      module: k3s
+      options:
+        namespace: gpu-workloads
+        queue: platform
+        reserve_cpu: 4
+        reserve_memory_gib: 16
+        runtime_class: workspace-runc
+        gpu_runtime_class: workspace-nvidia
+        resource_view: /var/lib/lxcfs
+        bootstrap_directory: bootstrap/environment
+    storage:
+      module: rawfile
+      options:
+        namespace: gpu-workloads
+        pools:
+          - name: disk1
+            path: /data1/platform/volumes
+            storage_class: platform-rawfile-1
+            buffer_percent: 5
+    registry:
+      module: zot
+      options:
+        port: 5000
+        budget_gib: 300
+    build:
+      module: buildkit
+      options:
+        image: moby/buildkit:v0.26.1-rootless
+        trusted_contexts:
+          environment: bootstrap/environment
+    gpu:
+      module: nvidia-mps
+      options: {}
+    metrics:
+      module: host
+      options:
+        pools:
+          - name: disk1
+            path: /data1/platform/volumes
+  features:
+    save_environment: true
+    public_datasets: true
+    image_sync: true
+    dataset_sync: true
+  parameters:
+    datasets: /data1/platform/datasets
+    web_port: 8000
+    https: false
+    bootstrap_recipe: bootstrap/environment/Dockerfile
+    bootstrap_context: trusted:environment
+    network:
+      public_interface: auto
+      private_ports: [6443, 10250]
+      private_udp_ports: [8472]
+control:
+  auth:
+    module: local
+  notify: []
+  database:
+    engine: sqlite
+    name: control.sqlite3
+  groups:
+    temporary:
+      home_size_gib: 50
+      resources:
+        cpu: 8
+        memory: 12
+        work_storage: 300
+        image_storage: 200
+        gpu_compute: 100
+        gpu_memory: 24
+      per_allocation:
+        gpu_compute: 100
+        gpu_memory: 24
+      concurrent_tasks: 1
+      interactive_hours: 120
+      extension_limit: 1
+      approval_mode: automatic
+    longterm:
+      home_size_gib: 50
+      resources:
+        cpu: 16
+        memory: 24
+        work_storage: 500
+        image_storage: 400
+        gpu_compute: 200
+        gpu_memory: 48
+      per_allocation:
+        gpu_compute: 100
+        gpu_memory: 24
+      concurrent_tasks: 1
+      interactive_hours: 240
+      extension_limit: 1
+      approval_mode: automatic
+    Administrators:
+      unlimited: true
+      home_size_gib: 300
+      resources:
+        work_storage: 500
+        image_storage: null
+  sync:
+    images: []
+    datasets: []
+hosts:
+  main:
+    roles: [control, node]
+    architecture: amd64
+    address: 127.0.0.1

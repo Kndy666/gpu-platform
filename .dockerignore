@@ -4,7 +4,7 @@
 runtime
 config.yaml
 config.*.yaml
-!config.example.yaml
+cluster*.yaml
 .env
 .env.*
 *.sqlite3*
@@ -27,4 +27,14 @@ config.*.yaml
 **/*.pyc
 *.tar
 dist
-backend/staticfiles
+**/staticfiles
+/build
+/packages/*/build
+/modules/*/*/build
+**/dist
+**/*.egg-info
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.import_linter_cache
+tests

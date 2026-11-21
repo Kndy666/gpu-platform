@@ -1,0 +1,13 @@
+{% extends 'portal/manage_base.html' %}{% load i18n %}
+{% block manage_content %}
+{% if not ssh_access.ready %}<div class="notice"><a href="{% url 'keys' %}">{% translate 'Add SSH key' %}</a>{% translate ' to access all user containers with your key.' %}</div>{% endif %}
+<form method="get" class="container-filters" role="search">
+<select name="node" aria-label="{% translate 'Compute nodes' %}" data-node-filter>{% for choice in nodes %}<option value="{{ choice.pk }}" {% if choice.pk == node.pk %}selected{% endif %}>{{ choice.name }}</option>{% endfor %}</select>
+<input type="search" name="q" value="{{ query }}" placeholder="{% translate 'Search names, members, or container IDs' %}" aria-label="{% translate 'Search containers' %}">
+<select name="status" aria-label="{% translate 'Container state' %}"><option value="">{% translate 'All states' %}</option>{% for value,label in states %}<option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+<select name="mode" aria-label="{% translate 'Container type' %}"><option value="">{% translate 'All types' %}</option><option value="interactive" {% if mode == 'interactive' %}selected{% endif %}>{% translate 'Development environments' %}</option><option value="batch" {% if mode == 'batch' %}selected{% endif %}>{% translate 'Jobs' %}</option></select>
+<button type="submit">{% translate 'Filter' %}</button>
+</form>
+<div class="container-list">{% include 'portal/task_table.html' with management_links=True %}</div>
+{% include 'portal/history_pagination.html' with page=tasks %}
+{% endblock %}

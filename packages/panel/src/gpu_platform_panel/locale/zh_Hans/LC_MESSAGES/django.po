@@ -1,0 +1,1221 @@
+# Simplified Chinese translations.
+msgid ""
+msgstr "Project-Id-Version: gpu-platform-panel 0.4.0\nLanguage: zh_Hans\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\n"
+
+msgid " to access all user containers with your key."
+msgstr "，即可使用你的密钥进入所有用户容器。"
+
+msgid " to connect to this container."
+msgstr "，即可连接此容器。"
+
+#, python-format
+msgid "%(value0)s requests pending"
+msgstr "%(value0)s 条待审批"
+
+#, python-format
+msgid "%(value0)s storage"
+msgstr "%(value0)s 存储"
+
+#, python-format
+msgid "%(value0)s volume pages"
+msgstr "%(value0)s 数据卷分页"
+
+msgid "API access"
+msgstr "API 访问"
+
+msgid "API documentation"
+msgstr "接口文档"
+
+msgid "Accepting tasks"
+msgstr "接单"
+
+msgid "Access tokens"
+msgstr "访问令牌"
+
+msgid "Action recorded"
+msgstr "操作已记录"
+
+msgid "Actions"
+msgstr "操作"
+
+msgid "Actor"
+msgstr "操作人"
+
+msgid "Add SSH key"
+msgstr "添加 SSH 公钥"
+
+msgid "Add key"
+msgstr "添加公钥"
+
+msgid "Add node"
+msgstr "添加从机"
+
+msgid "Add your SSH key"
+msgstr "添加你的 SSH 公钥"
+
+msgid "Administration"
+msgstr "管理"
+
+msgid "Administration actions"
+msgstr "管理操作"
+
+msgid "Administration navigation"
+msgstr "管理导航"
+
+msgid "Administration sections"
+msgstr "管理分类"
+
+msgid "Administrator"
+msgstr "管理员"
+
+msgid "Administrator SSH access"
+msgstr "管理员 SSH 连接"
+
+msgid "All states"
+msgstr "全部状态"
+
+msgid "All types"
+msgstr "全部类型"
+
+msgid "Apply"
+msgstr "应用"
+
+msgid "Approval notes"
+msgstr "审批说明"
+
+msgid "Approvals and notifications"
+msgstr "审批与推送"
+
+msgid "Approve"
+msgstr "通过"
+
+msgid "Approve request"
+msgstr "批准申请"
+
+msgid "Architecture"
+msgstr "架构"
+
+msgid "Asia/Shanghai"
+msgstr "北京时间"
+
+msgid "Assigned devices"
+msgstr "分配设备"
+
+msgid "Audit log"
+msgstr "审计记录"
+
+msgid "Available CPU"
+msgstr "可用 CPU"
+
+msgid "Available GPU compute"
+msgstr "可用 GPU 算力"
+
+msgid "Available images"
+msgstr "可用镜像"
+
+msgid "Available memory"
+msgstr "可用内存"
+
+msgid "Available now"
+msgstr "当前余量"
+
+msgid "Available storage"
+msgstr "可用存储"
+
+msgid "Back to dashboard"
+msgstr "返回工作台"
+
+msgid "Back to groups"
+msgstr "返回用户组"
+
+msgid "Back to platform"
+msgstr "返回平台"
+
+msgid "Back to storage"
+msgstr "返回存储"
+
+msgid "Build history"
+msgstr "构建记录"
+
+msgid "Build image"
+msgstr "构建镜像"
+
+msgid "CPU cores"
+msgstr "CPU 核"
+
+msgid "CPU temperature"
+msgstr "CPU 温度"
+
+msgid "CPU usage"
+msgstr "CPU 使用率"
+
+msgid "Cancel"
+msgstr "取消"
+
+msgid "Cancel task"
+msgstr "取消任务"
+
+msgid "Capacity"
+msgstr "容量"
+
+msgid "Change password"
+msgstr "修改密码"
+
+msgid "Cleanup failed"
+msgstr "回收异常"
+
+msgid "Cleanup retry pending"
+msgstr "回收待重试"
+
+msgid "Collapse volumes"
+msgstr "收起数据卷"
+
+msgid "Comma-separated relative paths"
+msgstr "用逗号分隔的相对路径"
+
+msgid "Command"
+msgstr "运行命令"
+
+msgid "Command completion"
+msgstr "命令结束"
+
+msgid "Completed"
+msgstr "已完成"
+
+msgid "Compute"
+msgstr "算力"
+
+msgid "Compute %"
+msgstr "算力 %"
+
+msgid "Compute nodes"
+msgstr "计算节点"
+
+msgid "Compute platform"
+msgstr "计算资源平台"
+
+msgid "Concurrent tasks"
+msgstr "并发任务"
+
+msgid "Connect"
+msgstr "连接"
+
+msgid "Connect to environment"
+msgstr "连接环境"
+
+msgid "Container state"
+msgstr "容器状态"
+
+msgid "Container type"
+msgstr "容器类型"
+
+msgid "Containers"
+msgstr "容器"
+
+msgid "Copy SSH command"
+msgstr "复制 SSH 命令"
+
+msgid "Copy address"
+msgstr "复制地址"
+
+msgid "Copy configuration"
+msgstr "复制配置"
+
+msgid "Copy token"
+msgstr "复制令牌"
+
+msgid "Create token"
+msgstr "生成令牌"
+
+msgid "Created"
+msgstr "创建时间"
+
+msgid "Data"
+msgstr "数据"
+
+msgid "Data and logs"
+msgstr "数据与日志"
+
+msgid "Default group"
+msgstr "默认组"
+
+msgid "Delete"
+msgstr "删除"
+
+msgid "Delete group"
+msgstr "删除用户组"
+
+msgid "Delete token"
+msgstr "删除令牌"
+
+#, python-format
+msgid "Delete token: %(value0)s"
+msgstr "删除令牌：%(value0)s"
+
+msgid "Deleting"
+msgstr "删除中"
+
+msgid "Deleting this volume permanently removes all its files."
+msgstr "删除后，卷内所有文件将永久清除。"
+
+msgid "Destination node"
+msgstr "目标节点"
+
+msgid "Details"
+msgstr "详情"
+
+msgid "Development environments"
+msgstr "开发环境"
+
+msgid "Directory"
+msgstr "目录"
+
+msgid "Directory path"
+msgstr "目录路径"
+
+msgid "Directory paths"
+msgstr "目录路径"
+
+msgid "Disable"
+msgstr "停用"
+
+msgid "Disabled"
+msgstr "已停用"
+
+msgid "Disk"
+msgstr "磁盘"
+
+#, python-format
+msgid "Disk usage %(value0)s%"
+msgstr "磁盘已用 %(value0)s%"
+
+msgid "Download Agent Skill"
+msgstr "下载 Agent Skill"
+
+msgid "Download ↓"
+msgstr "下载 ↓"
+
+msgid "Edit"
+msgstr "编辑"
+
+msgid "Edit →"
+msgstr "编辑 →"
+
+msgid "Enable"
+msgstr "启用"
+
+msgid "End"
+msgstr "结束"
+
+msgid "Ended"
+msgstr "已结束"
+
+msgid "Endpoint"
+msgstr "访问地址"
+
+msgid "Environment"
+msgstr "环境"
+
+msgid "Environment images"
+msgstr "环境镜像"
+
+msgid "Environment settings"
+msgstr "环境配置"
+
+msgid "Environment snapshots"
+msgstr "运行快照"
+
+msgid "Execution logs"
+msgstr "运行日志"
+
+msgid "Exit code"
+msgstr "退出码"
+
+msgid "Expand volumes"
+msgstr "展开数据卷"
+
+msgid "Expired"
+msgstr "已过期"
+
+msgid "Extend until"
+msgstr "延期至"
+
+msgid "Extension limit reached"
+msgstr "延期次数已用完"
+
+msgid "Extension request"
+msgstr "延期申请"
+
+msgid "Failed"
+msgstr "失败"
+
+msgid "Filter"
+msgstr "筛选"
+
+msgid "GPU allocations"
+msgstr "GPU 明细"
+
+msgid "GPU memory"
+msgstr "显存"
+
+msgid "GPU memory GiB"
+msgstr "显存 GiB"
+
+msgid "GPUs"
+msgstr "张 GPU"
+
+msgid "GPUs ·"
+msgstr "张 GPU ·"
+
+msgid "GiB GPU memory"
+msgstr "GiB 显存"
+
+msgid "GiB available"
+msgstr "GiB 可分配"
+
+msgid "GiB memory"
+msgstr "GiB 内存"
+
+msgid "GiB workspace"
+msgstr "GiB 工作卷"
+
+msgid "Group details"
+msgstr "用户组信息"
+
+msgid "High"
+msgstr "高"
+
+msgid "High priority"
+msgstr "高优先级"
+
+msgid "Home directory"
+msgstr "个人卷路径"
+
+msgid "Home volume"
+msgstr "个人卷"
+
+msgid "Home volume limit"
+msgstr "个人卷上限"
+
+msgid "Idle"
+msgstr "空闲"
+
+msgid "Image"
+msgstr "镜像"
+
+msgid "Image address and management"
+msgstr "镜像地址与管理"
+
+msgid "Image quota"
+msgstr "镜像额度"
+
+msgid "Image retention"
+msgstr "镜像保留"
+
+msgid "Images"
+msgstr "镜像"
+
+msgid "In use"
+msgstr "使用中"
+
+msgid "Invalid"
+msgstr "已失效"
+
+msgid "Jobs"
+msgstr "运行程序"
+
+msgid "Key added"
+msgstr "已添加公钥"
+
+msgid "Language"
+msgstr "语言"
+
+msgid "Last synchronization"
+msgstr "最近同步"
+
+msgid "Link"
+msgstr "链接"
+
+msgid "Local"
+msgstr "本机"
+
+msgid "Maintenance"
+msgstr "维护中"
+
+msgid "Maximum environment duration"
+msgstr "环境最长时段"
+
+msgid "Maximum extension"
+msgstr "每次最多延长"
+
+msgid "Member details"
+msgstr "成员信息"
+
+msgid "Members"
+msgstr "成员"
+
+msgid "Members and permissions"
+msgstr "成员与权限"
+
+msgid "Memory"
+msgstr "内存"
+
+msgid "Memory GiB"
+msgstr "内存 GiB"
+
+msgid "Memory usage"
+msgstr "内存使用率"
+
+msgid "Modified"
+msgstr "修改时间"
+
+msgid "More settings"
+msgstr "更多设置"
+
+msgid "Name"
+msgstr "名称"
+
+msgid "Never expires"
+msgstr "永久有效"
+
+msgid "New development environment"
+msgstr "新建开发环境"
+
+msgid "New environment"
+msgstr "新建环境"
+
+msgid "Next day"
+msgstr "后一天"
+
+msgid "Next →"
+msgstr "下一页 →"
+
+msgid "No SSH keys"
+msgstr "暂无公钥"
+
+msgid "No builds"
+msgstr "暂无构建记录"
+
+msgid "No compute nodes"
+msgstr "暂无计算节点"
+
+msgid "No groups"
+msgstr "暂无用户组"
+
+msgid "No images"
+msgstr "暂无镜像"
+
+msgid "No matching files"
+msgstr "没有匹配的文件"
+
+msgid "No members"
+msgstr "暂无成员"
+
+msgid "No notification channels configured"
+msgstr "尚未配置通知渠道"
+
+msgid "No notification history"
+msgstr "暂无推送记录"
+
+msgid "No pending requests"
+msgstr "暂无待审批申请"
+
+msgid "No records"
+msgstr "暂无记录"
+
+msgid "No saved environments"
+msgstr "暂无保存记录"
+
+msgid "No synchronization jobs"
+msgstr "暂无同步任务"
+
+msgid "No tasks"
+msgstr "暂无任务"
+
+msgid "No tokens"
+msgstr "暂无令牌"
+
+msgid "No user volumes"
+msgstr "暂无用户数据卷"
+
+msgid "No."
+msgstr "第"
+
+msgid "Node"
+msgstr "节点"
+
+msgid "Nodes"
+msgstr "节点"
+
+msgid "Normal"
+msgstr "普通"
+
+msgid "Notification history"
+msgstr "推送记录"
+
+msgid "Notification settings"
+msgstr "推送设置"
+
+msgid "Notifications"
+msgstr "通知"
+
+msgid "Open dashboard →"
+msgstr "进入工作台 →"
+
+msgid "Pagination"
+msgstr "分页"
+
+msgid "Parent directory"
+msgstr "上一级"
+
+msgid "Password updated"
+msgstr "密码已更新"
+
+msgid "Pause"
+msgstr "暂停"
+
+msgid "Pending allocation"
+msgstr "待分配"
+
+msgid "Pending approval"
+msgstr "待审批"
+
+msgid "Pending approval · Extend until"
+msgstr "待审批 · 延期至"
+
+msgid "Pending check"
+msgstr "待检查"
+
+msgid "Pending cleanup"
+msgstr "等待回收"
+
+msgid "Pending requests"
+msgstr "待审批申请"
+
+msgid "Pending synchronization"
+msgstr "等待同步"
+
+msgid "Per-device limit"
+msgstr "单卡上限"
+
+msgid "Performance"
+msgstr "性能"
+
+msgid "Permanent"
+msgstr "永久"
+
+msgid "Permanently delete volume"
+msgstr "永久删除数据卷"
+
+msgid "Permissions"
+msgstr "权限"
+
+msgid "Previous day"
+msgstr "前一天"
+
+msgid "Priority"
+msgstr "优先级"
+
+msgid "Private"
+msgstr "私有"
+
+msgid "Progress"
+msgstr "进度"
+
+msgid "Provide a reason when rejecting"
+msgstr "拒绝时填写原因"
+
+msgid "Public datasets"
+msgstr "公用目录"
+
+msgid "Queued"
+msgstr "排队"
+
+msgid "Quotas and usage rules"
+msgstr "资源额度与使用规则"
+
+msgid "Ready"
+msgstr "正常"
+
+msgid "Reason"
+msgstr "原因"
+
+msgid "Recent tasks"
+msgstr "最近任务"
+
+msgid "Recycle"
+msgstr "回收"
+
+msgid "Recycling"
+msgstr "回收中"
+
+msgid "Refresh interval"
+msgstr "刷新间隔"
+
+msgid "Refresh now"
+msgstr "立即刷新"
+
+msgid "Refreshing automatically"
+msgstr "自动刷新中"
+
+msgid "Reject"
+msgstr "拒绝"
+
+msgid "Reject request"
+msgstr "拒绝申请"
+
+msgid "Rejection reason"
+msgstr "拒绝原因"
+
+msgid "Request environment"
+msgstr "申请环境"
+
+msgid "Request extension"
+msgstr "申请延期"
+
+msgid "Request list →"
+msgstr "申请列表 →"
+
+msgid "Reserved"
+msgstr "已预留"
+
+msgid "Resource allocation"
+msgstr "资源分配"
+
+msgid "Resource overview"
+msgstr "资源概览"
+
+msgid "Resources"
+msgstr "资源管理"
+
+msgid "Result"
+msgstr "结果"
+
+msgid "Retain indefinitely"
+msgstr "长期保留"
+
+msgid "Retain until"
+msgstr "保留至"
+
+msgid "Retain with task"
+msgstr "随任务保留"
+
+msgid "Retention period"
+msgstr "保留时间"
+
+msgid "Retention policy"
+msgstr "保留策略"
+
+msgid "Retention starts after the task finishes and releases its resources"
+msgstr "任务结束并释放资源后计时"
+
+msgid "Route"
+msgstr "路径"
+
+msgid "Run"
+msgstr "运行"
+
+msgid "Run configuration"
+msgstr "运行配置"
+
+msgid "Run job ↗"
+msgstr "运行程序 ↗"
+
+msgid "Run until"
+msgstr "运行至"
+
+msgid "Run until the command completes"
+msgstr "运行至命令结束"
+
+msgid "Running"
+msgstr "运行中"
+
+msgid "SSH connection"
+msgstr "SSH 连接"
+
+#, python-format
+msgid "SSH connection: %(value0)s"
+msgstr "SSH 连接：%(value0)s"
+
+msgid "SSH keys"
+msgstr "SSH 公钥"
+
+msgid "SSH port"
+msgstr "SSH 端口"
+
+msgid "Save group"
+msgstr "保存用户组"
+
+msgid "Save history"
+msgstr "保存记录"
+
+msgid "Save image"
+msgstr "保存镜像"
+
+msgid "Save key"
+msgstr "保存公钥"
+
+msgid "Save member"
+msgstr "保存成员"
+
+msgid "Save node"
+msgstr "保存节点"
+
+msgid "Save notification settings"
+msgstr "保存推送设置"
+
+msgid "Save password"
+msgstr "保存密码"
+
+msgid "Save settings"
+msgstr "保存设置"
+
+msgid "Saved automatically"
+msgstr "自动保存"
+
+msgid "Saved manually"
+msgstr "主动保存"
+
+msgid "Scheduled"
+msgstr "预约"
+
+msgid "Search"
+msgstr "搜索"
+
+msgid "Search containers"
+msgstr "搜索容器"
+
+msgid "Search files or folders"
+msgstr "搜索文件或文件夹"
+
+msgid "Search members"
+msgstr "搜索成员"
+
+msgid "Search names, members, or container IDs"
+msgstr "搜索名称、成员或容器编号"
+
+msgid "Search names, usernames, or email addresses"
+msgstr "搜索姓名、用户名或邮箱"
+
+msgid "Search this directory"
+msgstr "搜索当前目录"
+
+msgid "Settings"
+msgstr "设置"
+
+msgid "Shared"
+msgstr "共享"
+
+msgid "Show token"
+msgstr "显示令牌"
+
+msgid "Sign in"
+msgstr "登录"
+
+msgid "Sign in · Compute platform"
+msgstr "登录 · 计算资源平台"
+
+msgid "Sign out"
+msgstr "退出"
+
+msgid "Simplified Chinese"
+msgstr "简体中文"
+
+msgid "Size"
+msgstr "大小"
+
+msgid "Source node"
+msgstr "源节点"
+
+msgid "Start"
+msgstr "开始"
+
+msgid "State"
+msgstr "状态"
+
+msgid "Storage"
+msgstr "存储"
+
+msgid "Storage GiB"
+msgstr "存储 GiB"
+
+msgid "Storage pool"
+msgstr "存储池"
+
+msgid "Storage quota"
+msgstr "存储额度"
+
+msgid "Submit build ↗"
+msgstr "提交构建 ↗"
+
+msgid "Submit extension"
+msgstr "提交延期申请"
+
+msgid "Submit job"
+msgstr "提交运行"
+
+msgid "Synchronization"
+msgstr "同步"
+
+msgid "Synchronize"
+msgstr "同步"
+
+msgid "Synchronize public data"
+msgstr "同步公共目录"
+
+msgid "System"
+msgstr "系统"
+
+msgid "Target"
+msgstr "对象"
+
+msgid "This directory is empty"
+msgstr "目录为空"
+
+msgid "This environment cannot be extended"
+msgstr "当前环境不可申请延期"
+
+msgid "This volume is in use. Stop its tasks and wait for resources to be released before deleting it."
+msgstr "数据卷仍在使用。停止相关任务并等待资源释放后可删除。"
+
+msgid "TiB available"
+msgstr "TiB 可分配"
+
+msgid "Time"
+msgstr "时间"
+
+msgid "Time range"
+msgstr "时段"
+
+msgid "Today"
+msgstr "今天"
+
+msgid "Token"
+msgstr "令牌"
+
+msgid "Token configured; leave blank to keep it"
+msgstr "Token 已配置，留空保留"
+
+msgid "Token created"
+msgstr "已生成令牌"
+
+#, python-format
+msgid "Token for %(value0)s"
+msgstr "%(value0)s的令牌"
+
+msgid "Total GPU compute"
+msgstr "GPU 总算力"
+
+msgid "Total GPU memory"
+msgstr "总显存"
+
+msgid "Total compute"
+msgstr "总算力"
+
+msgid "Total quota"
+msgstr "总额度"
+
+msgid "Total workspace quota"
+msgstr "工作卷总额"
+
+msgid "Transferred data"
+msgstr "已传输数据"
+
+msgid "Unavailable"
+msgstr "暂不可用"
+
+msgid "Unlimited"
+msgstr "不限"
+
+msgid "Unlimited resources"
+msgstr "资源不限额"
+
+msgid "Unrecorded"
+msgstr "未记录"
+
+msgid "Update end time"
+msgstr "更新结束时间"
+
+msgid "Updated"
+msgstr "更新时间"
+
+msgid "Usage rules"
+msgstr "使用规则"
+
+msgid "Use a development environment"
+msgstr "使用开发环境"
+
+msgid "Use current environment"
+msgstr "使用当前环境"
+
+msgid "Use image"
+msgstr "使用镜像"
+
+msgid "Use this image"
+msgstr "使用此镜像"
+
+msgid "Used"
+msgstr "已用"
+
+msgid "User groups"
+msgstr "用户组"
+
+msgid "Validity"
+msgstr "有效期"
+
+msgid "View all →"
+msgstr "查看全部 →"
+
+msgid "View date"
+msgstr "查看日期"
+
+msgid "View details"
+msgstr "查看详情"
+
+#, python-format
+msgid "View task: %(value0)s"
+msgstr "查看任务：%(value0)s"
+
+msgid "Volume deleted."
+msgstr "数据卷已删除。"
+
+msgid "Volume deletion is in progress."
+msgstr "数据卷正在删除。"
+
+msgid "Volumes"
+msgstr "数据卷"
+
+msgid "Waiting for GPU inventory"
+msgstr "GPU 信息等待更新"
+
+msgid "Waiting for an update"
+msgstr "等待更新"
+
+msgid "Waiting for connection"
+msgstr "等待连接"
+
+msgid "Waiting for node metrics"
+msgstr "等待节点上传性能数据"
+
+msgid "Waiting for node resource report"
+msgstr "等待节点资源同步"
+
+msgid "Waiting for storage pool report"
+msgstr "等待存储池同步"
+
+msgid "WeChat notifications"
+msgstr "微信推送"
+
+msgid "Web"
+msgstr "网页"
+
+msgid "Working directory"
+msgstr "运行路径"
+
+msgid "Workspace cleanup pending"
+msgstr "工作卷待回收"
+
+msgid "Workspace quota GiB"
+msgstr "工作卷额度 GiB"
+
+msgid "Workspace retained until"
+msgstr "工作卷保留至"
+
+msgid "cores"
+msgstr "核"
+
+msgid "cores ·"
+msgstr "核 ·"
+
+msgid "cores · load"
+msgstr "核 · 负载"
+
+msgid "devices"
+msgstr "张"
+
+msgid "hours"
+msgstr "小时"
+
+msgid "items"
+msgstr "个"
+
+msgid "nodes ·"
+msgstr "个节点 ·"
+
+msgid "seconds"
+msgstr "秒"
+
+msgid "tasks running"
+msgstr "个任务运行中"
+
+msgid "times"
+msgstr "次"
+
+msgid "waiting to start"
+msgstr "个等待启动"
+
+msgid "· Extended until"
+msgstr "· 延期至"
+
+msgid "· Sampled"
+msgstr "· 采样"
+
+msgid "← Back"
+msgstr "← 返回"
+
+msgid "← Previous"
+msgstr "← 上一页"
+
+msgid "＋ Add member"
+msgstr "＋ 增加成员"
+
+msgid "＋ New group"
+msgstr "＋ 新建用户组"
+
+msgid "Compute %%"
+msgstr "算力 %%"
+
+#, python-format
+msgid "Disk usage %(value0)s%%"
+msgstr "磁盘使用率 %(value0)s%%"
+
+msgid "Add allocation"
+msgstr "添加分配"
+
+msgid "Check the command quoting."
+msgstr "请检查命令中的引号。"
+
+msgid "End time"
+msgstr "结束时间"
+
+msgid "Enter a key name."
+msgstr "请输入密钥名称。"
+
+msgid "Enter a value within the allowed range."
+msgstr "请输入允许范围内的值。"
+
+msgid "Enter one NAME=value pair per line."
+msgstr "每行输入一组 NAME=value。"
+
+msgid "Extend"
+msgstr "延期"
+
+msgid "Password"
+msgstr "密码"
+
+msgid "Per-allocation limits"
+msgstr "单次分配上限"
+
+msgid "Public key saved."
+msgstr "公钥已保存。"
+
+msgid "Purpose"
+msgstr "用途"
+
+msgid "Quota available"
+msgstr "可用配额"
+
+msgid "Select a group for these members."
+msgstr "请为这些成员选择用户组。"
+
+msgid "Select valid notification events."
+msgstr "请选择有效的通知事件。"
+
+msgid "Settings saved."
+msgstr "设置已保存。"
+
+msgid "Start time"
+msgstr "开始时间"
+
+msgid "Stop"
+msgstr "停止"
+
+msgid "Select a development environment."
+msgstr "请选择开发环境。"
+
+msgid "Select an image."
+msgstr "请选择镜像。"
+
+msgid "Connection module"
+msgstr "连接方式"
+
+msgid "Devices"
+msgstr "卡数"
+
+msgid "Finish this node's tasks before changing its connection."
+msgstr "请先结束此节点的任务，再修改连接设置。"
+
+msgid "Image synchronization"
+msgstr "镜像同步"
+
+msgid "Select a connection module."
+msgstr "请选择连接方式。"
+
+msgid "The node name cannot be changed."
+msgstr "节点名称无法更改。"
+
+msgid "Token configured. Leave blank to keep it."
+msgstr "Token 已配置，留空保留。"
+
+msgid "A node with this name already exists."
+msgstr "已存在同名节点。"
+
+msgid "SSH host"
+msgstr "SSH 主机"
+
+msgid "SSH user"
+msgstr "SSH 用户"
+
+msgid "Private key path"
+msgstr "私钥路径"
+
+msgid "Key directory"
+msgstr "密钥目录"
+
+msgid "Node socket path"
+msgstr "节点套接字路径"
+
+msgid "Proxy socket path"
+msgstr "代理套接字路径"
+
+msgid "Public key enabled. Running environments are being updated."
+msgstr "公钥已启用，正在同步至运行中的容器。"
+
+msgid "Public key added. Running environments are being updated."
+msgstr "公钥已添加，正在同步至运行中的容器。"
+
+msgid "Added keys"
+msgstr "已添加公钥"
+
+msgid "Extended until"
+msgstr "延长至"
+
+msgid "Load"
+msgstr "负载"
+
+msgid "Sampled"
+msgstr "采样时间"
+
+msgid "nodes"
+msgstr "台节点"
+
+msgid "Unlimited compute resources"
+msgstr "计算资源不限"
+
+msgid "Working path"
+msgstr "运行路径"
+
+msgid "Home volume path"
+msgstr "个人卷路径"
+
+msgid "Work volume path"
+msgstr "工作卷路径"
+
+msgid "Preparing files"
+msgstr "正在准备文件"
+
+msgid "Transferring data"
+msgstr "正在传输数据"
+
+msgid "Applying data"
+msgstr "正在写入目标节点"

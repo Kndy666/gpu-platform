@@ -1,0 +1,54 @@
+from django.urls import path
+from django.views.i18n import JavaScriptCatalog
+from .views import pages as views
+from .views import administration as manage
+from .views.datasets import browse_datasets
+
+urlpatterns = [
+    path("", views.dashboard, name="dashboard"),
+    path("keys/", views.keys, name="keys"),
+    path("jsi18n/", JavaScriptCatalog.as_view(packages=["gpu_platform_panel"]), name="javascript-catalog"),
+    path("syncs/", views.synchronization, name="syncs"),
+    path("account/notifications/", views.notification_preferences, name="notification_preferences"),
+    path("syncs/datasets/", views.sync_datasets, name="sync_datasets"),
+    path("images/<uuid:pk>/sync/", views.sync_image, name="sync_image"),
+    path("api/", views.api_access, name="api_access"),
+    path("api/tokens/<uuid:pk>/delete/", views.delete_api_token, name="delete_api_token"),
+    path("management/containers/", manage.containers, name="manage_containers"),
+    path("management/approvals/", manage.approvals, name="manage_approvals"),
+    path("management/nodes/", manage.nodes, name="manage_nodes"),
+    path("management/performance/", manage.performance, name="manage_performance"),
+    path("management/performance/data/", manage.performance_data, name="manage_performance_data"),
+    path("management/nodes/<int:pk>/", manage.nodes, name="manage_node"),
+    path("management/members/", manage.members, name="manage_members"),
+    path("management/members/new/", manage.member_edit, name="manage_member_new"),
+    path("management/members/<int:pk>/", manage.member_edit, name="manage_member"),
+    path("management/groups/", manage.groups, name="manage_groups"),
+    path("management/groups/new/", manage.group_edit, name="manage_group_new"),
+    path("management/groups/<int:pk>/", manage.group_edit, name="manage_group"),
+    path("management/groups/<int:pk>/delete/", manage.group_delete, name="manage_group_delete"),
+    path("management/storage/", manage.storage, name="manage_storage"),
+    path("management/storage/<uuid:pk>/delete/", manage.volume_delete, name="manage_volume_delete"),
+    path("management/datasets/", browse_datasets, {"management": True}, name="manage_datasets"),
+    path("management/images/", manage.images, name="manage_images"),
+    path("management/audits/", manage.audits, name="manage_audits"),
+    path("management/settings/", manage.settings, name="manage_settings"),
+    path("images/<uuid:pk>/<str:action>/", manage.image_action, name="image_action"),
+    path("keys/<int:pk>/disable/", views.delete_key, name="delete_key"),
+    path("tasks/", views.tasks, name="tasks"),
+    path("environments/new/", views.new_request, name="new_request"),
+    path("resources/available/", views.available_resources, name="available_resources"),
+    path("training/new/", views.new_request, {"mode": "batch"}, name="new_training"),
+    path("timeline/", views.timeline, name="timeline"),
+    path("management/", views.management, name="management"),
+    path("tasks/<uuid:pk>/save/", views.save_environment, name="save_environment"),
+    path("tasks/<uuid:pk>/extend/", views.request_extension, name="request_extension"),
+    path("tasks/<uuid:pk>/", views.task, name="task"),
+    path("tasks/<uuid:pk>/stop/", views.stop, name="stop"),
+    path("tasks/<uuid:pk>/review/", views.review, name="review"),
+    path("tasks/<uuid:pk>/status/", views.task_status, name="task_status"),
+    path("images/", views.images, name="images"),
+    path("healthz/", views.health),
+]
+urlpatterns += [path("datasets/", browse_datasets, name="datasets")]
+urlpatterns += [path("accounts/language/", views.language, name="set_language")]

@@ -1,0 +1,30 @@
+{% extends 'portal/base.html' %}{% load i18n management %}
+{% block content %}
+<div class="page-heading"><h1>{% translate 'Synchronization' %}</h1></div>
+{% if can_sync_images %}
+<section class="panel"><h2>{% translate 'Image synchronization' %}</h2>
+<form method="post" data-image-sync class="sync-form">{% csrf_token %}
+<div class="field"><label for="sync-image">{% translate 'Images' %}</label><select id="sync-image" required><option value="">—</option>{% for image in images %}<option value="{% url 'sync_image' image.pk %}" data-node="{{ image.node_id }}" data-architecture="{{ image.architecture }}">{{ image.node.name }} {{ image.name }} {{ image.architecture }}</option>{% endfor %}</select></div>
+<div class="field"><label for="image-target">{% translate 'Destination node' %}</label><select id="image-target" name="target" required><option value="">—</option>{% for node in nodes %}{% if node.capabilities.features.image_sync %}<option value="{{ node.pk }}" data-architecture="{{ node.architecture }}">{{ node.name }}</option>{% endif %}{% endfor %}</select></div>
+<button class="button">{% translate 'Synchronize' %}</button></form></section>
+{% endif %}
+{% if can_sync_datasets %}
+<section class="panel"><h2>{% translate 'Public datasets' %}</h2><form method="post" action="{% url 'sync_datasets' %}" class="sync-form">
+  {% csrf_token %}
+  <div class="field"><label for="sync-source">{% translate 'Source node' %}</label><select id="sync-source" name="source" required>{% for node in nodes %}{% if node.capabilities.features.dataset_sync %}<option value="{{ node.pk }}">{{ node.name }}</option>{% endif %}{% endfor %}</select></div>
+  <span class="sync-direction" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 12h16m-6-6 6 6-6 6"/></svg></span>
+  <div class="field"><label for="sync-target">{% translate 'Destination node' %}</label><select id="sync-target" name="target" required>{% for node in nodes %}{% if node.capabilities.features.dataset_sync %}<option value="{{ node.pk }}">{{ node.name }}</option>{% endif %}{% endfor %}</select></div>
+  <div class="field"><label for="sync-paths">{% translate 'Directory paths' %}</label><input id="sync-paths" name="paths" placeholder="{% translate 'Comma-separated relative paths' %}"></div>
+  <button type="submit">{% translate 'Synchronize public data' %}</button>
+</form></section>
+{% endif %}
+<div class="table-wrap"><table><thead><tr><th>{% translate 'Data' %}</th><th>{% translate 'Route' %}</th><th>{% translate 'Progress' %}</th><th>{% translate 'State' %}</th><th>{% translate 'Updated' %}</th></tr></thead><tbody data-sync-jobs>
+{% for job in jobs %}<tr>
+  <td>{% if job.image %}{{ job.image.name }}{% else %}{% translate 'Public datasets' %}{% endif %}</td>
+  <td>{{ job.source.name }} → {{ job.target.name }}</td>
+  <td>{% if job.phase == 'preparing' or job.phase == 'queued' %}—{% else %}{% if job.total_bytes %}<progress value="{{ job.transferred_bytes }}" max="{{ job.total_bytes }}" aria-label="{% translate 'Transferred data' %}"></progress>{% endif %}{{ job.transferred_bytes|quantity:'B' }}{% if job.total_bytes %} / {{ job.total_bytes|quantity:'B' }}{% endif %}{% endif %}</td>
+  <td><span class="badge {{ job.state }}">{% if job.phase == 'queued' %}{% translate 'Queued' %}{% elif job.phase == 'preparing' %}{% translate 'Preparing files' %}{% elif job.phase == 'transferring' %}{% translate 'Transferring data' %}{% elif job.phase == 'applying' %}{% translate 'Applying data' %}{% elif job.phase == 'cleaning' %}{% translate 'Cleaning up' %}{% elif job.phase == 'completed' %}{% translate 'Completed' %}{% else %}{% translate 'Failed' %}{% endif %}</span></td>
+  <td>{{ job.ended_at|default:job.started_at|default:job.created_at|date:'DATETIME_FORMAT' }}</td>
+</tr>{% empty %}<tr><td colspan="5" class="empty">{% translate 'No synchronization jobs' %}</td></tr>{% endfor %}
+</tbody></table></div>
+{% endblock %}

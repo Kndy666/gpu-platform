@@ -1,0 +1,19 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gpu-platform-node"
+version = "0.4.0"
+description = "Resource platform node execution host"
+requires-python = ">=3.10"
+dependencies = ["gpu-platform-contracts", "PyYAML>=6"]
+
+[project.scripts]
+gpu-platform-node = "gpu_platform_node.daemon:main"
+
+[tool.uv.sources]
+gpu-platform-contracts = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gpu_platform_node"]
