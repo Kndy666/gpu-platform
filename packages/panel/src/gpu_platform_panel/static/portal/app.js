@@ -284,13 +284,7 @@
         const row=document.createElement('div'), label=document.createElement('span'), available=document.createElement('strong'), quota=document.createElement('span');
         label.textContent=resource.label; available.textContent=quantity(resource.available, resource.unit);
         quota.textContent=gettext('Quota available')+': '+(resource.quota_available===null?gettext('Unlimited'):quantity(resource.quota_available, resource.unit));
-        row.append(label,available,quota);
-        if (resource.quota_reserved != null) {
-          const reserved = document.createElement('span');
-          reserved.textContent = gettext('Reserved by you') + ' ' + quantity(resource.quota_reserved, resource.unit);
-          row.append(reserved);
-        }
-        list.append(row);
+        row.append(label,available,quota); list.append(row);
       });
       const gpus = $('[data-capacity-gpus]');
       if (gpus && Array.isArray(data.gpus)) {

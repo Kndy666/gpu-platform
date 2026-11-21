@@ -1,6 +1,6 @@
 {% extends 'portal/manage_base.html' %}{% load i18n %}
 {% block manage_content %}
-<form method="post" class="settings-editor" data-resource-settings>
+<form method="post" class="settings-editor group-editor" data-resource-settings>
   {% csrf_token %}{{ form.non_field_errors }}
   <section class="panel identity-editor" aria-label="{% translate 'Group details' %}">
     <div class="group-name-row">

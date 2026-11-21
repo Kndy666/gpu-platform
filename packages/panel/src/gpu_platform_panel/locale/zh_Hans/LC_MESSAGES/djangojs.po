@@ -93,6 +93,3 @@ msgstr "移除"
 
 msgid "GPU %(number)s: %(compute)s%%  %(memory)s GiB"
 msgstr "GPU %(number)s：%(compute)s%%  %(memory)s GiB"
-
-msgid "Reserved by you"
-msgstr "你的预留量"

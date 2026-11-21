@@ -1219,6 +1219,3 @@ msgstr "正在传输数据"
 
 msgid "Applying data"
 msgstr "正在写入目标节点"
-
-msgid "Reserved by you"
-msgstr "你的预留量"

@@ -177,11 +177,9 @@ def request_capacity(user, overview=None, node=None):
         if definition.key == "system_storage":
             limit = resource_limit(policy, definition.key, rules={})
         used = 0
-        if (limit is not None and definition.accounting != "volume") or definition.key == "system_storage":
+        if limit is not None and definition.accounting != "volume":
             used = persistent_usage(user, node, definition)
         row["quota_available"] = None if limit is None else max(0, limit - used)
-        if definition.key == "system_storage":
-            row["quota_reserved"] = used
         row["quota_total"] = limit
     return {"fresh": overview["fresh"], **accelerator_texts(node), "resources": resources, "gpus": [
         {"node_id": gpu["node_id"], "node_name": gpu["node_name"], "index": gpu["index"],
