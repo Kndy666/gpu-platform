@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 import pytest
 from django.contrib.auth import get_user_model
 from django.contrib.sessions.models import Session
@@ -202,8 +204,9 @@ def test_volume_usage_contract_preserves_unknown_and_measured_values(authenticat
     node = ComputeNode.objects.create(name="storage-node")
     pool = StoragePool.objects.create(node=node, name="data")
     image = ImageArtifact.objects.create(node=node, owner=user, name="base", reference="base", verified=True)
+    starts_at = timezone.now()
     task = ResourceRequest.objects.create(node=node, user=user, image=image, purpose="work", mode="interactive",
-        starts_at=timezone.now(), ends_at=timezone.now())
+        starts_at=starts_at, ends_at=starts_at + timedelta(hours=1))
     volume = VolumeAllocation.objects.create(node=node, user=user, request=task, kind="work", pool=pool,
                                              size_gib=10, used_bytes=used_bytes)
     response = client.get("/api/v1/volumes")
