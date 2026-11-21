@@ -156,7 +156,7 @@ class NodeEngine:
     def stop(self, task_id):
         runtime = self.slot("runtime")
         try:
-            runtime.status(task_id)
+            status = runtime.stop(task_id)
         except (KeyError, FileNotFoundError):
             if task_id not in self.state["tasks"] and task_id not in self.state["terminal_tasks"]:
                 raise
@@ -168,8 +168,6 @@ class NodeEngine:
                 ).model_dump(mode="json")
                 self.save()
             status = self.status(task_id)
-        else:
-            status = runtime.stop(task_id)
         if status.state not in ACTIVE_STATES:
             self.release(task_id)
         return status
