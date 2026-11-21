@@ -6,7 +6,7 @@ from django.db.models import Sum
 from django.utils.translation import gettext_lazy as _
 from gpu_platform_contracts.resources import ResourceDefinition
 from .models import NodeResource, ResourceReservation
-from gpu_platform_control.core.policies import effective_policy
+from gpu_platform_control.core.policies import DEFAULT_SYSTEM_STORAGE_GIB, SYSTEM_STORAGE, effective_policy
 from .rules import quota_rules, resource_limit
 
 
@@ -75,7 +75,12 @@ def normalize_request(request):
                 values[key] = values.get(key, Decimal(0)) + amount
             group_values.append(normalized)
         allocations[group] = group_values
-    for key, value in request.resource_quantities.items():
+    requested = dict(request.resource_quantities)
+    if SYSTEM_STORAGE in registered:
+        limit = resource_limit(policy, SYSTEM_STORAGE, rules=rules)
+        default = DEFAULT_SYSTEM_STORAGE_GIB if limit is None else min(DEFAULT_SYSTEM_STORAGE_GIB, int(limit))
+        requested.setdefault(SYSTEM_STORAGE, default)
+    for key, value in requested.items():
         row = registered.get(key)
         if row is None or not row.resource.requestable:
             problem('resource_unavailable', key)
@@ -106,7 +111,7 @@ def normalize_request(request):
         )
         if definition.has_member_quota and definition.accounting == 'volume' and limit is None:
             problem('resource_quota_required', key)
-        if definition.has_member_quota and (not policy.unlimited or definition.accounting != 'task') and limit is not None and amount > limit:
+        if definition.has_member_quota and limit is not None and amount > limit:
             problem('resource_quota_exceeded', key)
         if definition.accounting == 'task' and amount > row.total:
             problem('node_capacity_exceeded', key)

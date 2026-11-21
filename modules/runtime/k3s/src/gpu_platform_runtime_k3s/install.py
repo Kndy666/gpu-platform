@@ -21,6 +21,7 @@ from gpu_platform_contracts.texts import Message
 
 ASSETS = Path(__file__).parent / "host"
 KUBECONFIG = "/etc/rancher/k3s/k3s.yaml"
+IMAGE_GC = Path("/var/lib/rancher/k3s/agent/etc/kubelet.conf.d/90-gpu-platform-image-gc.conf")
 
 
 def versions():
@@ -241,6 +242,7 @@ def host_files():
     return [Path(path) for path in (
         "/usr/local/bin/k3s", "/usr/local/bin/helm", "/usr/local/bin/nerdctl",
         "/etc/rancher/k3s/config.yaml",
+        str(IMAGE_GC),
         "/etc/systemd/system/k3s.service",
         "/etc/systemd/system/lxcfs.service.d/gpu-platform.conf",
         "/etc/rancher/k3s/platform-workspace-oci.json",
@@ -265,6 +267,21 @@ def install_host(context):
         Path("/etc/rancher/k3s/registries.yaml"), load=yaml.safe_load, format="yaml"
     ):
         _install_host(context)
+        configure_image_gc(context)
+
+
+def configure_image_gc(context):
+    settings = yaml.safe_dump({"apiVersion": "kubelet.config.k8s.io/v1beta1",
+                               "kind": "KubeletConfiguration",
+                               "imageMaximumGCAge": f"{context.options.get('image_cache_max_age_hours', 4)}h"})
+    if IMAGE_GC.exists() and IMAGE_GC.read_text() == settings:
+        return
+    IMAGE_GC.parent.mkdir(parents=True, exist_ok=True)
+    temporary = IMAGE_GC.with_suffix(".tmp")
+    temporary.write_text(settings)
+    temporary.replace(IMAGE_GC)
+    context.runner(["systemctl", "restart", "k3s"])
+    wait_for_node(context)
 
 
 def own_object(context, kind, name, namespace=None):

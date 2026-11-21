@@ -29,7 +29,8 @@ def task_objects(task: TaskSpec, inputs: TaskInputs, options: dict):
         raise PermissionError("runtime.invalid_gpu_owner")
     cpu = task.resources.get("cpu", 0)
     memory = task.resources.get("memory", 0)
-    if cpu < 1 or memory < 1 or cpu != int(cpu) or memory != int(memory):
+    system_storage = task.resources.get("system_storage", 5)
+    if any(value < 1 or value != int(value) for value in (cpu, memory, system_storage)):
         raise ValueError("runtime.invalid_resource_request")
     home = next(
         (volume.mount_path for volume in inputs.volumes if volume.mount_path.startswith("/home/")), None
@@ -63,7 +64,7 @@ def task_objects(task: TaskSpec, inputs: TaskInputs, options: dict):
             "runner.sh": (Path(__file__).parent / "images" / "runner.sh").read_text(),
         },
     }
-    limits = {"cpu": str(cpu), "memory": f"{memory}Gi", "ephemeral-storage": "10Gi"}
+    limits = {"cpu": str(cpu), "memory": f"{memory}Gi", "ephemeral-storage": f"{int(system_storage)}Gi"}
     mounts, volumes = [], []
     for index, volume in enumerate(inputs.volumes):
         if volume.form != "kubernetes-pvc":

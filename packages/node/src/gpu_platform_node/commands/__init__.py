@@ -60,10 +60,9 @@ class NodeEngine:
         self.state = read_json(self.state_path, {"maintenance": False, "tasks": {}, "allocations": {}})
         self.state.setdefault("builds", {})
         self.state.setdefault("build_results", {})
+        self.state.setdefault("build_cleanup", {})
         self.state.setdefault("terminal_tasks", {})
-        self.operations = Operations(
-            state_directory / "operations", self.streams.exists
-        )
+        self.operations = Operations(state_directory / "operations", self.streams)
         self.events = Events(state_directory / "events")
         for slot in self.slots.values():
             if hasattr(slot, "context"):
@@ -231,8 +230,6 @@ class NodeEngine:
 
     def tick(self):
         with self.lock:
-            self.streams.clean_expired()
-            self.operations.clean_expired()
             runtime = self.slot("runtime")
             specs = [TaskSpec.model_validate(value) for value in self.state["tasks"].values()]
             for spec in specs:
@@ -254,6 +251,8 @@ class NodeEngine:
             for status in [*stopped, *runtime.list_tasks()]:
                 if status.state not in ACTIVE_STATES:
                     self.stop(status.id)
+            for build_id in list(self.state["build_cleanup"]):
+                self.release_build_result(build_id)
             for build_id in list(self.state["builds"]):
                 try:
                     result = self.slot("build").status(build_id)
@@ -264,6 +263,20 @@ class NodeEngine:
                         if result.state == "failed":
                             self.slot("build").release_result(build_id)
                         self.release_build_access(build_id)
+        self.operations.clean_expired()
+        clean_archives = getattr(self.slots.get("registry"), "clean_temporary_archives", None)
+        if clean_archives:
+            clean_archives()
+
+    def release_build_result(self, build_id):
+        try:
+            self.slot("build").release_result(build_id)
+        except OSError:
+            logger.warning("Temporary build archive cleanup will be retried for %s", build_id)
+        else:
+            with self.lock:
+                if self.state["build_cleanup"].pop(build_id, None):
+                    self.save()
 
     def release_build_access(self, build_id):
         if "registry" in self.slots:
@@ -297,6 +310,7 @@ class NodeEngine:
             Operation.IMAGE_IMPORT,
             Operation.IMAGE_SAVE,
             Operation.IMAGE_BUILD,
+            Operation.BUILD_CANCEL,
             Operation.DATASETS_IMPORT,
             Operation.DATASETS_DOWNLOAD,
             Operation.DATASETS_MANIFEST,
@@ -421,7 +435,7 @@ class NodeEngine:
             if previous:
                 if previous["spec"] != original:
                     raise SlotError("build.conflict", build_id=spec.id)
-                self.slot("build").release_result(spec.id)
+                self.release_build_result(spec.id)
                 return BuildResult.model_validate(previous["result"])
             if any(image.node_id != self.node_id for image in spec.images):
                 raise SlotError("image.wrong_node")
@@ -434,29 +448,37 @@ class NodeEngine:
             if result.state in {"completed", "failed"}:
                 self.release_build_access(spec.id)
                 if result.state == "completed" and result.image:
-                    result.image = (
-                        self.slot("registry")
-                        .store(result.image, spec.owner, spec.id)
-                        .model_copy(update={"credentials": {}})
-                    )
+                    try:
+                        result.image = (
+                            self.slot("registry")
+                            .store(result.image, spec.owner, spec.id)
+                            .model_copy(update={"credentials": {}})
+                        )
+                    except ValueError:
+                        result.state, result.image = "failed", None
+                        result.error = Message(code="command.invalid", parameters={"operation": operation.value})
                 with self.lock:
                     self.state["build_results"][spec.id] = {
                         "spec": original,
                         "result": result.model_dump(mode="json"),
                     }
+                    self.state["build_cleanup"][spec.id] = True
                     self.save()
-                self.slot("build").release_result(spec.id)
+                self.release_build_result(spec.id)
             return result
         if operation == Operation.BUILD_CANCEL:
-            self.slot("build").cancel(payload["build_id"])
-            self.release_build_access(payload["build_id"])
+            build_id = payload["build_id"]
+            if build_id in self.state["build_results"]:
+                return {}
+            self.slot("build").cancel(build_id)
+            self.release_build_access(build_id)
             return {}
         if operation == Operation.IMAGE_DELETE:
             self.slot("registry").delete(payload["image_id"], payload["owner"])
             return {}
         if operation == Operation.IMAGE_EXPORT:
             self.require_feature("image_sync")
-            stream_id = uuid4().hex
+            stream_id = payload.get("stream_id") or uuid4().hex
             size = self.streams.receive(
                 stream_id, self.slot("registry").export_image(payload["image_id"], payload["owner"])
             )
@@ -465,13 +487,22 @@ class NodeEngine:
             self.require_feature("image_sync")
             if payload["architecture"] != self.architecture:
                 raise SlotError("image.architecture_mismatch")
-            result = self.slot("registry").import_image(
-                payload["image_id"],
-                payload["owner"],
-                payload["architecture"],
-                self.streams.send(payload["stream_id"]),
-            )
-            self.streams.remove(payload["stream_id"])
+            registry = self.slot("registry")
+            arguments = payload["image_id"], payload["owner"], payload["architecture"]
+            stream_id = payload["stream_id"]
+            if payload.get("resume_only") and not self.streams.exists(stream_id):
+                try:
+                    existing = registry.get(*arguments[:2])
+                except FileNotFoundError:
+                    return {"needs_archive": True}
+                if existing.architecture != arguments[2]:
+                    raise SlotError("image.architecture_mismatch")
+                return existing.model_copy(update={"credentials": {}})
+            if hasattr(registry, "import_archive"):
+                with self.streams.hold(stream_id):
+                    result = registry.import_archive(*arguments, self.streams.path(stream_id))
+            else:
+                result = registry.import_image(*arguments, self.streams.send(stream_id))
             return result.model_copy(update={"credentials": {}})
         if operation == Operation.DATASETS_LIST:
             self.require_feature("public_datasets")
@@ -525,7 +556,7 @@ class NodeEngine:
             for item in payload.get("images", []):
                 self.slot("registry").delete(item["id"], item["owner"])
             for stream_id in payload.get("streams", []):
-                self.streams.remove(stream_id)
+                self.operations.discard_stream(stream_id)
             for identifier in payload.get("dataset_sessions", []):
                 self.dataset_service().cleanup(identifier)
             return {}

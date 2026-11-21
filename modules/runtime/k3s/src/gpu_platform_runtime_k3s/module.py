@@ -105,6 +105,11 @@ class Module(Runtime):
                 minimum=Decimal(1),
                 step=Decimal(1),
             ),
+            ResourceDefinition(
+                key="system_storage", unit="GiB", integral=True,
+                label=LocalizedText(en="System volume", zh_hans="系统卷"),
+                default=Decimal(5), minimum=Decimal(1), step=Decimal(1),
+            ),
         ],
     )
 
@@ -139,19 +144,26 @@ class Module(Runtime):
                 raise ValueError("runtime.invalid_image_catalog")
         return images
 
-    def assess(self, intent):
-        total = {"cpu": Decimal(0), "memory": Decimal(0)}
-        used = total.copy()
+    def capacity(self):
+        resources = {"cpu": ("cpu", 1), "memory": ("memory", 2**30),
+                     "system_storage": ("ephemeral-storage", 2**30)}
+        total = dict.fromkeys(resources, Decimal(0))
         for node in self.client.list("nodes"):
             allocatable = node.get("status", {}).get("allocatable", {})
-            total["cpu"] += quantity(allocatable.get("cpu", 0))
-            total["memory"] += quantity(allocatable.get("memory", 0)) / 2**30
+            for key, (resource, divisor) in resources.items():
+                total[key] += quantity(allocatable.get(resource, 0)) / divisor
+        return total
+
+    def assess(self, intent):
+        total = self.capacity()
+        used = dict.fromkeys(total, Decimal(0))
         for path in self.root.glob("*.json"):
             record = json.loads(path.read_text())
             if not record.get("terminal") or record.get("stopping"):
                 for key in used:
                     used[key] += Decimal(record["task"]["resources"].get(key, 0))
-        quantities = {key: intent.resources.get(key, Decimal(1)) for key in ("cpu", "memory")}
+        defaults = {"cpu": Decimal(1), "memory": Decimal(1), "system_storage": Decimal(5)}
+        quantities = {key: intent.resources.get(key, default) for key, default in defaults.items()}
         if any(value < 1 or value != value.to_integral_value() for value in quantities.values()):
             return ResourceAssessment(
                 feasible=False, quantities=quantities, reason=Message(code="runtime.invalid_resource_request")
@@ -314,11 +326,7 @@ class Module(Runtime):
         self.save(task_id, record)
 
     def resources(self):
-        total = {"cpu": Decimal(0), "memory": Decimal(0)}
-        for node in self.client.list("nodes"):
-            allocatable = node.get("status", {}).get("allocatable", {})
-            total["cpu"] += quantity(allocatable.get("cpu", 0))
-            total["memory"] += quantity(allocatable.get("memory", 0)) / 2**30
+        total = self.capacity()
         used = {
             key: sum(s.usage.get(key, 0) for s in self.list_tasks() if s.state in ACTIVE_STATES)
             for key in total

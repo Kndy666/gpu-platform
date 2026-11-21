@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from gpu_platform_contracts.module import HostContext as HostContext
 from pathlib import Path
 from typing import Any
+from gpu_platform_contracts.host import HostOwnership
 
 
 def run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess:
@@ -82,6 +83,29 @@ def prepare_docker(context: HostContext) -> None:
         if result.returncode:
             raise RuntimeError("Install the Docker Compose plugin for the existing Docker Engine")
     context.runner(["systemctl", "enable", "--now", "docker"])
+    configure_builder_cache(context)
+
+
+def configure_builder_cache(context: HostContext, systemd: Path = Path("/etc/systemd/system")) -> None:
+    service = systemd / "gpu-platform-docker-cache.service"
+    timer = systemd / "gpu-platform-docker-cache.timer"
+    ownership = HostOwnership(context, "docker-builder-cache")
+    with ownership.files([service, timer], before_remove={
+        str(timer): [["systemctl", "disable", "--now", timer.name]],
+    }):
+        service.write_text(
+            "[Unit]\nDescription=Reclaim unused Docker build cache\nAfter=docker.service\n"
+            "[Service]\nType=oneshot\n"
+            "ExecStart=/usr/bin/docker builder prune --force --all --filter until=4h\n"
+            "ExecStart=/usr/bin/docker builder prune --force --all --keep-storage 4294967296\n"
+        )
+        timer.write_text(
+            "[Unit]\nDescription=Reclaim Docker build cache periodically\n"
+            "[Timer]\nOnBootSec=5min\nOnUnitActiveSec=15min\n"
+            "[Install]\nWantedBy=timers.target\n"
+        )
+        context.runner(["systemctl", "daemon-reload"])
+        context.runner(["systemctl", "enable", "--now", timer.name])
 
 
 def configure_firewall(context: HostContext, directory: Path = Path("/etc/gpu-platform")) -> None:

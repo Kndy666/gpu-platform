@@ -162,6 +162,7 @@ def request_capacity(user, overview=None, node=None):
     from gpu_platform_control.core.policies import effective_policy
     from gpu_platform_control.core.quotas.accounting import persistent_usage
     from gpu_platform_control.core.quotas.models import NodeResource
+    from gpu_platform_control.core.quotas.rules import resource_limit
     from gpu_platform_control.core.nodes.selection import selected_node
     from .resource_display import node_resources
     node = node or selected_node()
@@ -173,7 +174,14 @@ def request_capacity(user, overview=None, node=None):
     for row in resources:
         definition = definitions[row["key"]]
         limit = None if policy.unlimited and definition.accounting == "task" else policy.resources.get(row["key"], None if policy.unlimited else 0)
-        row["quota_available"] = None if limit is None else limit if definition.accounting == "volume" else max(0, limit - persistent_usage(user, node, definition))
+        if definition.key == "system_storage":
+            limit = resource_limit(policy, definition.key, rules={})
+        used = 0
+        if (limit is not None and definition.accounting != "volume") or definition.key == "system_storage":
+            used = persistent_usage(user, node, definition)
+        row["quota_available"] = None if limit is None else max(0, limit - used)
+        if definition.key == "system_storage":
+            row["quota_reserved"] = used
         row["quota_total"] = limit
     return {"fresh": overview["fresh"], **accelerator_texts(node), "resources": resources, "gpus": [
         {"node_id": gpu["node_id"], "node_name": gpu["node_name"], "index": gpu["index"],

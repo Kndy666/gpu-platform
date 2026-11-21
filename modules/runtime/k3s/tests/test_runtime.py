@@ -29,7 +29,7 @@ class Cluster:
         if not self.available:
             raise ConnectionError()
         if resource == "nodes":
-            return [{"status": {"allocatable": {"cpu": "8000m", "memory": "16Gi"}}}]
+            return [{"status": {"allocatable": {"cpu": "8000m", "memory": "16Gi", "ephemeral-storage": "64Gi"}}}]
         return [obj for (kind, _), obj in self.objects.items() if kind == "Pod"]
 
     def ensure(self, obj):
@@ -54,7 +54,7 @@ def execution(tmp_path):
         owner="user-a",
         kind="interactive",
         image="example.invalid/environment:latest",
-        resources={"cpu": 2, "memory": 4},
+        resources={"cpu": 2, "memory": 4, "system_storage": 3},
         identity=EnvironmentIdentity(username="member", uid=1000, gid=1000),
         expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
         login_port=31000,
@@ -84,7 +84,7 @@ def test_repeated_start_reserves_once(execution):
     count = cluster.creations
     assert runtime.start(task, inputs) == first
     assert cluster.creations == count
-    assert runtime.resources().used == {"cpu": 2, "memory": 4}
+    assert runtime.resources().used == {"cpu": 2, "memory": 4, "system_storage": 3}
 
 
 def test_unknown_submission_state_does_not_reexecute(execution):

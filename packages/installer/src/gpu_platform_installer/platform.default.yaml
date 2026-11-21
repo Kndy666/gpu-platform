@@ -77,6 +77,7 @@ control:
         memory: 12
         work_storage: 300
         image_storage: 200
+        system_storage: 5
         gpu_compute: 100
         gpu_memory: 24
       per_allocation:
@@ -93,6 +94,7 @@ control:
         memory: 24
         work_storage: 500
         image_storage: 400
+        system_storage: 5
         gpu_compute: 200
         gpu_memory: 48
       per_allocation:
@@ -116,3 +118,12 @@ hosts:
     roles: [control, node]
     architecture: amd64
     address: 127.0.0.1
+    slots:
+      registry:
+        module: zot
+        options:
+          existing_images_pool: disk1
+          pools:
+            - {name: disk1, path: /data1/platform/images}
+            - {name: disk2, path: /data2/platform/images}
+            - {name: disk3, path: /data3/platform/images}

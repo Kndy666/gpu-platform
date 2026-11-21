@@ -400,7 +400,7 @@ def test_uncertain_bulk_import_preserves_source_snapshot_and_reuses_target_strea
     gateway.uncertain_import = False
     finished = run_sync(job.pk, transfers.transfer)
     assert finished.state == "completed"
-    assert gateway.transport.uploads == [(job.pk.hex, b"archive"), (job.pk.hex, b"archive")]
+    assert gateway.transport.uploads == [(job.pk.hex, b"archive")]
 
 
 def test_pending_bulk_operation_has_a_deadline():

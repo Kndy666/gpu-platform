@@ -35,6 +35,7 @@ class Options(Contract):
     images: list[CatalogImage] = Field(default_factory=list, description="Public node-local image catalog.")
     reserve_cpu: int = Field(default=4, ge=0, description="CPU cores reserved for host services.")
     reserve_memory_gib: int = Field(default=16, ge=0, description="Host service memory reservation in GiB.")
+    image_cache_max_age_hours: int = Field(default=4, gt=0, description="Maximum idle age for cached K3s images.")
     network: Network | None = Field(default=None, description="Execution cluster network overrides.")
     registry_trust: dict[str, str] = Field(default_factory=dict,
         description="Registry authorities mapped to CA files; relative paths use the state directory.")

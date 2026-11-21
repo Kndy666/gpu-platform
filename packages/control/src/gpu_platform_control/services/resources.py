@@ -50,6 +50,7 @@ def register_capabilities(node_id, report: CapabilityReport):
         node.save()
         return False
     from gpu_platform_control.core.quotas.quantities import policy_quantities
+    from gpu_platform_control.core.policies import SYSTEM_STORAGE
     from gpu_platform_control.slots.configuration import cluster_config
 
     configured_groups = cluster_config().control.groups
@@ -96,7 +97,7 @@ def register_capabilities(node_id, report: CapabilityReport):
             if resource.label != values["label"]:
                 resource.label = values["label"]
                 resource.save(update_fields=["label"])
-            for group in UserGroup.objects.all():
+            for group in UserGroup.objects.all() if key != SYSTEM_STORAGE else ():
                 defaults = policy_quantities(group)
                 defaults.update(configured_groups.get(group.name, {}).get("resources", {}))
                 if resource.has_member_quota and key not in converted and key in defaults:
@@ -218,7 +219,7 @@ def reserve_resources(owner, node, subject, quantities):
     from gpu_platform_control.core.quotas.quantities import member_quantities
 
     quotas.update(member_quantities(profile))
-    from gpu_platform_control.core.policies import effective_policy
+    from gpu_platform_control.core.policies import SYSTEM_STORAGE, effective_policy
     from gpu_platform_control.core.quotas.rules import quota_rules, resource_limit
     policy = effective_policy(owner)
     rules = quota_rules(node)
@@ -244,7 +245,7 @@ def reserve_resources(owner, node, subject, quantities):
         if definition.scope == "node":
             others = others.filter(node=node)
         used = others.aggregate(total=Sum("amount"))["total"] or Decimal(0)
-        limit = resource_limit(policy, key, rules=rules) if key in rules else (
+        limit = resource_limit(policy, key, rules=rules) if key in rules or key == SYSTEM_STORAGE else (
             None if policy.unlimited else quotas.get(key, Decimal(0))
         )
         if limit is not None and used + amount > limit:

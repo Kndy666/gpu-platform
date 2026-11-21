@@ -193,6 +193,7 @@ def run_sync(job_id, transfer, cleanup=None):
             )
         elif result and job.kind == "image":
             cleanup_image = {
+                **job.cleanup_image,
                 "id": result.get("id", result.get("reference", "")),
                 "owner": "shared" if job.publish_shared else str(job.owner_id),
             }
@@ -215,7 +216,8 @@ def finish_cleanup(job, cleanup):
         cleanup(job, job.cleanup_image)
     except Exception:
         return False
+    pending = {"streams": job.cleanup_image["streams"]} if job.cleanup_image.get("streams") else {}
     SyncJob.objects.filter(pk=job.pk, state="cleaning").update(
-        state="failed", cleanup_image={}, ended_at=timezone.now()
+        state="failed", cleanup_image=pending, ended_at=timezone.now()
     )
     return True

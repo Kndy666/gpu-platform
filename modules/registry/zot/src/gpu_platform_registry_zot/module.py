@@ -3,12 +3,16 @@
 import hashlib
 import io
 import json
+import shutil
 import subprocess
 import tarfile
 import tempfile
+import time
+from contextlib import contextmanager, nullcontext
 from decimal import Decimal
 from pathlib import Path
 from urllib.parse import quote, urlencode, urljoin, urlsplit
+from threading import Lock
 
 import requests
 
@@ -18,6 +22,7 @@ from gpu_platform_contracts.resources import ResourceDefinition, ResourceUsage
 from gpu_platform_contracts.slots.registry import Registry
 from gpu_platform_contracts.texts import LocalizedText
 from .options import Options
+from .pools import ImagePlacement
 
 from .accounts import Accounts
 
@@ -59,6 +64,10 @@ class Module(Registry):
         self.root.mkdir(mode=0o700, parents=True, exist_ok=True)
         self.records = self.root / "images"
         self.records.mkdir(mode=0o700, exist_ok=True)
+        self.placement = ImagePlacement(self.root, Options.model_validate(context.options), self.records)
+        self.archive_lock = Lock()
+        self.active_archives: set[Path] = set()
+        self.archive_scan_due = 0.0
         self.session = session or requests.Session()
         self.session.trust_env = False
         from .install import registry_url
@@ -80,6 +89,12 @@ class Module(Registry):
         from .install import install
 
         install(context)
+
+    @classmethod
+    def check_host(cls, context):
+        from .install import check_host
+
+        return check_host(context)
 
     @classmethod
     def compose(cls, context):
@@ -112,9 +127,10 @@ class Module(Registry):
             raise ValueError("registry.redirect_rejected")
         return response
 
-    def repo(self, owner, image_id=None):
+    def repo(self, owner, image_id=None, *, pool=None):
         suffix = hashlib.sha256(image_id.encode()).hexdigest() if image_id else "images"
-        return "user-" + hashlib.sha256(owner.encode()).hexdigest()[:32] + "/" + suffix
+        namespace = "user-" + hashlib.sha256(owner.encode()).hexdigest()[:32]
+        return f"pool-{pool}/{namespace}/{suffix}" if pool else f"{namespace}/{suffix}"
 
     def image_repo(self, image):
         return image.metadata.get("repository", self.repo(image.owner))
@@ -188,12 +204,35 @@ class Module(Registry):
         location = source.location if isinstance(source, Snapshot) else source.reference
         architecture = source.metadata.get("architecture", self.context.options.get("architecture", "amd64"))
 
-        def chunks():
-            with open(location, "rb") as stream:
-                while data := stream.read(1024 * 1024):
-                    yield data
+        return self.ingest(image_id, owner, architecture, source=Path(location))
 
-        return self.import_image(image_id, owner, architecture, chunks())
+    @contextmanager
+    def archive_directory(self, prefix):
+        with self.archive_lock:
+            temporary = tempfile.TemporaryDirectory(dir=self.root, prefix=prefix)
+            path = Path(temporary.name)
+            self.active_archives.add(path)
+        try:
+            yield path
+        finally:
+            with self.archive_lock:
+                self.active_archives.remove(path)
+                temporary.cleanup()
+
+    def clean_temporary_archives(self):
+        if time.monotonic() < self.archive_scan_due:
+            return
+        cutoff = time.time() - 4 * 3600
+        with self.archive_lock:
+            for pattern in ("import-*", "export-*"):
+                for path in self.root.glob(pattern):
+                    if path in self.active_archives or path.is_symlink() or not path.is_dir():
+                        continue
+                    if path.stat().st_mtime < cutoff and all(
+                        item.lstat().st_mtime < cutoff for item in path.rglob("*")
+                    ):
+                        shutil.rmtree(path)
+            self.archive_scan_due = time.monotonic() + 15 * 60
 
     def delete(self, image_id, owner):
         if not self.path(image_id).exists():
@@ -218,8 +257,7 @@ class Module(Registry):
     def export_image(self, image_id, owner):
         image = self.get(image_id, owner)
         repo = self.image_repo(image)
-        with tempfile.TemporaryDirectory(dir=self.root, prefix="export-") as directory:
-            root = Path(directory)
+        with self.archive_directory("export-") as root:
             blobs = root / "blobs" / "sha256"
             blobs.mkdir(parents=True)
             response = self.request(
@@ -274,22 +312,32 @@ class Module(Registry):
         return value.split(":")[1]
 
     def import_image(self, image_id, owner, architecture, chunks):
+        return self.ingest(image_id, owner, architecture, chunks=chunks)
+
+    def import_archive(self, image_id, owner, architecture, archive):
+        return self.ingest(image_id, owner, architecture, source=archive)
+
+    def ingest(self, image_id, owner, architecture, *, chunks=(), source=None):
         if architecture not in {"amd64", "arm64"}:
             raise ValueError("registry.invalid_architecture")
         if architecture != self.context.options.get("architecture", architecture):
             raise ValueError("registry.architecture_mismatch")
         if self.path(image_id).exists():
-            image = self.get(image_id, owner)
-            for _ in chunks:
-                pass
-            return image
+            return self.get(image_id, owner)
         self.credentials(owner)
-        with tempfile.TemporaryDirectory(dir=self.root, prefix="import-") as directory:
-            root = Path(directory)
-            archive_path = root / "image.tar"
-            with archive_path.open("wb") as stream:
-                for chunk in chunks:
-                    stream.write(chunk)
+        workspace = self.archive_directory("import-") if source is None else nullcontext()
+        with workspace as directory:
+            archive_path = source
+            if archive_path is None:
+                assert directory is not None
+                archive_path = directory / "image.tar"
+                remaining = shutil.disk_usage(directory).free
+                with archive_path.open("wb") as stream:
+                    for chunk in chunks:
+                        remaining -= len(chunk)
+                        if remaining < 0:
+                            raise OSError("registry.archive_capacity_unavailable")
+                        stream.write(chunk)
             with tarfile.open(archive_path) as archive:
                 members = {}
                 for member in archive:
@@ -382,9 +430,9 @@ class Module(Registry):
                     manifest = json.dumps(content, separators=(",", ":")).encode()
                     descriptor = {**descriptor, "digest": "sha256:" + hashlib.sha256(manifest).hexdigest(),
                                   "size": len(manifest)}
-                repo = self.repo(owner, image_id)
                 size = 0
-                for blob in image_blobs(content):
+                blobs = image_blobs(content)
+                for blob in blobs:
                     digest = self.digest(blob["digest"])
                     with read_blob(blob["digest"]) as stream:
                         checksum, actual_size = hashlib.sha256(), 0
@@ -394,6 +442,11 @@ class Module(Registry):
                         if checksum.hexdigest() != digest or actual_size != blob["size"]:
                             raise ValueError("registry.digest_mismatch")
                     size += actual_size
+                pool = self.placement.reserve(
+                    image_id, owner, descriptor["digest"], size + len(manifest) + 4096
+                )
+                repo = self.repo(owner, image_id, pool=pool)
+                for blob in blobs:
                     response = self.request("POST", f"/v2/{repo}/blobs/uploads/", owner)
                     location = response.headers["Location"]
                     location += ("&" if "?" in location else "?") + urlencode({"digest": blob["digest"]})
@@ -405,7 +458,7 @@ class Module(Registry):
                             data=stream,
                             headers={
                                 "Content-Type": "application/octet-stream",
-                                "Content-Length": str(actual_size),
+                                "Content-Length": str(blob["size"]),
                             },
                         )
                 tag = hashlib.sha256(image_id.encode()).hexdigest()
@@ -425,7 +478,8 @@ class Module(Registry):
                     architecture=architecture,
                     size_bytes=size,
                     digest=descriptor["digest"],
-                    metadata={"tag": tag, "repository": repo},
+                    metadata={"tag": tag, "repository": repo, **({"pool": pool} if pool else {})},
                 )
                 self.save(image)
+                self.placement.release(image_id)
         return self.get(image_id, owner)

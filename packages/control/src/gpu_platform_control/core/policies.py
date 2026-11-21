@@ -3,7 +3,10 @@
 from dataclasses import dataclass
 from decimal import Decimal
 from gpu_platform_control.core.accounts.models import UserProfile
-from gpu_platform_control.core.quotas.models import ResourceQuota
+from gpu_platform_control.core.quotas.models import RegisteredResource, ResourceQuota
+
+DEFAULT_SYSTEM_STORAGE_GIB = 5
+SYSTEM_STORAGE = 'system_storage'
 
 
 @dataclass(frozen=True)
@@ -22,6 +25,8 @@ def group_policy(group):
 
     configured = cluster_config().control.groups.get(group.name, {})
     resources = dict(configured.get('resources', {}))
+    if SYSTEM_STORAGE not in resources and RegisteredResource.objects.filter(pk=SYSTEM_STORAGE).exists():
+        resources[SYSTEM_STORAGE] = DEFAULT_SYSTEM_STORAGE_GIB
     per_allocation = dict(configured.get('per_allocation', configured.get('per_allocation_limits', {})))
     for quota in ResourceQuota.objects.filter(group=group).select_related('resource'):
         resources[quota.resource_id] = quota.limit
@@ -51,7 +56,7 @@ def effective_policy(user):
     stored = profile.resource_limits
     values.update({key: stored[key] for key in ('unlimited', 'concurrent_tasks', 'interactive_hours') if key in stored})
     for key in ('resources', 'per_allocation'):
-        values[key].update(stored.get(key, {}))
+        values[key].update({name: value for name, value in stored.get(key, {}).items() if name != SYSTEM_STORAGE})
     return Policy(
         unlimited=values['unlimited'], concurrent_tasks=values['concurrent_tasks'],
         interactive_hours=values['interactive_hours'], extension_limit=profile.extension_limit,

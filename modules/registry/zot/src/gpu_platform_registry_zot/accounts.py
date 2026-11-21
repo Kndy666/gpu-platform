@@ -79,11 +79,15 @@ class Accounts:
             return account
 
     def publish(self, accounts):
+        from .options import Options
+        from .pools import storage_config
+
+        options = Options.model_validate(self.options)
         repositories: dict[str, Any] = {"**": {"defaultPolicy": []}}
         lines = []
         for owner, account in accounts.items():
             prefix = "user-" + hashlib.sha256(owner.encode()).hexdigest()[:32]
-            repositories[prefix + "/**"] = {
+            writer = {
                 "policies": [
                     {
                         "users": [account["writer"]["username"]],
@@ -91,6 +95,9 @@ class Accounts:
                     },
                 ]
             }
+            repositories[prefix + "/**"] = writer
+            for pool in options.pools:
+                repositories[f"pool-{pool.name}/{prefix}/**"] = writer
             for identity in account.values():
                 lines.append(identity["username"] + ":" + identity["hash"])
         readers_path = self.root / "readers.json"
@@ -98,14 +105,14 @@ class Accounts:
         for account in readers.values():
             lines.append(account["username"] + ":" + account["hash"])
             for repository in account["repositories"]:
-                owner_namespace = repository.split("/")[0]
+                owner_namespace = repository.rsplit("/", 1)[0]
                 # An exact match must retain the writer policy from its namespace.
                 inherited = repositories.get(owner_namespace + "/**", {}).get("policies", [])
                 policies = repositories.setdefault(repository, {"policies": list(inherited)})["policies"]
                 policies.append({"users": [account["username"]], "actions": ["read"]})
         config = {
             "distSpecVersion": "1.1.1",
-            "storage": {"rootDirectory": "/var/lib/registry/data", "gc": True},
+            "storage": storage_config(options),
             "http": {
                 "address": "0.0.0.0",
                 "port": str(self.options.get("port", 5000)),

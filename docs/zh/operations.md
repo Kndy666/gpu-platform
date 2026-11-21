@@ -132,7 +132,13 @@ sudo platformctl upgrade --config cluster.yaml --host compute-a \
 <summary>其他部署设置</summary>
 
 - **仓库网络：** Zot 默认为 `https://127.0.0.1:5000`。BuildKit 通过内部 `registry:<port>` 端点使用相同凭据与 CA。使用 DNS 地址时，以仓库 `publish_address` 指定接口；自定义构建网络使用 `build_mirrors`。外部仓库 CA 填入运行模块的 `registry_trust`，相对路径按状态目录解析。
+- **镜像池**在 `hosts.<节点>.slots.registry.options.pools` 按节点填写池名和数据盘绝对路径，每个池使用一个独立挂载的文件系统。Zot 默认路由指向 `existing_images_pool`（默认第一个池）上的 `existing` 目录。已有仓库在维护窗口停服后，将数据按原目录结构、权限和硬链接准备到该目录，原拉取地址、摘要和读取权限继续有效。新镜像先筛出空间足够的池，再选该用户镜像占该文件系统比例最低的池。扩容时可以增加新池，保留已有镜像对应的池名和挂载。
 - **默认环境配方：** `parameters.bootstrap_recipe` 选择控制主机可读的 Dockerfile，`parameters.bootstrap_context` 选择 `trusted:environment` 等构建上下文。默认合并主机自动发布内置配方；专用控制主机需要准备可读配方。控制中心管理命令 `bootstrap_workspace` 可主动提交构建。
+- **BuildKit 缓存**默认目标为 12 GiB，闲置保留时长为 4 小时。用 `slots.build.options.cache_budget_gib` 和 `cache_max_age_hours` 按节点配置。构建器在构建结束后以及空闲时每隔 15 分钟，先按时长再按容量回收。
+- 安装器为 **K3s 镜像缓存**设置闲置 4 小时回收，可通过 `slots.runtime.options.image_cache_max_age_hours` 调整。kubelet 定期检查磁盘，使用率达到 85% 时启动空间回收，目标为 80%。
+- 主机每 15 分钟回收闲置 4 小时的 **Docker 构建缓存**，再按 4 GiB 的目标回收。
+- **临时归档**在结果保存或操作结束后清理。重试继续使用完整归档。没有任务引用的临时文件在闲置 4 小时后回收。
+- **系统卷**在用户组页面或 `control.groups.<组名>.resources.system_storage` 设置。默认每用户跨节点合计 5 GiB，每个任务按整数 GiB 申请。K3s 将申请量写入 Pod 临时存储的请求值和上限，计入容器可写层和日志。任务清理完成后释放额度。
 - **配额：** 用户组 `resources` 使用模块资源键。`home_size_gib` 设置新成员默认值，成员保留自己的设置。工作卷按每个容器申请的容量校验。NVIDIA 显存申请使用 GiB，步长为 1 MiB。选择「最大」时，平台在提交时按设备预算和配额确定申请量，排队期间沿用该数值。
 - **离线主机：** 通过 `parameters.image_archives` 提供镜像归档，启用 `parameters.offline`，并准备系统软件包和运行模块的版本化下载缓存。
 - **防火墙：** `parameters.network` 设置公网接口与私有端口，安装器管理的防火墙服务会在主机重启后恢复规则。

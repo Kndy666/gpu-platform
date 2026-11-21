@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import base64
 import json
+import logging
 import os
 import re
 import shutil
@@ -24,6 +25,9 @@ from gpu_platform_contracts.texts import Message
 
 from .options import Options
 from .host import PROFILE_NAME
+
+logger = logging.getLogger(__name__)
+BUILDKIT_ADDRESS = "unix:///run/user/1000/buildkit/buildkitd.sock"
 
 def container_name(context):
     return context.options.get(
@@ -61,6 +65,11 @@ class Module(Build):
         self.lock = threading.RLock()
         self.closed = threading.Event()
         self.container = container_name(context)
+        options = Options.model_validate(context.options)
+        self.cache_budget_mb = options.cache_budget_gib * 2**30 // 1_000_000
+        self.cache_max_age_hours = options.cache_max_age_hours
+        self.cache_cleanup_due = 0.0
+        self.cache_cleanup_retry_at = 0.0
         self.thread = None
         if background:
             self.thread = threading.Thread(target=self.worker, daemon=True)
@@ -162,6 +171,24 @@ class Module(Build):
     def clean_access(self, directory):
         shutil.rmtree(directory / "auth", ignore_errors=True)
 
+    def finish(self, directory, record):
+        self.save(directory, record)
+        self.clean_access(directory)
+        self.cache_cleanup_due = 0.0
+
+    def clean_cache(self):
+        if time.monotonic() < max(self.cache_cleanup_due, self.cache_cleanup_retry_at):
+            return
+        command = ["exec", self.container, "buildctl", "--addr", BUILDKIT_ADDRESS, "prune", "--all"]
+        try:
+            self.execute([*command, "--keep-duration", f"{self.cache_max_age_hours}h"])
+            self.execute([*command, "--keep-storage", str(self.cache_budget_mb)])
+        except (OSError, subprocess.SubprocessError) as error:
+            self.cache_cleanup_retry_at = time.monotonic() + 60
+            logger.warning("BuildKit cache cleanup failed for %s: %s", self.container, error)
+        else:
+            self.cache_cleanup_due = time.monotonic() + 15 * 60
+
     def build(self, spec):
         with self.lock:
             directory = self.directory(spec.id)
@@ -236,7 +263,7 @@ class Module(Build):
                 self.container,
                 "sh",
                 "-c",
-                "for attempt in $(seq 1 30); do buildctl --addr unix:///run/user/1000/buildkit/buildkitd.sock debug workers >/dev/null 2>&1 && exit 0; sleep 1; done; exit 1",
+                f"for attempt in $(seq 1 30); do buildctl --addr {BUILDKIT_ADDRESS} debug workers >/dev/null 2>&1 && exit 0; sleep 1; done; exit 1",
             ]
         )
         self.execute(
@@ -260,7 +287,7 @@ class Module(Build):
             clone = f"git -c http.followRedirects=false clone --depth 1 -- {shlex.quote(record['git_context'])} {context_path} && "
         # All shell substitutions below are generated identifiers and fixed arguments.
         command = (
-            f"( {clone}DOCKER_CONFIG={root}/auth buildctl --addr unix:///run/user/1000/buildkit/buildkitd.sock build "
+            f"( {clone}DOCKER_CONFIG={root}/auth buildctl --addr {BUILDKIT_ADDRESS} build "
             f"--frontend dockerfile.v0 --local context={context_path} --local dockerfile={root}/context "
             f"--opt platform=linux/{architecture} --output type=oci,dest={root}/image.tar "
             f") >{root}/build.log 2>&1; result=$?; printf '%s' \"$result\" >{root}/exit.tmp; "
@@ -293,22 +320,17 @@ class Module(Build):
                     record.update(state="completed", digest=digest)
                 except (OSError, ValueError, KeyError, IndexError, tarfile.TarError):
                     record.update(state="failed", error="build.invalid_output")
-            self.save(directory, record)
-            self.clean_access(directory)
         elif self.boot() != record["boot"]:
             record.update(state="failed", error="build.service_restarted")
-            self.save(directory, record)
-            self.clean_access(directory)
         elif time.time() - record["launched_at"] > self.context.options.get("max_build_seconds", 3600):
             self.execute(["restart", "--time", "5", self.container])
             record.update(state="failed", error="build.expired")
-            self.save(directory, record)
-            self.clean_access(directory)
         elif not (directory / "build.log").exists() and time.time() - record["launched_at"] > 60:
             # A launch interrupted before docker exec has no worker to complete it.
             record.update(state="failed", error="build.launch_interrupted")
-            self.save(directory, record)
-            self.clean_access(directory)
+        else:
+            return
+        self.finish(directory, record)
 
     def advance(self):
         with self.lock:
@@ -320,6 +342,7 @@ class Module(Build):
                     self.complete(directory, record)
             if any(record["state"] == "running" for _, record in records):
                 return
+            self.clean_cache()
             queued = sorted(
                 ((directory, record) for directory, record in records if record["state"] == "queued"),
                 key=lambda item: item[1]["created_at"],
@@ -336,8 +359,7 @@ class Module(Build):
                         except (OSError, subprocess.SubprocessError):
                             return
                     record.update(state="failed", error="build.service_unavailable")
-                    self.save(directory, record)
-                    self.clean_access(directory)
+                    self.finish(directory, record)
 
     def result(self, record):
         spec = BuildSpec.model_validate(record["spec"])
@@ -373,12 +395,13 @@ class Module(Build):
     def cancel(self, build_id):
         with self.lock:
             record = self.read(build_id)
-            if record["state"] in {"completed", "failed"}:
+            if record["state"] == "failed":
+                self.release_result(build_id)
                 return
             if record["state"] == "running":
                 self.execute(["restart", "--time", "5", self.container])
             record.update(state="failed", error="build.cancelled")
-            self.save(self.directory(build_id), record)
+            self.finish(self.directory(build_id), record)
             self.release_result(build_id)
             self.advance()
 
@@ -469,7 +492,7 @@ class Module(Build):
                             "CMD",
                             "buildctl",
                             "--addr",
-                            "unix:///run/user/1000/buildkit/buildkitd.sock",
+                            BUILDKIT_ADDRESS,
                             "debug",
                             "workers",
                         ],

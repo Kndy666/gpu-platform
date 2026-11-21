@@ -1475,3 +1475,6 @@ msgstr "带宽必须大于或等于零。"
 
 msgid "Wait for the current image copy to finish before changing its sharing mode."
 msgstr "请等待当前镜像复制完成后再更改副本的共享方式。"
+
+msgid "Set a whole number."
+msgstr "请输入整数。"

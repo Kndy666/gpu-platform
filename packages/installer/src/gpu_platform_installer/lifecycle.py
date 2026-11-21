@@ -14,6 +14,7 @@ import yaml
 from gpu_platform_contracts.config import PlatformConfig
 from gpu_platform_contracts.messages import ACTIVE_STATES, Command, NodeReport, Operation, compatible_version
 from gpu_platform_contracts.module import ModuleContext
+from gpu_platform_contracts.host import HostOwnership
 
 from .checks import module_context, validate
 from .compose import render_compose
@@ -262,6 +263,9 @@ class Installer:
             module = modules[key]
             module.implementation.uninstall_host(module_context(self.config, self.host, module, self.runner, self.facts))
         host = resolve_host(self.config, self.host)
-        remove_firewall(HostContext(self.host, {}, Path(self.config.cluster.state_directory),
-            effective_config(self.config), host.model_dump(mode="json"), self.runner, self.facts or {}))
+        context = HostContext(self.host, {}, Path(self.config.cluster.state_directory),
+            effective_config(self.config), host.model_dump(mode="json"), self.runner, self.facts or {})
+        if HostOwnership(context, "docker-builder-cache").cleanup():
+            self.runner(["systemctl", "daemon-reload"])
+        remove_firewall(context)
         (self.directory / "uninstalled.json").write_text(json.dumps({"host": self.host, "data_preserved": True}))

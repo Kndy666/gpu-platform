@@ -83,9 +83,12 @@ def normalized_policy(values, defaults):
     if any(not item.has_member_quota or item.key in rules for item in registered.values()):
         raise ValidationError(_('Unknown resource.'), code='resource_unavailable')
     for key, value in resources.items():
-        if registered[key].accounting == 'volume' and value is None:
+        if (registered[key].accounting == 'volume' or key == 'system_storage') and value is None:
             raise ValidationError(_('Set a resource limit.'), code='resource_quota_required')
-        resources[key] = None if (unlimited and registered[key].accounting == 'task') or value is None else str(quantity(value, None))
+        amount = None if value is None else quantity(value)
+        if key == 'system_storage' and amount is not None and amount != amount.to_integral_value():
+            raise ValidationError(_('Set a whole number.'), code='resource_amount_invalid')
+        resources[key] = None if (unlimited and key != 'system_storage' and registered[key].accounting == 'task') or amount is None else str(amount)
     for key, value in per_allocation.items():
         if not registered[key].per_allocation:
             raise ValidationError(_('Unknown resource.'), code='resource_allocation_unavailable')
@@ -131,6 +134,7 @@ def save_member(actor, values, member_id=None):
     group = find(UserGroup, pk=values.get('group') or (member.profile.group_id if member.pk else UserGroup.objects.order_by('-is_default', 'pk').first().pk))
     initial = member.profile.resource_limits if member.pk else group_policy(group)
     policy = normalized_policy(values, initial)
+    policy['resources'].pop('system_storage', None)
     for key in ('username', 'first_name', 'email', 'is_active'):
         if key in values:
             setattr(member, key, values[key])

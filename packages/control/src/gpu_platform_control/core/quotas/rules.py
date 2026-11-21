@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 
 from gpu_platform_contracts.resources import ResourceQuotaRule
 from gpu_platform_control.core.nodes.models import ComputeNode
+from gpu_platform_control.core.policies import SYSTEM_STORAGE
 
 
 def quota_rules(node=None, *, exclude_node_id=None):
@@ -25,6 +26,8 @@ def quota_rules(node=None, *, exclude_node_id=None):
 
 
 def resource_limit(policy, key, *, rules):
+    if key == SYSTEM_STORAGE:
+        return policy.resources.get(key, Decimal(0))
     if policy.unlimited:
         return None
     rule = rules.get(key)

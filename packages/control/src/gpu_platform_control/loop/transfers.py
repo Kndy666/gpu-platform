@@ -16,21 +16,52 @@ class Transfers:
             self.gateway, node, operation, clock=self.clock, sleep=self.sleep, **payload
         )
 
+    def clean_image_streams(self, job):
+        pending = job.cleanup_image.get("streams", {})
+        if not pending:
+            return
+        remaining = pending.copy()
+        for node in (job.source, job.target):
+            streams = pending.get(str(node.pk))
+            if streams:
+                try:
+                    self.gateway.request(node, Operation.CLEANUP, streams=streams)
+                except (OSError, ConnectionError, NodeCommandError):
+                    continue
+                remaining.pop(str(node.pk))
+        if remaining:
+            job.cleanup_image["streams"] = remaining
+        else:
+            job.cleanup_image.pop("streams", None)
+        job.save(update_fields=["cleanup_image"])
+
     def transfer(self, job, progress):
         if job.kind == "datasets":
             return self.transfer_files(job, progress)
         gateway = self.gateway
         source = gateway.module(job.source, "transport")
         target = gateway.module(job.target, "transport")
-        streams = []
         uncertain = False
         stream_id = job.pk.hex
+        pending = job.cleanup_image.setdefault("streams", {})
+        for node in (job.source, job.target):
+            pending.setdefault(str(node.pk), [stream_id])
+        job.save(update_fields=["cleanup_image"])
         try:
+            image = {"stream_id": stream_id, "image_id": f"{job.owner_id}/sync-{job.pk.hex}",
+                     "owner": "shared" if job.publish_shared else str(job.owner_id),
+                     "architecture": job.image.architecture}
+            if job.error.get("code") == "sync_delivery_uncertain":
+                result = self.wait(job.target, Operation.IMAGE_IMPORT, resume_only=True, **image)
+                if not result.get("needs_archive"):
+                    return result
             export = self.wait(job.source, Operation.IMAGE_EXPORT,
                 image_id=job.image.node_image_id or job.image.reference,
                 owner=job.image.node_image_owner or str(job.image.owner_id or "shared"),
-                transfer_id=str(job.pk))
-            streams.extend([(job.source, export["stream_id"]), (job.target, stream_id)])
+                transfer_id=str(job.pk), stream_id=stream_id)
+            if export["stream_id"] not in pending[str(job.source.pk)]:
+                pending[str(job.source.pk)].append(export["stream_id"])
+                job.save(update_fields=["cleanup_image"])
             total = export.get("size_bytes")
             started = self.clock()
             transferred = 0
@@ -48,19 +79,18 @@ class Transfers:
                     yield chunk
 
             target.send_stream(gateway.endpoint(job.target), stream_id, chunks())
-            return self.wait(job.target, Operation.IMAGE_IMPORT, stream_id=stream_id,
-                image_id=f"{job.owner_id}/sync-{job.pk.hex}",
-                owner="shared" if job.publish_shared else str(job.owner_id), architecture=job.image.architecture)
+            return self.wait(job.target, Operation.IMAGE_IMPORT, **image)
         except (OSError, ConnectionError) as exc:
             uncertain = True
             raise UncertainImport() from exc
+        except NodeCommandError as exc:
+            if exc.message.code == "command.failed":
+                uncertain = True
+                raise UncertainImport() from exc
+            raise
         finally:
             if not uncertain:
-                for node, identifier in streams:
-                    try:
-                        gateway.request(node, Operation.CLEANUP, streams=[identifier])
-                    except (OSError, ConnectionError, NodeCommandError):
-                        pass
+                self.clean_image_streams(job)
 
     def transfer_files(self, job, progress):
         gateway = self.gateway
@@ -165,6 +195,9 @@ class Transfers:
         from gpu_platform_control.services.sync_policies import schedule_transfers
 
         schedule_transfers()
+        for job in SyncJob.objects.filter(state__in=["completed", "failed", "cleaning"],
+                cleanup_image__has_key="streams").select_related("source", "target"):
+            self.clean_image_streams(job)
         for job in SyncJob.objects.filter(state="cleaning").select_related("target"):
             finish_cleanup(job, self.discard)
         for identifier in (

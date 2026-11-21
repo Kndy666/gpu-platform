@@ -3,6 +3,7 @@ import re
 import tempfile
 import time
 import threading
+from collections import Counter
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterable
@@ -36,6 +37,8 @@ class Streams:
         self.progress_directory = directory.parent / (directory.name + "-progress")
         self.progress_directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.progress_lock = threading.Lock()
+        self.archive_lock = threading.RLock()
+        self.in_use: Counter[str] = Counter()
         self.source_directory = directory.parent / (directory.name + "-files")
         self.receiver_directory = directory.parent / (directory.name + "-receivers")
         self.receiver = receiver
@@ -66,6 +69,23 @@ class Streams:
 
     @contextmanager
     def download(self, stream_id):
+        with self.hold(stream_id), self.open_stream(stream_id) as stream:
+            yield stream
+
+    @contextmanager
+    def hold(self, name):
+        with self.archive_lock:
+            self.in_use[name] += 1
+        try:
+            yield
+        finally:
+            with self.archive_lock:
+                self.in_use[name] -= 1
+                if not self.in_use[name]:
+                    del self.in_use[name]
+
+    @contextmanager
+    def open_stream(self, stream_id):
         self.path(stream_id)
         record_path = self.source_directory / (stream_id + ".json")
         if record_path.exists():
@@ -127,17 +147,18 @@ class Streams:
     @contextmanager
     def writer(self, stream_id):
         destination = self.path(stream_id)
-        fd, temporary = tempfile.mkstemp(prefix=".incoming-", dir=self.directory)
-        try:
-            with os.fdopen(fd, "wb") as output:
-                limited = LimitedOutput(output, self.maximum_bytes)
-                yield limited
-                output.flush()
-                os.fsync(output.fileno())
-            os.replace(temporary, destination)
-        finally:
-            if os.path.exists(temporary):
-                os.unlink(temporary)
+        with self.hold(stream_id):
+            with self.archive_lock:
+                fd, temporary = tempfile.mkstemp(prefix=f".incoming-{stream_id}.", dir=self.directory)
+            try:
+                with self.hold(Path(temporary).name), os.fdopen(fd, "wb") as output:
+                    limited = LimitedOutput(output, self.maximum_bytes)
+                    yield limited
+                    output.flush()
+                    os.fsync(output.fileno())
+                    os.replace(temporary, destination)
+            finally:
+                Path(temporary).unlink(missing_ok=True)
 
     def receive(self, stream_id: str, chunks: Iterable[bytes]) -> int:
         receiver = self.receiver_directory / (stream_id + ".json")
@@ -176,15 +197,25 @@ class Streams:
         yield from self.track(stream_id, chunks(), os.fstat(source.fileno()).st_size - source.tell())
 
     def remove(self, stream_id: str) -> None:
-        self.path(stream_id).unlink(missing_ok=True)
-        for directory in [self.source_directory, self.receiver_directory, self.progress_directory]:
-            (directory / (stream_id + ".json")).unlink(missing_ok=True)
+        with self.archive_lock:
+            if stream_id in self.in_use:
+                raise BlockingIOError("Stream is in use")
+            self.path(stream_id).unlink(missing_ok=True)
+            for partial in self.directory.glob(f".incoming-{stream_id}.*"):
+                partial.unlink(missing_ok=True)
+            for directory in [self.source_directory, self.receiver_directory, self.progress_directory]:
+                (directory / (stream_id + ".json")).unlink(missing_ok=True)
 
-    def clean_expired(self, maximum_age: int = 86400) -> None:
+    def clean_expired(self, maximum_age: int = 4 * 3600, *, retained=()) -> None:
         cutoff = time.time() - maximum_age
-        for item in self.directory.iterdir():
-            if item.is_file() and item.stat().st_mtime < cutoff:
-                item.unlink(missing_ok=True)
+        with self.archive_lock:
+            for item in self.directory.iterdir():
+                if item.name not in retained and item.name not in self.in_use and item.is_file():
+                    try:
+                        if item.stat().st_mtime < cutoff:
+                            item.unlink(missing_ok=True)
+                    except FileNotFoundError:
+                        pass
         with self.progress_lock:
             for item in self.progress_directory.glob("*.json"):
                 if item.stat().st_mtime < cutoff:

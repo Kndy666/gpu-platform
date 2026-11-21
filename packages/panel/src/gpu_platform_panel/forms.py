@@ -174,6 +174,8 @@ class RequestForm(InputForm):
             self.fields[name].widget.attrs.update(
                 {"step": definition.get("step") or (1 if definition.get("integral") else "any")}
             )
+            if definition.get("quota_available", 0) > 0:
+                self.fields[name].widget.attrs["max"] = definition["quota_available"]
             (self.volume_fields if kind else self.resource_fields).append(self[name])
         self.volume_fields = [field for field in self.volume_fields if not field.field.disabled]
         self.custom_resource_fields = self.resource_fields + self.volume_fields
@@ -267,10 +269,11 @@ class PolicyForm(InputForm):
         for definition in self.options.get("resources", []):
             key = definition["key"]
             name = "resource:" + key
-            self.fields[name] = forms.DecimalField(
+            constructor = forms.IntegerField if key == "system_storage" else forms.DecimalField
+            self.fields[name] = constructor(
                 label=label(definition),
                 min_value=0,
-                required=definition.get("accounting") == "volume",
+                required=definition.get("accounting") == "volume" or key == "system_storage",
                 initial=self.initial.get("resource_limits", {}).get(key), widget=CompactNumberInput,
             )
             if definition.get("accounting") == "image":
@@ -296,7 +299,7 @@ class PolicyForm(InputForm):
                     "per_allocation": self["allocation_limit:" + definition["key"]]
                     if definition.get("per_allocation") else None,
                 })
-            elif definition.get("accounting") == "volume" or definition.get("accounting") == "image":
+            elif definition.get("accounting") in {"volume", "image"} or definition["key"] == "system_storage":
                 self.storage_fields.append(field)
             else:
                 self.compute_fields.append(field)
