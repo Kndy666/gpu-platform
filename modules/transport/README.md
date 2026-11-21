@@ -1,8 +1,11 @@
-# Transport modules
+# Node connections
 
-- `local`: registered as `gpu_platform.slots.transport:local`.
-- `reverse-ssh`: registered as `gpu_platform.slots.transport:reverse-ssh`.
+[Module guide](../../docs/en/modules.md) · [中文指南](../../docs/zh/modules.md) · [Deployment](../../docs/en/operations.md)
 
-The local implementation uses a Unix socket. Reverse SSH connects remote nodes through authenticated SSH and a dedicated links service. Both provide versioned commands, separate bounded data streams, and bidirectional port connections.
+**Implementations:** `local`, `reverse-ssh` · **Slot:** `gpu_platform.slots.transport`
 
-The public interface and reusable behavioral suite are provided by `gpu-platform-contracts`. Third-party implementations declare their supported handoff forms and provide the same slot responsibilities.
+Connect control to execution nodes. `local` uses a Unix socket for a colocated node; `reverse-ssh` reaches remote nodes through an existing authenticated SSH tunnel and the links service.
+
+Both implementations provide versioned commands, bounded binary streams, and bidirectional port connections. Remote nodes need a separate key, verified host keys, and an SSH account with node-socket access.
+
+Custom implementations use the [slot interfaces](../../packages/contracts/src/gpu_platform_contracts/slots/transport.py) and reusable behavioral suites in `gpu-platform-contracts`.

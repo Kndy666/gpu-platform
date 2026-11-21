@@ -1,14 +1,16 @@
-# Standard environment smoke test
+# Check the standard environment
 
-`runner-smoke.sh` starts a temporary Docker container from an explicitly supplied standard environment image. It checks SSH, sudo, bubblewrap, binary file transfer, task continuation after SSH disconnect, durable logs, and batch exit status. The script removes its container and temporary files on exit.
+[Development guide](../../../../../docs/en/development.md) · [中文指南](../../../../../docs/zh/development.md)
 
-Run on an isolated host with Docker, OpenSSH tools, `/dev/net/tun`, and the installed runtime AppArmor profile:
+On an isolated host with Docker, OpenSSH tools, `/dev/net/tun`, and an installed runtime AppArmor profile, run from the repository root:
 
-```sh
+```bash
 TEST_FEATURES=docker \
 TEST_ENVIRONMENT_IMAGE=your-test-environment:tag \
 TEST_APPARMOR_PROFILE=your-installed-profile \
 bash modules/runtime/k3s/tests/live/runner-smoke.sh
 ```
 
-The image must contain the standard environment's UID/GID 1000 account and runner dependencies. The runner assigns that account the test login name `researcher`. The host profile is supplied explicitly so the probe cannot silently select a running deployment.
+The image needs the standard environment's UID/GID 1000 account and runner dependencies. The check assigns it the test login name `researcher` and uses the explicitly supplied profile.
+
+The script starts a temporary container, checks SSH, sudo, bubblewrap, binary file transfer, continued execution after SSH disconnect, durable logs, and batch exit status. It removes its container and temporary files on exit.

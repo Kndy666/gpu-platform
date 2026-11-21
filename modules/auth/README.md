@@ -1,7 +1,11 @@
-# Auth modules
+# Authentication
 
-- `local`: registered as `gpu_platform.slots.auth:local`.
+[Module guide](../../docs/en/modules.md) · [中文指南](../../docs/zh/modules.md) · [Deployment](../../docs/en/operations.md)
 
-The local implementation runs in the control image and validates accounts with Django password hashing. It returns a stable provider and subject identity; the control service creates user records and assigns the default group.
+**Implementations:** `local` · **Slot:** `gpu_platform.slots.auth`
 
-The public interface and reusable behavioral suite are provided by `gpu-platform-contracts`. Third-party implementations declare their supported handoff forms and provide the same slot responsibilities.
+Use platform accounts for sign-in. The local implementation verifies Django password hashes and returns a stable identity; control manages membership, permissions, and default group assignment.
+
+Implement this slot to connect an organization identity provider.
+
+Custom implementations use the [slot interfaces](../../packages/contracts/src/gpu_platform_contracts/slots/auth.py) and reusable behavioral suites in `gpu-platform-contracts`.

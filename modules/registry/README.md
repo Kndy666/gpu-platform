@@ -1,9 +1,11 @@
-# Registry modules
+# Image storage
 
-- `zot`: registered as `gpu_platform.slots.registry:zot`.
+[Module guide](../../docs/en/modules.md) · [中文指南](../../docs/zh/modules.md) · [Deployment](../../docs/en/operations.md)
 
-Runs Zot as a Compose service independently of the task runtime. It stores OCI images in owner namespaces with per-image read credentials, streams validated exports and imports, and grants temporary read access for builds. Configure a TLS address reachable from workloads and matching runtime trust.
+**Implementations:** `zot` · **Slot:** `gpu_platform.slots.registry`
 
-The registry shares the host's Compose bridge with the builder. Its advertised `url` defaults to `https://127.0.0.1:5000`, published on host loopback for the node and container runtime. The `build_mirrors` option (default `registry:<port>`) populates `registry_mirrors` in build handoff metadata so builds reach that service directly while retaining the advertised image reference. The generated certificate covers both addresses. For a DNS-based advertised URL, set `publish_address` to the intended host interface; it defaults to loopback. `port` selects the registry's container port, and the URL selects the published host port. A custom builder topology can supply its own mirror authorities or an empty list when the advertised address is directly reachable.
+Keep private and shared OCI images in a node-local Zot registry managed by Compose. Owner-scoped repositories support image lookup, deletion, validated export and import, and temporary read access for builds.
 
-The public interface and reusable behavioral suite are provided by `gpu-platform-contracts`. Third-party implementations declare their supported handoff forms and provide the same slot responsibilities.
+The default endpoint is `https://127.0.0.1:5000`; BuildKit uses the internal `registry:<port>` mirror. The installer shares TLS trust with the runtime. Address and custom-network settings are covered in the deployment guide.
+
+Custom implementations use the [slot interfaces](../../packages/contracts/src/gpu_platform_contracts/slots/registry.py) and reusable behavioral suites in `gpu-platform-contracts`.

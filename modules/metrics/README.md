@@ -1,7 +1,11 @@
-# Metrics modules
+# Hardware metrics
 
-- `host`: registered as `gpu_platform.slots.metrics:host`.
+[Module guide](../../docs/en/modules.md) · [中文指南](../../docs/zh/modules.md) · [Deployment](../../docs/en/operations.md)
 
-Samples Linux procfs, sysfs, mounted data pools, and optional NVIDIA readings from the privileged node container. It reports timestamped measurements; the control service handles admission and quotas.
+**Implementations:** `host` · **Slot:** `gpu_platform.slots.metrics`
 
-The public interface and reusable behavioral suite are provided by `gpu-platform-contracts`. Third-party implementations declare their supported handoff forms and provide the same slot responsibilities.
+View timestamped CPU, memory, disk, network, and available accelerator readings in the panel. The module samples host procfs, sysfs, configured data pools, and optional NVIDIA data.
+
+Set pool paths to match your storage disks. Missing readings remain null; control handles admission and quotas.
+
+Custom implementations use the [slot interfaces](../../packages/contracts/src/gpu_platform_contracts/slots/metrics.py) and reusable behavioral suites in `gpu-platform-contracts`.

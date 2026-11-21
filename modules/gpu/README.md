@@ -1,7 +1,11 @@
-# Gpu modules
+# Accelerators
 
-- `nvidia-mps`: registered as `gpu_platform.slots.gpu:nvidia-mps`.
+[Module guide](../../docs/en/modules.md) · [中文指南](../../docs/zh/modules.md) · [Deployment](../../docs/en/operations.md)
 
-Uses NVIDIA MPS partitions on hardware and drivers that support the required MPS commands. Compute is expressed as a percentage of one GPU and memory in GiB. It supports shared, whole-card, and multi-card requests, persists allocation leases, and installs the container toolkit and memory enforcement hook. Administrators install the GPU driver before setup.
+**Implementations:** `nvidia-mps`, `ascend` · **Slot:** `gpu_platform.slots.gpu`
 
-The public interface and reusable behavioral suite are provided by `gpu-platform-contracts`. Third-party implementations declare their supported handoff forms and provide the same slot responsibilities.
+Choose how a node allocates accelerators. NVIDIA MPS supports shared, whole-card, and multiple-GPU requests using compute percentages and GiB of memory. Ascend supports exclusive whole-chip allocation on ARM64 Ascend 310P hosts.
+
+Install the appropriate driver before setup. NVIDIA requires the MPS commands used by the module; Ascend images need a compatible CANN stack. Both implementations persist allocation leases. CPU-only nodes set `slots.gpu: null`.
+
+Custom implementations use the [slot interfaces](../../packages/contracts/src/gpu_platform_contracts/slots/gpu.py) and reusable behavioral suites in `gpu-platform-contracts`.

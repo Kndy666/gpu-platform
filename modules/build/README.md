@@ -1,7 +1,11 @@
-# Build slot
+# Image builds
 
-The `buildkit` implementation runs rootless BuildKit with a persistent build queue, CPU and memory limits, cancellation, and build logs. It produces OCI archives consumed by a registry module. Select it with `slots.build.module: buildkit`.
+[Module guide](../../docs/en/modules.md) · [中文指南](../../docs/zh/modules.md) · [Deployment](../../docs/en/operations.md)
 
-Trusted bootstrap contexts are configured with `options.trusted_contexts`; user requests supply their own Dockerfile and allowed remote context. The interface and portable suite live in `gpu_platform_contracts.slots.build` and `gpu_platform_contracts.testing.BuildContract`.
+**Implementations:** `buildkit` · **Slot:** `gpu_platform.slots.build`
 
-For authenticated base images, `Image.metadata.registry_mirrors` may list internal registry authorities such as `registry:5000`. The builder keeps the submitted `FROM` reference and configures these mirrors with the handoff's scoped read credentials and CA certificate. It verifies TLS for the advertised endpoint and every mirror, and removes job credentials after completion or cancellation.
+Build images from Dockerfiles with Rootless BuildKit. Builds have a persistent queue, CPU and memory limits, cancellation, timeouts, and logs. Results enter the selected registry as OCI artifacts.
+
+Trusted bootstrap contexts use `options.trusted_contexts`. Private base images use temporary read credentials and verified TLS, including internal registry mirrors.
+
+Custom implementations use the [slot interfaces](../../packages/contracts/src/gpu_platform_contracts/slots/build.py) and reusable behavioral suites in `gpu-platform-contracts`.

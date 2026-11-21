@@ -1,8 +1,11 @@
-# Entry modules
+# Environment login
 
-- `local`: registered as `gpu_platform.slots.entry:local`.
-- `controller-forward`: registered as `gpu_platform.slots.entry:controller-forward`.
+[Module guide](../../docs/en/modules.md) · [中文指南](../../docs/zh/modules.md) · [Deployment](../../docs/en/operations.md)
 
-The local implementation publishes a task's node-local connection address. Controller forwarding reserves a public login port and connects through the selected transport. Listeners and active connections close when a task ends.
+**Implementations:** `local`, `controller-forward` · **Slot:** `gpu_platform.slots.entry`
 
-The public interface and reusable behavioral suite are provided by `gpu-platform-contracts`. Third-party implementations declare their supported handoff forms and provide the same slot responsibilities.
+Give each running environment an SSH connection address. `local` exposes the node-local path; `controller-forward` connects through the control host using the selected transport.
+
+The platform allocates public ports centrally and closes listeners and connections when the task ends.
+
+Custom implementations use the [slot interfaces](../../packages/contracts/src/gpu_platform_contracts/slots/entry.py) and reusable behavioral suites in `gpu-platform-contracts`.

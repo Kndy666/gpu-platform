@@ -1,7 +1,11 @@
-# Notify modules
+# Notifications
 
-- `pushplus`: registered as `gpu_platform.slots.notify:pushplus`.
+[Module guide](../../docs/en/modules.md) · [中文指南](../../docs/zh/modules.md) · [Deployment](../../docs/en/operations.md)
 
-Delivers core events through the PushPlus HTTPS API. Each receiver supplies a token; encrypted receiver settings belong to the control service. Notifications are disabled in the default configuration.
+**Implementations:** `pushplus` · **Slot:** `gpu_platform.slots.notify`
 
-The public interface and reusable behavioral suite are provided by `gpu-platform-contracts`. Third-party implementations declare their supported handoff forms and provide the same slot responsibilities.
+Deliver task and platform events through PushPlus. Notifications are disabled by default and can be enabled under `control.notify`.
+
+Each recipient provides a token. Control encrypts receiver settings and renders messages in the recipient’s language. Multiple notification modules can be selected.
+
+Custom implementations use the [slot interfaces](../../packages/contracts/src/gpu_platform_contracts/slots/notify.py) and reusable behavioral suites in `gpu-platform-contracts`.

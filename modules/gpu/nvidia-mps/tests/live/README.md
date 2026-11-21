@@ -1,9 +1,21 @@
-# CUDA and NCCL probes
+# Check CUDA resources and NCCL
 
-These probes run inside an explicitly selected test environment with GPU access. They do not discover or modify a deployment. Compile them inside that environment with `cc -O2 -Wall -Wextra SOURCE.c -ldl -o /tmp/PROBE`.
+[Development guide](../../../../../docs/en/development.md) · [中文指南](../../../../../docs/zh/development.md)
 
-- `cuda_check EXPECTED_DEVICE_COUNT` verifies device visibility, allocation, a device write, and a host read.
-- `gpu_quota DEVICE_COUNT SM_COUNTS MEMORY_MIB ALLOCATION_MIB HOLD_SECONDS` checks visible SM and memory limits for each device. SM and memory arguments accept comma-separated values. Allocation is per device; use zero to skip allocation.
-- `nccl_check DEVICE_COUNT` performs an all-reduce in one process per visible device. Run in an empty temporary directory because the probe exchanges its NCCL identifier through `id.bin`. Set `TEST_CUDART_LIBRARY` if the CUDA runtime library has a versioned filename outside the loader search path.
+Use an explicitly selected test environment with GPU access. Inside it, compile each probe from this directory:
 
-Probe exit status reports success or failure. GPU allocation and task cleanup belong to the test harness invoking them.
+```bash
+cc -O2 -Wall -Wextra cuda_check.c -ldl -o /tmp/cuda_check
+cc -O2 -Wall -Wextra gpu_quota.c -ldl -o /tmp/gpu_quota
+cc -O2 -Wall -Wextra nccl_check.c -ldl -o /tmp/nccl_check
+```
+
+| Probe arguments | Observable check |
+| --- | --- |
+| `cuda_check EXPECTED_DEVICE_COUNT` | Device visibility, allocation, device write, host read |
+| `gpu_quota DEVICE_COUNT SM_COUNTS MEMORY_MIB ALLOCATION_MIB HOLD_SECONDS` | Per-device SM and memory limits |
+| `nccl_check DEVICE_COUNT` | All-reduce across one process per visible device |
+
+SM and memory arguments accept comma-separated values. Allocation is per device; zero skips allocation. Run the NCCL probe in an empty temporary directory because it exchanges an identifier through `id.bin`. Set `TEST_CUDART_LIBRARY` when the CUDA runtime has a versioned filename outside the loader search path.
+
+Exit status indicates success or failure. The calling harness supplies GPU allocations and cleans up the task and probe outputs.

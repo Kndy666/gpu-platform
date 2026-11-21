@@ -1,93 +1,77 @@
-# Installation and operations
+# Deploy and use GPU Platform
 
-Use Ubuntu 22.04 or 24.04 on AMD64 or ARM64. Mount the configured data disks. The NVIDIA module checks its driver and MPS prerequisites; install the driver before running the installer. K3s, Kueue, Rawfile, LXCFS, OCI settings, and module services are prepared by module installation hooks.
+[Home](../../README.md) · [简体中文](../zh/operations.md)
 
-## Prepare one cluster configuration
+Start with one server. Add execution hosts later using the same cluster file. Platform services run through Docker Compose; the installer prepares the host dependencies required by your modules.
+
+## Install
+
+Use Ubuntu 22.04 or 24.04 on AMD64 or ARM64. Mount your data disks and install the accelerator driver before setup.
+
+From the repository root, copy the configuration and prepare the installer:
 
 ```bash
 cp config/platform.default.yaml cluster.yaml
+sudo ./packages/installer/bootstrap.sh
 ```
 
-Set `cluster.public_host`, `hosts.<name>.architecture`, data pool paths, and public dataset paths. Set registry addresses to an address reachable from the host and its workloads. The registry's installation handoff supplies its endpoint and CA file to the runtime. For external registries, configure the runtime's `registry_trust` mapping; relative CA paths resolve under the cluster state directory. The generated registry certificate lives under `registry/tls.crt` in that directory. Zot publishes its advertised port on host loopback by default and shares a private Compose bridge with BuildKit. Build handoffs supply the internal `registry:<port>` mirror while keeping image references unchanged. For a DNS-based advertised URL, set registry `publish_address` to the intended host interface; use `build_mirrors` to override mirror authorities for custom builder networks. The certificate must cover the advertised hostname and mirror hostnames.
+Edit these settings before continuing:
 
-The four configuration sections have these responsibilities:
-
-| Section | Contents |
+| Setting | What to choose |
 | --- | --- |
-| `cluster` | Public host, SSH port pool, default language, control and node images, state directory |
-| `defaults` | Slot selections, module options, feature defaults, shared parameters |
-| `control` | Authentication, notification modules, initial groups and resource quotas, synchronization policies, database settings |
-| `hosts` | Roles, architecture, address, slot overrides, feature overrides, host parameters |
+| `cluster.public_host` | Address users will use to reach the platform |
+| `cluster.control_image`, `cluster.node_image` | Available image tags, built locally or published to your registry |
+| `hosts.main.architecture` | `amd64` or `arm64` |
+| `defaults.slots.storage.options.pools` | Mounted data disk paths |
+| `defaults.slots.metrics.options.pools` | The same pools when disk monitoring is wanted |
+| `defaults.parameters.datasets` | Public dataset directory |
+| `hosts.<name>.slots` | Per-host module choices; set `gpu: null` for CPU-only hosts |
 
-The packaged YAML is also available at `config/platform.default.yaml`. A host override merges mappings; lists replace inherited lists. `null` disables a slot. For a CPU-only host:
-
-```yaml
-hosts:
-  main:
-    roles: [control, node]
-    architecture: amd64
-    slots:
-      gpu: null
-```
-
-Keep the configured runtime and storage namespaces aligned. Configure metrics disk paths for the same storage pools when disk metrics are required. Group `resources` mappings use the keys registered by selected modules, such as `cpu`, `memory`, `work_storage`, `image_storage`, `gpu_compute`, and `gpu_memory`. Group `home_size_gib` sets the default home volume capacity for new members. Members can override it, and changing a group default preserves existing member capacities. Each node has a separate home volume; files are not synchronized automatically. Home volumes use the member capacity and physical pool capacity. Work volume quotas limit each container's requested capacity. Capacities use GiB/TiB. The NVIDIA module uses driver-reported total memory, with requests in integer GiB.
-
-Validate before installation:
-
-```bash
-uv run platformctl validate --config cluster.yaml --host main
-uv run platformctl plan --config cluster.yaml --host main
-```
-
-`validate --machine` also runs local machine checks. Plain validation and planning inspect configuration and module declarations.
-
-## Build and install
-
-Build images on a machine with Docker:
+The default configuration includes example image tags. To prepare local images, run these commands on each target architecture and set the corresponding tags in `cluster.yaml`:
 
 ```bash
 docker build -f docker/control/Dockerfile -t gpu-platform-control:0.4.0 .
 docker build -f docker/node/Dockerfile -t gpu-platform-node:0.4.0 .
 ```
 
-Set `cluster.control_image` and `cluster.node_image` to those tags or to tags in your image registry. The supplied GitHub Actions workflow builds AMD64 and ARM64 images. Publish a version before referencing its registry tag on deployment hosts.
+Use an existing Docker installation for these builds, or build and publish from another machine. The installer prepares Docker and Compose on deployment hosts when needed. The repository's CI also supports publishing AMD64 and ARM64 images.
 
-Prepare the host-side Python environment, then install the selected host:
+Validate, inspect the plan, and install:
 
 ```bash
-sudo ./packages/installer/bootstrap.sh
+sudo platformctl validate --config cluster.yaml --host main
+sudo platformctl plan --config cluster.yaml --host main
 sudo platformctl install --config cluster.yaml --host main
 ```
 
-The installer prepares pinned Docker Engine 29.1.3 and Compose on new hosts. Existing installations need Docker API 1.44 or later and the Compose plugin. The default private ports are 6443 and 10250. Configured private-port firewall rules are owned by `gpu-platform-firewall.service`; `public_interface: auto` selects the lowest-metric default-route interface, and the unit reapplies rules after reboot. It runs module checks and hooks, writes resolved configuration and a secret environment file, prepares container images, creates the current database schema, initializes defaults, and starts Compose services. The generated directory defaults to `/var/lib/gpu-platform/deploy/main`; `--output PATH` changes it.
+The installer checks modules, prepares host infrastructure, initializes the database, and starts services. The default deployment directory is `/var/lib/gpu-platform/deploy/main`; `--output PATH` changes it. Open `http://YOUR_HOST:8000`. Read `PLATFORM_INITIAL_ADMIN_PASSWORD` in the generated root-only `.env`, sign in as `admin`, and change the password. The standard environment image is built automatically once the node's build and registry services are ready.
 
-Use the generated Compose file for routine inspection:
+For an external HTTPS address, put a reverse proxy in front of the web service and set host `parameters.https: true` and `parameters.public_origin` to that origin. `parameters.web_port` changes the default port `8000`.
+
+## Manage with Compose
 
 ```bash
-sudo docker compose --project-directory /var/lib/gpu-platform/deploy/main \
-  -f /var/lib/gpu-platform/deploy/main/compose.yaml ps
-sudo docker compose --project-directory /var/lib/gpu-platform/deploy/main \
-  -f /var/lib/gpu-platform/deploy/main/compose.yaml logs --tail 100 web loop node
+sudo docker compose -f /var/lib/gpu-platform/deploy/main/compose.yaml ps
+sudo docker compose -f /var/lib/gpu-platform/deploy/main/compose.yaml logs --tail 100
+sudo docker compose -f /var/lib/gpu-platform/deploy/main/compose.yaml up -d
 ```
 
-The default web port is `8000`, configured by `hosts.<name>.parameters.web_port`. For HTTPS, set host `parameters.https: true` and `parameters.public_origin` to the external origin, then place an HTTPS reverse proxy in front of the web service. Compose derives secure-cookie and trusted-origin settings from these values. Additional control environment variables belong in `parameters.environment`. The generated `.env` stores `DJANGO_SECRET_KEY` and the initial administrator password (`PLATFORM_INITIAL_ADMIN_PASSWORD`). Read the root-only file locally to sign in as `admin`, then change the password. Preserve the Django key with database backups. Existing accounts are retained when bootstrap runs.
+The default control services are `web`, `loop`, and `links`. An execution host also runs `node` and selected module services. Host-mounted state and data disks persist across container rebuilds. Use `platformctl upgrade` for version and configuration changes.
 
-The default combined control/node host publishes the bundled environment recipe at `bootstrap/environment/Dockerfile` under the state directory. The control loop queues the default image build after the node reports its build and registry capabilities and an administrator exists. Workers use the same configured recipe and their own `build.options.trusted_contexts.environment` directory. A dedicated control host or custom runtime must store a readable recipe on the control host. Each target node's `parameters.bootstrap_recipe` (or inherited `defaults.parameters.bootstrap_recipe`) selects that controller-side file, using an absolute path or a path relative to the controller state directory. Set the target's `parameters.bootstrap_context` to a matching `trusted:<name>` context configured in its builder. A missing recipe skips automatic initialization. To enqueue explicitly, run `python -m gpu_platform_control.manage bootstrap_workspace --all-nodes --recipe PATH --context trusted:environment --wait 0` inside the web service.
+## Add a node or change modules
 
-## Add execution hosts
+The cluster file has four sections: `cluster` for shared addresses and images, `defaults` for modules and features, `control` for authentication and policy, and `hosts` for machine roles and overrides. Mappings merge, lists replace inherited lists, and `null` disables a slot. Keep runtime and storage namespaces aligned.
 
-List every machine in the same file. The control host can also execute tasks. Remote nodes select transport and entry modules explicitly:
+For example, add this host to your existing file:
 
 ```yaml
 hosts:
-  main:
-    roles: [control, node]
-    architecture: amd64
   compute-a:
     roles: [node]
     architecture: arm64
     address: 127.0.0.1
     slots:
+      gpu: null
       transport:
         module: reverse-ssh
         options:
@@ -102,19 +86,58 @@ hosts:
           public_host: compute.example.edu
 ```
 
-This example uses an existing reverse SSH listener on the control host. Give each node its own key and verified `known_hosts` entry. Store key files in the configured key directory. The remote SSH account needs access to the node socket, whose default group is numeric GID `10001`; set `parameters.socket_group` for a different local group. Run `platformctl install --host compute-a` on that machine using the same YAML.
+This example uses an existing reverse SSH listener on the control host. Prepare a separate node key and verified `known_hosts` in the configured directory. The remote SSH account needs access to the node socket; its default group is GID `10001`, configurable with `parameters.socket_group`. Install `compute-a` on that machine with the same cluster file, and apply the updated configuration on the control host through the maintenance workflow below.
 
-The control host allocates user SSH ports and remote login modules open the connection path. Public datasets, image repositories, and volume pools remain attached to their respective nodes.
+For a different accelerator, replace the `gpu` selection with `module: ascend` on a supported ARM64 Ascend 310P host. Its images need a matching CANN stack. The [module guide](modules.md) lists all choices and explains custom implementations.
 
-## Work with environments and images
+## Start working
 
-Add an SSH public key, choose a node and image, set resources and a time range, then submit an environment request. The task page provides SSH and VS Code connection settings. Development environments stop at their approved end time. Extension requests follow the account's approval policy and extension allowance.
+Upload an SSH public key in the panel, choose a node and image, request resources and a time range, then connect using the task page's SSH or VS Code settings. Your enabled keys apply to your environments on every node, including updates to running environments.
 
-Batch jobs run their command until it exits. Exit code and logs appear with the task. `/workspace` holds task data, `/home/<user>` holds personal data, and `/datasets` exposes configured public data read-only. Docker data belongs to the working volume.
+| Need | Use |
+| --- | --- |
+| Develop interactively | An environment with an approved end time; request an extension when needed |
+| Run a program | A batch task that records logs and exit status |
+| Keep personal files | `/home/<user>`, with a separate home volume on each node |
+| Keep task data and Docker state | `/workspace`, with Docker data in `/workspace/.docker` |
+| Read shared data | `/datasets`, mounted read-only |
+| Reuse a configured environment | Save it as an image, or submit it as the source of a batch task |
 
-Saving an environment captures its writable image layer. Personal and working volumes have separate lifecycles. A job can use an image or an existing environment; the latter workflow prepares the environment snapshot and associated workspace before dispatch.
+Standard environments provide Rootless Docker. On NVIDIA nodes, inner GPU containers can use `docker run --rm --gpus all IMAGE COMMAND` within the outer task's allocation. Work volume and image retention are managed separately; an environment save captures its writable image layer.
 
-Synchronization is available from the main navigation. Members can synchronize only their own private images and see only their own jobs. Private copies count toward their owner's image quota. Administrators see all jobs, synchronize shared images with shared destination copies, and can trigger public-directory synchronization. The page shows source, target, transferred bytes, state, and completion time. Public data is sent one file at a time through the selected node transport. Interrupted files resume from their saved byte offset on the destination data disk. Each completed file is checked with SHA-256 before the selected directory is committed; unchanged files are reused locally. Periodic policies live under `control.sync`:
+The synchronization page shows progress for image and public-directory copies. Members synchronize their own private images; administrators also synchronize shared images and public directories. Image copies require matching CPU architectures; private copies consume their owner's image quota. Public data supports manual and periodic synchronization, bandwidth limits, checksum verification, and interrupted-file resume. Personal and work volumes stay on their node.
+
+## Upgrade, back up, or uninstall
+
+Put all execution nodes into maintenance mode and finish or stop active and queued tasks. On the control host:
+
+```bash
+sudo platformctl upgrade --config cluster.yaml --host main
+sudo platformctl maintenance-report --config cluster.yaml --host main \
+  --output /tmp/platform-maintenance.json
+```
+
+Copy the protected report to the worker through your administrative connection, then run there:
+
+```bash
+sudo platformctl upgrade --config cluster.yaml --host compute-a \
+  --maintenance-reports /tmp/platform-maintenance.json
+```
+
+Reports must cover every configured node, match the cluster configuration, and be no older than 60 seconds. Export a fresh bundle for each worker and after long image downloads. Remove the copied report after use. A failed readiness check stops the operation before services shut down.
+
+Back up the database, `.env`, node keys, registry state, allocation records, and data volumes together. Uninstall uses the same maintenance checks: replace `upgrade` with `uninstall` in the commands above. It stops Compose and removes module-owned components while retaining user data and pre-existing resources. New databases create the current schema directly.
+
+<details>
+<summary>Additional deployment settings</summary>
+
+- **Registry networking:** Zot defaults to `https://127.0.0.1:5000`. BuildKit uses the internal `registry:<port>` mirror with the same credentials and CA. For a DNS address, set registry `publish_address` to the intended interface. Use `build_mirrors` for custom builder networks. External registry CAs belong in runtime `registry_trust`; relative paths resolve under the state directory.
+- **Default environment recipe:** `parameters.bootstrap_recipe` selects a controller-readable Dockerfile, and `parameters.bootstrap_context` selects a builder context such as `trusted:environment`. The default combined host publishes the bundled recipe automatically. A dedicated control host needs a readable recipe. The control management command `bootstrap_workspace` can enqueue a build explicitly.
+- **Quotas:** Configure module resource keys under group `resources`. `home_size_gib` is the default for new members; members retain their own settings. Work volume quotas apply to the capacity requested per container. Capacity uses GiB, and NVIDIA memory requests use integer GiB.
+- **Offline hosts:** Supply image archives through `parameters.image_archives`, enable `parameters.offline`, and prepare system packages and the runtime's versioned download cache.
+- **Firewall:** `parameters.network` selects public interfaces and private ports. The installer-owned firewall service reapplies its rules after reboot.
+
+Periodic public-data synchronization goes under `control.sync`:
 
 ```yaml
 control:
@@ -128,38 +151,6 @@ control:
     images: []
 ```
 
-Image policies specify `image`, `source`, `targets`, and an optional bandwidth limit. Configure image synchronization between nodes of the same architecture. Public-directory policies apply source changes, including removals, to the selected target subtrees.
+Public-directory policies apply source changes and removals to selected target subtrees. Image policies use `image`, `source`, `targets`, and an optional bandwidth limit.
 
-## Upgrade and uninstall
-
-Put every execution node into maintenance mode through the node management page. Let active and queued tasks finish or stop them. Upgrade verifies current reports, prepares images, checks maintenance again, then stops services. When host configuration, module versions, or image selections change, it reapplies host and module installation hooks before validating the current database schema and restarting Compose.
-
-On the control host:
-
-```bash
-sudo platformctl upgrade --config cluster.yaml --host main
-sudo platformctl maintenance-report --config cluster.yaml --host main \
-  --output /tmp/platform-maintenance.json
-```
-
-Copy the protected report file to the worker through the existing administrative connection, then run on that worker:
-
-```bash
-sudo platformctl upgrade --config cluster.yaml --host compute-a \
-  --maintenance-reports /tmp/platform-maintenance.json
-```
-
-The bundle must match the complete cluster configuration and include every configured node, with compatible reports no older than 60 seconds. The worker also queries its own local daemon immediately before shutdown. Export a fresh bundle for each worker; regenerate it if image downloads outlast its validity. Missing, stale, mismatched, busy, or non-maintenance reports stop the upgrade before service shutdown. Remove the copied operational report after use.
-
-`initdb` creates the current schema directly for a new database and validates tables and columns in an initialized database. This refactor targets fresh deployments and includes no application migration history or legacy conversion tool.
-
-For disconnected hosts, transfer Docker image archives and module infrastructure caches. Configure `parameters.image_archives` with absolute archive paths and `parameters.offline: true`. The installer loads those archives and verifies required images are present. Prepare system packages and the runtime's versioned download cache before offline installation.
-
-```bash
-sudo platformctl uninstall --config cluster.yaml --host compute-a \
-  --maintenance-reports /tmp/platform-maintenance.json
-```
-
-Uninstall requires maintenance and no active tasks, with a fresh report bundle for a worker. It stops Compose, removes selected module components in reverse order, and retains persisted data for explicit administration. Back up the database, `.env`, node keys, registry state, and data volumes together before storage maintenance.
-
-Runtime and GPU hooks journal the host files, cluster objects, and services they create. Uninstall removes those owned components, restores the module's Docker and registry-trust configuration entries, and preserves unrelated configuration and pre-existing infrastructure. An operator-modified generated file is retained. Module-owned MPS shutdown restores the GPU compute modes recorded before startup. K3s data, workload namespaces, user volumes, and installed system packages remain on disk; a newly created K3s or LXCFS service is disabled. Retained data can be reattached during a later installation.
+</details>

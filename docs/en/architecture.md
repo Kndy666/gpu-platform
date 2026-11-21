@@ -1,62 +1,56 @@
-# Architecture
+# How the platform fits together
 
-The platform separates policy, presentation, and machine execution. The control service owns accounts, approvals, resource ledgers, task dispatch, retention, synchronization, and event records. The panel calls its public service layer. Nodes receive versioned commands and assemble executable environments from module handoffs.
+[Home](../../README.md) · [简体中文](../zh/architecture.md)
+
+The control service manages users, quotas, approvals, and task lifecycles. Each node turns an approved request into a working environment using its selected modules. The panel and API share the same business services.
 
 ```mermaid
-flowchart TD
-    User[Browser or automation] --> Panel[Django panel]
-    User --> API[Django Ninja /api/v1]
-    Panel --> Services[Public control services]
-    API --> Services
-    Services --> Core[Policy and persistent ledgers]
-    Core --> Transport[Transport slot]
-    Transport --> Node[Node command framework]
-    Node --> Modules[Runtime · storage · images · GPU · metrics]
-    Config[Cluster YAML] --> Installer[platformctl]
-    Installer --> Compose[Per-host Docker Compose]
+flowchart TB
+    Browser[Browser] --> Panel[Panel]
+    Automation[Automation] --> API[HTTP API]
+    Panel --> Control[Control services: accounts, quotas, scheduling]
+    API --> Control
+    Control --> Transport[Transport module]
+    Transport --> Node[Node framework]
+    Node --> Storage[Storage: volumes]
+    Node --> Registry[Registry: images]
+    Node --> GPU[Accelerator: allocations]
+    Storage --> Runtime[Runtime: development environments and jobs]
+    Registry --> Runtime
+    GPU --> Runtime
 ```
 
-## Packages and boundaries
+## Modules make deployment choices local
 
-| Package | Responsibility | Dependencies within the workspace |
-| --- | --- | --- |
-| `contracts` | Pydantic schemas, ten slot interfaces, handoffs, messages, reusable test suites | Pydantic |
-| `control` | Django models, business services, HTTP API, reconciliation and notification loops | Contracts |
-| `panel` | Templates, browser interactions, public-service adapters | Control public services |
-| `node` | Command routing, capability reports, local expiry, datasets and data streams | Contracts |
-| `installer` | Configuration merging, compatibility checks, installation order, Compose | Contracts |
-| `modules/<slot>/<implementation>` | One slot implementation and its host assets | Contracts |
+A node can use NVIDIA MPS, Ascend 310P, or CPU resources. Authentication, storage, runtime, and the other slots have their own interfaces. External implementations register under `gpu_platform.slots.<slot>` and depend on the contracts package plus their own libraries.
 
-Implementations are loaded from `gpu_platform.slots.<slot>` Python entry points. The same discovery mechanism loads built-in and external modules. Import-linter enforces package boundaries.
+Modules exchange typed objects called handoffs: volumes, images, accelerator allocations, snapshots, port connections, and streams. The installer checks that the chosen providers and consumers agree. [Module development](modules.md) explains how to add an implementation.
 
-## Configuration and handoffs
+| Package | Responsibility |
+| --- | --- |
+| `contracts` | Slot interfaces, handoffs, resource definitions, messages, reusable test suites |
+| `control` | Accounts, approvals, resource ledgers, dispatch, retention, synchronization, API |
+| `panel` | Pages and forms calling public control services |
+| `node` | Commands, module orchestration, reports, local expiry, public data streams |
+| `installer` | Configuration, checks, host setup, installation order, Compose generation |
+| `modules/<slot>/<implementation>` | Infrastructure implementation and its host assets |
 
-One YAML document contains `cluster`, `defaults`, `control`, and `hosts`. Resolution applies built-in defaults, cluster-wide defaults, then host-specific values. Setting a slot to `null` disables it. A node colocated with the control service receives local transport and local login entry automatically.
+Control, node, and installer use contracts to discover implementations. Concrete infrastructure stays in modules. Import-linter checks these boundaries. The [architecture conventions](../../gpu-platform-architecture.md) define the shared rules.
 
-Modules declare the handoff forms they provide and accept. Storage provides volumes; registries provide images; GPU modules provide allocations; runtimes provide environment snapshots. Build results enter a registry. Transport provides command exchange, port connections, and binary streams. The node supplies read-only public directory handoffs.
+## From one server to several
 
-Installation validates required slots, form intersections, feature prerequisites, module version compatibility, implementation requirements, and local host checks. Host prerequisite hooks run first. Module installation then follows provider order; removal reverses the order. This allows the runtime to prepare K3s before Rawfile creates its storage infrastructure.
+One YAML file contains `cluster`, `defaults`, `control`, and `hosts`. Host overrides follow cluster defaults; `null` disables a slot. A combined control and execution host uses local communication automatically. Remote nodes select transport and login-entry modules.
 
-## Resources and task execution
+Each host gets a generated Docker Compose deployment. The control image runs `web`, `loop`, and `links`, plus `notifier` when configured. Execution hosts run `node` and module services such as `registry` and `builder`. The K3s runtime prepares K3s and LXCFS on the host. Databases, keys, allocation records, and data volumes use persistent host storage.
 
-Modules register resource definitions with stable keys and units. The control ledger applies those definitions to quotas and active reservations across nodes. The core also manages concurrency, development duration, and login ports. A custom resource appears in request and quota forms through its registered definition. The canonical ledger stores resource-keyed quantities and allocation groups. Panel-owned forms coerce input; public services validate commands and return materialized records. Core models contain no fixed CPU, GPU, or technology-specific quota columns.
+## What happens to a request
 
-A task command specifies identity, ownership, resources, image, volumes, expiry, and execution intent. The node obtains volumes, an image, and GPU allocations, then passes them to the runtime. The runtime generates its own execution objects. Standard development environments provide SSH and VS Code access, personal and working directories, Docker, and resource views matching the assigned limits.
+1. The panel or API reads the target node's capabilities and submits a request.
+2. Control checks permissions, approval policy, quotas, and reservations across nodes.
+3. The node prepares volumes, an image, and accelerator allocations; the runtime queues and starts the task.
+4. The login module supplies SSH connection details. The node reports status and usage.
+5. On completion or expiry, resources are released and storage and images follow retention settings.
 
-The node protocol uses `queued`, `starting`, `running`, `ended`, and `failed` task states. Approval and preparation records belong to the control workflow. Maintenance mode prevents new dispatch. A disconnected node continues supervising existing tasks and stops expired environments locally. The controller retains ownership and reservations while a node is unreachable.
+Maintenance mode stops new dispatch. A disconnected node continues supervising existing tasks and stops expired development environments locally. Control retains the task's ownership and reservations while reconnecting.
 
-## Images and synchronization
-
-Tasks, volumes, images, and builds belong to a node. Image synchronization creates an independent copy on another node of the same CPU architecture. The control service checks access and image quota, reserves the destination bytes, records progress, and dispatches export and import commands. Members can synchronize only their own private images. The private copy counts toward the owner's cluster-wide quota. Administrators synchronize shared images with shared destination copies and can synchronize public data.
-
-Public data synchronization applies a source directory tree to configured targets. It supports periodic policies, manual administrator requests, relative subtree selection, and bandwidth limits. Target copies follow the source. Personal and working directories remain node-local.
-
-`save_environment`, `public_datasets`, `image_sync`, and `dataset_sync` are configurable features. Synchronization is inactive with one execution node. Images and snapshots continue through their retention lifecycle independently after synchronization.
-
-## Processes and persistence
-
-The control image supplies `web`, `loop`, and `links` services in both single-host and multi-host deployments, plus optional `notifier`. The `links` service maintains local and remote task login routes; transport modules add their own keys and proxy settings. Each execution host runs one `node` container, plus module services such as `registry` and `builder`. The node uses host networking and process visibility. K3s and LXCFS run as host infrastructure owned by the runtime module.
-
-Persistent state uses host-mounted directories: database, account secrets, node sockets, image metadata, runtime records, and GPU leases. Data volumes use configured disk pools. Rebuilding a container reuses those directories.
-
-Events and node errors carry a code and parameters. The control service selects the recipient or viewer language. English is the source language. Simplified Chinese catalogs supply translated panel and JavaScript messages. The panel uses the account's saved language preference, or the browser language when the account has no preference.
+Tasks, images, and volumes belong to a node. Image synchronization creates an independent copy on a node of the same CPU architecture; private copies count toward their owner's image quota. Public-directory synchronization follows the selected source tree. Home and work volumes stay local to each node.

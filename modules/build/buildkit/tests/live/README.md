@@ -1,16 +1,21 @@
-# Isolated Docker build checks
+# Check image builds and registry access
 
-Run `smoke.py --enable-docker` with the workspace Python environment on a test host with Docker access. The script creates temporary containers, a network, a cache volume and state files, then removes them on exit. It verifies a durable serial queue, enforced Docker CPU/memory limits, OCI archive import, a loopback-advertised private base image pulled through a TLS-verified bridge mirror, anonymous access denial and scoped credential revocation.
+[Development guide](../../../../../docs/en/development.md) · [中文指南](../../../../../docs/zh/development.md)
 
-```sh
+Run on a test host with Docker access, from the repository root:
+
+```bash
 uv run python modules/build/buildkit/tests/live/smoke.py --enable-docker
 ```
 
-`--base-image`, `--builder-image` and `--registry-image` select test inputs or approved mirrors. To build the bundled standard environment as well, add:
+The check creates a temporary builder, registry, network, cache volume, and state files, then removes them on exit. It verifies queued builds, CPU and memory limits, OCI import, private base-image pulls through a verified TLS bridge mirror, anonymous-access denial, and credential revocation.
 
-```sh
---environment-context modules/runtime/k3s/src/gpu_platform_runtime_k3s/images \
---environment-output /tmp/test-standard-environment.tar
+Use `--base-image`, `--builder-image`, and `--registry-image` to select test images or approved mirrors. To also build the standard environment, add:
+
+```bash
+uv run python modules/build/buildkit/tests/live/smoke.py --enable-docker \
+  --environment-context modules/runtime/k3s/src/gpu_platform_runtime_k3s/images \
+  --environment-output /tmp/test-standard-environment.tar
 ```
 
-The optional environment build accepts `--environment-base` and `--apt-mirror`. The output path explicitly retains its OCI archive for a separate runtime smoke test. No current platform configuration, database or cluster is read.
+`--environment-base` and `--apt-mirror` customize that build. The requested output archive is retained for a separate runtime check; remove it when finished. Inputs come from these explicit arguments, independently of platform configuration or databases.

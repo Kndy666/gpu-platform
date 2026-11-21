@@ -1,7 +1,11 @@
-# Runtime modules
+# Workload runtime
 
-- `k3s`: registered as `gpu_platform.slots.runtime:k3s`.
+[Module guide](../../docs/en/modules.md) · [中文指南](../../docs/zh/modules.md) · [Deployment](../../docs/en/operations.md)
 
-Runs standard development environments and batch workloads on node-local K3s with Kueue. Host installation supplies LXCFS, security profiles, and bundled environment assets. It accepts Kubernetes PVCs, registry or local images, and optional NVIDIA MPS allocations. Supports Ubuntu 22.04/24.04 on AMD64 or ARM64.
+**Implementations:** `k3s` · **Slot:** `gpu_platform.slots.runtime`
 
-The public interface and reusable behavioral suite are provided by `gpu-platform-contracts`. Third-party implementations declare their supported handoff forms and provide the same slot responsibilities.
+Run SSH and VS Code development environments and batch programs on node-local K3s with Kueue. Environments include persistent home and work volumes, Rootless Docker, and resource views matching their CPU and memory limits.
+
+The module prepares K3s, LXCFS, security profiles, and standard environment assets. It accepts Rawfile PVCs, registry or local images, and the selected accelerator handoff. Supported hosts are Ubuntu 22.04/24.04 on AMD64 or ARM64.
+
+Custom implementations use the [slot interfaces](../../packages/contracts/src/gpu_platform_contracts/slots/runtime.py) and reusable behavioral suites in `gpu-platform-contracts`.
