@@ -320,12 +320,12 @@ class EmptyRequest(Input):
 
 class GPURequest(Input):
     compute_percent: Annotated[int, Field(ge=1, le=100)] | Literal["max"]
-    memory_gib: Annotated[int, Field(ge=1)] | Literal["max"]
+    memory_gib: Annotated[Decimal, Field(gt=0, multiple_of=Decimal(1) / 1024, allow_inf_nan=False)] | Literal["max"]
 
 
 class ResolvedGPURequest(Input):
     compute_percent: Annotated[int, Field(ge=1, le=100)]
-    memory_gib: Annotated[int, Field(ge=1)]
+    memory_gib: Annotated[float, Field(gt=0)]
 
 
 class GPURequestLimits(Input):
@@ -568,7 +568,7 @@ class TaskGPUResources(OpenData):
     gpu: Annotated[int, Field(ge=0)] | None = None
     gpu_requests: list[ResolvedGPURequest] | None = None
     gpu_compute_total: Annotated[int, Field(ge=0)] | None = None
-    gpu_memory_total_gib: Annotated[int, Field(ge=0)] | None = None
+    gpu_memory_total_gib: Annotated[float, Field(ge=0)] | None = None
     gpu_allocations: list[GPUAllocation] | None = None
 
 

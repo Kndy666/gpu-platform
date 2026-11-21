@@ -4,6 +4,7 @@ from decimal import Decimal, InvalidOperation
 from django.core.exceptions import ValidationError
 from django.db.models import Sum
 from django.utils.translation import gettext_lazy as _
+from gpu_platform_contracts.resources import ResourceDefinition
 from .models import NodeResource, ResourceReservation
 from gpu_platform_control.core.policies import effective_policy
 from .rules import quota_rules, resource_limit
@@ -38,8 +39,18 @@ def definitions(node):
     return {row.resource_id: row for row in NodeResource.objects.filter(node=node).select_related('resource')}
 
 
+def allocation_constraints(node):
+    return {
+        definition["key"]: ResourceDefinition.model_validate(definition)
+        for module in node.capabilities.get("modules", [])
+        for definition in module.get("resources", [])
+        if definition.get("per_allocation")
+    }
+
+
 def normalize_request(request):
     registered = definitions(request.node)
+    constraints = allocation_constraints(request.node)
     policy = effective_policy(request.user)
     rules = quota_rules(request.node)
     values: dict[str, Decimal] = {}
@@ -56,7 +67,7 @@ def normalize_request(request):
                 row = registered.get(key)
                 if row is None or row.resource.allocation_group != group or not row.resource.requestable:
                     problem('resource_unavailable', key)
-                amount = quantity(value, row.resource)
+                amount = quantity(value, constraints.get(key, row.resource))
                 limit = policy.per_allocation.get(key)
                 if not policy.unlimited and limit is not None and amount > limit:
                     problem('resource_allocation_quota_exceeded', key)

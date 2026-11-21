@@ -1,5 +1,6 @@
 from unittest import TestCase
 from gpu_platform_gpu_nvidia_mps.allocation import (
+    MIB_IN_GIB,
     choose_devices,
     sm_count,
     resolve_gpu_max,
@@ -48,19 +49,20 @@ class GPUMaximumTests(TestCase):
         )
 
     def test_heterogeneous_cards_fit_fixed_rows_and_maximum(self):
-        self.limits["devices"] = [{"sm_count": 114, "memory_gib": 8}, {"sm_count": 114, "memory_gib": 23}]
+        smaller_memory = 8 + MIB_IN_GIB
+        self.limits["devices"] = [{"sm_count": 114, "memory_gib": smaller_memory}, {"sm_count": 114, "memory_gib": 23}]
         self.assertEqual(
             resolve_gpu_max(
                 [{"compute_percent": 50, "memory_gib": "max"}, {"compute_percent": 50, "memory_gib": 16}],
                 self.limits,
             ),
-            [{"compute_percent": 50, "memory_gib": 8}, {"compute_percent": 50, "memory_gib": 16}],
+            [{"compute_percent": 50, "memory_gib": smaller_memory}, {"compute_percent": 50, "memory_gib": 16}],
         )
 
     def test_impossible_budget_and_missing_inventory_fail(self):
         for changes in [
             {"compute_total_percent": 3},
-            {"memory_total_gib": 1},
+            {"memory_total_gib": MIB_IN_GIB},
             {"devices": []},
             {"compute_per_card_percent": 0},
         ]:

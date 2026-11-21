@@ -137,13 +137,18 @@
       try {rows = JSON.parse(hidden.value || '[]');} catch (_) {}
       if (!Array.isArray(rows)) rows = [];
       const resolveResource = resource => {
+        const increment = Math.min(1, Number(resource.step ?? 1));
+        const toUnits = value => Number(value) / increment;
         const capacities = (allocationCapacity.gpus || []).map(device =>
-          Math.floor(Math.min(Number(resource.per_allocation_limit ?? resource.maximum ?? Number.MAX_SAFE_INTEGER),
-            Number(resource.allocation_field === 'memory_gib' ? device.memory_total_gib : resource.maximum ?? Number.MAX_SAFE_INTEGER))));
+          Math.floor(toUnits(Math.min(Number(resource.per_allocation_limit ?? resource.maximum ?? Number.MAX_SAFE_INTEGER),
+            Number(resource.allocation_field === 'memory_gib' ? device.memory_total_gib : resource.maximum ?? Number.MAX_SAFE_INTEGER)))));
         capacities.sort((a, b) => b - a);
-        const caps = rows.map((_, index) => capacities[index] ?? Number(resource.maximum ?? resource.limit ?? initialValue(resource)));
-        return shareMaximum(rows.map(value => value[resource.key] ?? initialValue(resource)), caps,
-          resource.limit == null ? null : Number(resource.limit), Number(resource.minimum ?? 1));
+        const caps = rows.map((_, index) => capacities[index] ??
+          Math.floor(toUnits(resource.maximum ?? resource.limit ?? initialValue(resource))));
+        const values = rows.map(row => row[resource.key] === 'max' ? 'max' : toUnits(row[resource.key] ?? initialValue(resource)));
+        const resolved = shareMaximum(values, caps,
+          resource.limit == null ? null : Math.floor(toUnits(resource.limit)), Math.ceil(toUnits(resource.minimum ?? 1)));
+        return resolved?.map(amount => amount * increment);
       };
       const refreshMaximum = () => resources.forEach(resource => {
         const resolved = resolveResource(resource);
@@ -158,7 +163,7 @@
         resources.forEach(resource => {
           const total = document.querySelector('[data-allocation-total="' + editor.dataset.allocationGroup + ':' + resource.key + '"]');
           const resolved = resolveResource(resource);
-          if (total) total.textContent = resolved ? compactNumber(resolved.reduce((sum, value) => sum + value, 0)) : '—';
+          if (total) total.textContent = resolved ? String(resolved.reduce((sum, value) => sum + value, 0)) : '—';
         });
       };
       const render = () => {
@@ -173,7 +178,7 @@
             wrap.className = 'gpu-value-control';
             input.type = 'number';
             const resolved = resolveResource(resource);
-            input.value = values[resource.key] === 'max' ? resolved ? String(resolved[index]) : '' : compactNumber(values[resource.key] ?? initialValue(resource));
+            input.value = values[resource.key] === 'max' ? resolved ? String(resolved[index]) : '' : String(values[resource.key] ?? initialValue(resource));
             input.min = resource.minimum ?? 0; input.step = resource.step || (resource.integral ? 1 : 'any');
             if (resource.per_allocation_limit != null || resource.maximum != null) input.max = resource.per_allocation_limit ?? resource.maximum;
             input.setAttribute('aria-label', resource.label_text + ' ' + (index + 1));
@@ -287,10 +292,13 @@
         data.gpus.forEach(gpu => {
           const tile = document.createElement('article'), heading = document.createElement('h3');
           tile.className = 'capacity-gpu'; heading.textContent = (data.device_label || 'GPU') + ' ' + gpu.index; tile.append(heading);
-          [[gettext('Compute'), gpu.compute_percent, '%', gpu.compute_percent],
-           [data.device_memory_label || gettext('GPU memory'), gpu.memory_gib, ' GiB', gpu.memory_gib * 100 / gpu.memory_total_gib]].forEach(([title, amount, unit, percent]) => {
+          const wholeGiB = Math.floor(gpu.memory_gib), remainingMiB = (gpu.memory_gib - wholeGiB) * 1024;
+          const memory = wholeGiB ? wholeGiB + ' GiB' + (remainingMiB ? ' ' + number(remainingMiB) + ' MiB' : '') :
+            quantity(gpu.memory_gib, 'GiB');
+          [[gettext('Compute'), number(gpu.compute_percent) + '%', gpu.compute_percent],
+           [data.device_memory_label || gettext('GPU memory'), memory, gpu.memory_gib * 100 / gpu.memory_total_gib]].forEach(([title, amount, percent]) => {
             const row = document.createElement('div'), label = document.createElement('span'), value = document.createElement('strong');
-            label.textContent = title; value.textContent = number(amount) + unit; row.append(label, value);
+            label.textContent = title; value.textContent = amount; row.append(label, value);
             const meter = document.createElement('div'), fill = document.createElement('i');
             meter.className = 'meter'; fill.style.width = Math.max(0, Math.min(100, percent || 0)) + '%'; meter.append(fill);
             tile.append(row, meter);

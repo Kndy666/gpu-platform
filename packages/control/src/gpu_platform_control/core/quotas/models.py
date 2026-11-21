@@ -8,9 +8,9 @@ class RegisteredResource(models.Model):
     allocation_group = models.CharField(max_length=100, null=True)
     allocation_field = models.CharField(max_length=100, null=True)
     per_allocation = models.BooleanField(default=False)
-    minimum = models.DecimalField(max_digits=24, decimal_places=6, null=True)
-    maximum = models.DecimalField(max_digits=24, decimal_places=6, null=True)
-    step = models.DecimalField(max_digits=24, decimal_places=6, null=True)
+    minimum = models.DecimalField(max_digits=28, decimal_places=10, null=True)
+    maximum = models.DecimalField(max_digits=28, decimal_places=10, null=True)
+    step = models.DecimalField(max_digits=28, decimal_places=10, null=True)
     key = models.CharField(max_length=100, primary_key=True)
     unit = models.CharField(max_length=40)
     label = models.JSONField(default=dict)
@@ -28,8 +28,8 @@ class RegisteredResource(models.Model):
 class NodeResource(models.Model):
     node = models.ForeignKey('platform_nodes.ComputeNode', on_delete=models.CASCADE, related_name='resources')
     resource = models.ForeignKey('platform_quotas.RegisteredResource', on_delete=models.PROTECT)
-    total = models.DecimalField(max_digits=24, decimal_places=6)
-    used = models.DecimalField(max_digits=24, decimal_places=6, default=0)
+    total = models.DecimalField(max_digits=28, decimal_places=10)
+    used = models.DecimalField(max_digits=28, decimal_places=10, default=0)
     observed_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -37,10 +37,10 @@ class NodeResource(models.Model):
         constraints = [models.UniqueConstraint(fields=['node', 'resource'], name='unique_node_resource')]
 
 class ResourceQuota(models.Model):
-    per_allocation_limit = models.DecimalField(max_digits=24, decimal_places=6, null=True)
+    per_allocation_limit = models.DecimalField(max_digits=28, decimal_places=10, null=True)
     group = models.ForeignKey('platform_accounts.UserGroup', on_delete=models.CASCADE, related_name='resource_quotas')
     resource = models.ForeignKey('platform_quotas.RegisteredResource', on_delete=models.CASCADE)
-    limit = models.DecimalField(max_digits=24, decimal_places=6, null=True)
+    limit = models.DecimalField(max_digits=28, decimal_places=10, null=True)
 
     class Meta:
         db_table = 'portal_resourcequota'
@@ -51,7 +51,7 @@ class ResourceReservation(models.Model):
     node = models.ForeignKey('platform_nodes.ComputeNode', on_delete=models.PROTECT)
     resource = models.ForeignKey('platform_quotas.RegisteredResource', on_delete=models.PROTECT)
     subject = models.CharField(max_length=200)
-    amount = models.DecimalField(max_digits=24, decimal_places=6)
+    amount = models.DecimalField(max_digits=28, decimal_places=10)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

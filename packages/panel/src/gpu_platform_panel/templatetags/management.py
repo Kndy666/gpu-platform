@@ -114,6 +114,27 @@ def quantity(value, unit="GiB"):
         return "—"
 
 
+@register.filter
+def available_gpu_memory(value):
+    from decimal import Decimal
+
+    if value and value >= 1:
+        gib, mib = divmod(Decimal(str(value)) * 1024, 1024)
+        return f"{gib} GiB {compact_number(mib)} MiB" if mib else f"{gib} GiB"
+    return quantity(value)
+
+
+@register.filter
+def precise_number(value):
+    from decimal import Decimal, InvalidOperation
+
+    try:
+        amount = Decimal(str(value))
+    except InvalidOperation:
+        return "—"
+    return format(amount.normalize(), "f") if amount.is_finite() else "—"
+
+
 @register.simple_tag
 def resource_pair(available, total, unit):
     if available is None or total is None:

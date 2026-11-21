@@ -63,11 +63,8 @@ def resource_overview(node=None):
             max(0, 100 - d.get("used_compute_percent", 0)) if d.get("ready", True) else 0
         )
         d["available_memory_gib"] = (
-            round(
-                max(0, d.get("usable_memory_mib", d.get("memory_mib", 0)) - d.get("used_memory_mib", 0))
-                / 1024,
-                1,
-            )
+            max(0, d.get("usable_memory_mib", d.get("memory_mib", 0)) - d.get("used_memory_mib", 0))
+            / 1024
             if d["ready"]
             else 0
         )
@@ -115,9 +112,7 @@ def node_resource_groups(overview, node=None):
             (
                 {
                     **gpu,
-                    "memory_total_gib": round(
-                        gpu.get("usable_memory_mib", gpu.get("memory_mib", 0)) / 1024, 1
-                    ),
+                    "memory_total_gib": gpu.get("usable_memory_mib", gpu.get("memory_mib", 0)) / 1024,
                 }
                 for gpu in overview["gpus"]
                 if gpu["node_id"] == node.pk

@@ -36,7 +36,7 @@ def test_authentication_precedes_body_validation():
         {"purpose": "experiment", "mode": "unknown"},
         {"purpose": "experiment", "gpu_requests": [{"compute_percent": 101, "memory_gib": 1}]},
         {"purpose": "experiment", "gpu_requests": [{"compute_percent": 50, "memory_gib": 0}]},
-        {"purpose": "experiment", "gpu_requests": [{"compute_percent": 50, "memory_gib": 1.5}]},
+        {"purpose": "experiment", "gpu_requests": [{"compute_percent": 50, "memory_gib": 1.0001}]},
         {"purpose": "experiment", "cpu": 0},
         {"purpose": "experiment", "unexpected": True},
     ],

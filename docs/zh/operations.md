@@ -133,7 +133,7 @@ sudo platformctl upgrade --config cluster.yaml --host compute-a \
 
 - **仓库网络：** Zot 默认为 `https://127.0.0.1:5000`。BuildKit 通过内部 `registry:<port>` 端点使用相同凭据与 CA。使用 DNS 地址时，以仓库 `publish_address` 指定接口；自定义构建网络使用 `build_mirrors`。外部仓库 CA 填入运行模块的 `registry_trust`，相对路径按状态目录解析。
 - **默认环境配方：** `parameters.bootstrap_recipe` 选择控制主机可读的 Dockerfile，`parameters.bootstrap_context` 选择 `trusted:environment` 等构建上下文。默认合并主机自动发布内置配方；专用控制主机需要准备可读配方。控制中心管理命令 `bootstrap_workspace` 可主动提交构建。
-- **配额：** 用户组 `resources` 使用模块资源键。`home_size_gib` 设置新成员默认值，成员保留自己的设置。工作卷按每个容器申请的容量校验。容量使用 GiB，NVIDIA 显存申请使用整数 GiB。
+- **配额：** 用户组 `resources` 使用模块资源键。`home_size_gib` 设置新成员默认值，成员保留自己的设置。工作卷按每个容器申请的容量校验。NVIDIA 显存申请使用 GiB，步长为 1 MiB。选择「最大」时，平台在提交时按设备预算和配额确定申请量，排队期间沿用该数值。
 - **离线主机：** 通过 `parameters.image_archives` 提供镜像归档，启用 `parameters.offline`，并准备系统软件包和运行模块的版本化下载缓存。
 - **防火墙：** `parameters.network` 设置公网接口与私有端口，安装器管理的防火墙服务会在主机重启后恢复规则。
 

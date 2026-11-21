@@ -19,7 +19,7 @@ from gpu_platform_contracts.resources import GPUDevice, GPURequest, ResourceDefi
 from gpu_platform_contracts.slots.gpu import GPU
 from gpu_platform_contracts.texts import LocalizedText, Message
 
-from .allocation import choose_devices, resolve_gpu_max
+from .allocation import MIB_IN_GIB, choose_devices, memory_mib, resolve_gpu_max
 from .hardware import cuda_inventory
 
 
@@ -83,8 +83,8 @@ class Module(GPU):
                 allocation_group="gpu",
                 allocation_field="memory_gib",
                 per_allocation=True,
-                minimum=Decimal(1),
-                integral=True,
+                minimum=MIB_IN_GIB,
+                step=MIB_IN_GIB,
             ),
         ],
         texts={
@@ -144,7 +144,7 @@ class Module(GPU):
                 GPUDevice(
                     id=device["uuid"],
                     name=device["name"],
-                    memory_gib=Decimal(device["usable_memory_mib"]) / 1024,
+                    memory_gib=device["usable_memory_mib"] * MIB_IN_GIB,
                     used_compute_percent=sum(a["compute_percent"] for a in used),
                     used_memory_gib=Decimal(sum(a["memory_mib"] for a in used)) / 1024,
                 )
@@ -157,10 +157,9 @@ class Module(GPU):
         for request in requests:
             if request.compute_percent != int(request.compute_percent) or request.compute_percent < 2:
                 raise ValueError("gpu.invalid_compute_increment")
-            if request.memory_gib != int(request.memory_gib) or request.memory_gib < 1:
-                raise ValueError("gpu.invalid_memory_increment")
+            memory_mib(request.memory_gib)
             desired.append(
-                {"compute_percent": int(request.compute_percent), "memory_gib": float(request.memory_gib)}
+                {"compute_percent": int(request.compute_percent), "memory_gib": request.memory_gib}
             )
         from itertools import permutations
 
@@ -201,11 +200,13 @@ class Module(GPU):
                     converted = {}
                     for field, definition in definitions.items():
                         value = row[definition.key]
-                        if value != "max" and Decimal(value) != int(value):
-                            raise ValueError("gpu.invalid_request")
-                        converted[field] = "max" if value == "max" else int(value)
+                        if value != "max" and definition.integral:
+                            if value != int(value):
+                                raise ValueError("gpu.invalid_request")
+                            value = int(value)
+                        converted[field] = value
                     rows.append(converted)
-                inventory = self.read_inventory()
+                inventory = [device for device in self.read_inventory() if device.get("ready", True)]
                 compute, memory = definitions["compute_percent"].key, definitions["memory_gib"].key
                 resolved = resolve_gpu_max(
                     rows,
@@ -213,17 +214,17 @@ class Module(GPU):
                         "devices": [
                             {
                                 "sm_count": item["sm_count"],
-                                "memory_gib": int(item["usable_memory_mib"]) // 1024,
+                                "memory_gib": item["usable_memory_mib"] * MIB_IN_GIB,
                             }
                             for item in inventory
                         ],
                         "compute_per_card_percent": int(intent.per_allocation_limits[compute])
                         if intent.per_allocation_limits.get(compute) is not None
                         else 100,
-                        "memory_per_card_gib": int(intent.per_allocation_limits[memory])
+                        "memory_per_card_gib": intent.per_allocation_limits[memory]
                         if intent.per_allocation_limits.get(memory) is not None
-                        else max((item["usable_memory_mib"] // 1024 for item in inventory), default=0),
-                        "compute_total_percent": intent.limits.get(compute),
+                        else max((item["usable_memory_mib"] * MIB_IN_GIB for item in inventory), default=0),
+                        "compute_total_percent": int(intent.limits[compute]) if intent.limits.get(compute) is not None else None,
                         "memory_total_gib": intent.limits.get(memory),
                     },
                 )

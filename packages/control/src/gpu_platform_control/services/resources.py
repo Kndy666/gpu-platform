@@ -8,11 +8,26 @@ from django.utils import timezone
 from gpu_platform_contracts.messages import CapabilityReport, compatible_version
 from gpu_platform_control.core.nodes.models import ComputeNode, StoragePool, SystemObservation
 from gpu_platform_control.core.accounts.models import UserProfile, UserGroup
+from gpu_platform_control.core.quotas.accounting import allocation_constraints, quantity
 from gpu_platform_control.core.quotas.models import RegisteredResource, NodeResource, ResourceQuota, ResourceReservation
 
 
 def problem(code, **parameters):
     raise ValidationError(code, code=code, params=parameters)
+
+
+def refines_precision(coarser, finer):
+    if not coarser.per_allocation or not finer.per_allocation or finer.integral:
+        return False
+    old_step = coarser.step or (Decimal(1) if coarser.integral else None)
+    new_step = finer.step
+    old_min = coarser.minimum or Decimal(0)
+    new_min = finer.minimum or Decimal(0)
+    return (
+        old_step is not None and new_step is not None and new_step < old_step
+        and new_min <= old_min and coarser.maximum == finer.maximum
+        and (old_min - new_min) % new_step == 0 and old_step % new_step == 0
+    )
 
 
 @transaction.atomic
@@ -56,10 +71,9 @@ def register_capabilities(node_id, report: CapabilityReport):
             values = definition.model_dump(mode="json")
             key = values.pop("key")
             values.pop("default", None)
-            resource, created = RegisteredResource.objects.get_or_create(key=key, defaults=values)
+            resource, created = RegisteredResource.objects.select_for_update().get_or_create(key=key, defaults=values)
             if not created and (
                 resource.unit != definition.unit
-                or resource.integral != definition.integral
                 or resource.requestable != definition.requestable
                 or resource.scope != definition.scope
                 or resource.accounting != definition.accounting
@@ -67,11 +81,18 @@ def register_capabilities(node_id, report: CapabilityReport):
                 or resource.allocation_group != definition.allocation_group
                 or resource.allocation_field != definition.allocation_field
                 or resource.per_allocation != definition.per_allocation
-                or resource.minimum != definition.minimum
-                or resource.maximum != definition.maximum
-                or resource.step != definition.step
             ):
                 problem("resource_definition_conflict", resource=key)
+            if not created and any(
+                getattr(resource, field) != getattr(definition, field)
+                for field in ("integral", "minimum", "maximum", "step")
+            ):
+                if refines_precision(resource, definition):
+                    for field in ("integral", "minimum", "step"):
+                        setattr(resource, field, getattr(definition, field))
+                    resource.save(update_fields=["integral", "minimum", "step"])
+                elif not refines_precision(definition, resource):
+                    problem("resource_definition_conflict", resource=key)
             if resource.label != values["label"]:
                 resource.label = values["label"]
                 resource.save(update_fields=["label"])
@@ -174,7 +195,13 @@ def available_resources(node=None):
     query = RegisteredResource.objects.filter(Q(noderesource__node__enabled=True) | Q(key__in=sources))
     if node is not None:
         query = query.filter(noderesource__node=node)
-    return list(query.distinct().values("key", "unit", "label", "scope", "integral", "requestable", "accounting", "volume_kind", "allocation_group", "allocation_field", "per_allocation", "minimum", "maximum", "step"))
+    rows = list(query.distinct().values("key", "unit", "label", "scope", "integral", "requestable", "accounting", "volume_kind", "allocation_group", "allocation_field", "per_allocation", "minimum", "maximum", "step"))
+    if node is not None:
+        constraints = allocation_constraints(node)
+        for row in rows:
+            if definition := constraints.get(row["key"]):
+                row.update({field: getattr(definition, field) for field in ("integral", "minimum", "maximum", "step")})
+    return rows
 
 
 @transaction.atomic
@@ -186,6 +213,7 @@ def reserve_resources(owner, node, subject, quantities):
     capacities = {
         row.resource_id: row for row in NodeResource.objects.select_related("resource").filter(node=node)
     }
+    constraints = allocation_constraints(node)
     quotas = {row.resource_id: row.limit for row in ResourceQuota.objects.filter(group=owner.profile.group)}
     from gpu_platform_control.core.quotas.quantities import member_quantities
 
@@ -206,12 +234,11 @@ def reserve_resources(owner, node, subject, quantities):
         if (
             not amount.is_finite()
             or amount < 0
-            or (definition.integral and amount != amount.to_integral_value())
+            or (constraints.get(key, definition).integral and amount != amount.to_integral_value())
         ):
             problem("resource_amount_invalid", resource=key)
         if definition.accounting != "task" or not definition.requestable:
             problem("resource_not_requestable", resource=key)
-        from gpu_platform_control.core.quotas.accounting import quantity
         amount = quantity(amount, None if definition.per_allocation else definition)
         others = ResourceReservation.objects.filter(owner=owner, resource_id=key).exclude(subject=subject)
         if definition.scope == "node":
