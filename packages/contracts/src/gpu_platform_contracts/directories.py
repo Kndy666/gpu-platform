@@ -20,7 +20,7 @@ class DirectoryEntry(Contract):
 
 
 class DirectoryManifest(Contract):
-    version: Literal[1] = 1
+    version: int = 1
     paths: list[str]
     entries: dict[str, DirectoryEntry] = Field(max_length=200000)
 

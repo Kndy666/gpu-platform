@@ -628,7 +628,7 @@ class MetricFields(Input):
 
 
 class PerformanceMetrics(MetricFields):
-    version: Literal[1] | None = None
+    version: int | None = None
     sampled_at: (
         Annotated[
             datetime,

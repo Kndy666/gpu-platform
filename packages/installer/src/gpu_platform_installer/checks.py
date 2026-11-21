@@ -6,7 +6,6 @@ import inspect
 from typing import Any, Callable
 
 from gpu_platform_contracts.config import PlatformConfig
-from gpu_platform_contracts.module import API_VERSION
 
 from .config import effective_config, resolve_host
 from .host.system import CheckIssue, HostContext, check_system, run
@@ -51,8 +50,6 @@ def validate(config: PlatformConfig, name: str, *, loader: Callable[[str, str], 
         descriptor = module.descriptor
         if inspect.isabstract(module.implementation):
             issues.append(CheckIssue("module.incomplete", {"module": key}))
-        if descriptor.api_version.split(".", 1)[0] != API_VERSION.split(".", 1)[0]:
-            issues.append(CheckIssue("module.version_incompatible", {"module": key, "version": descriptor.api_version}))
         target_side = "control" if key.startswith(("auth", "notify", "transport:", "entry:")) else "node"
         if descriptor.side not in {target_side, "both"}:
             issues.append(CheckIssue("module.side_incompatible", {"module": key, "side": target_side}))

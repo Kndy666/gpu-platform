@@ -2,7 +2,6 @@ from importlib.metadata import entry_points
 from pathlib import Path
 
 from gpu_platform_contracts.config import HostConfig
-from gpu_platform_contracts.messages import compatible_version
 from gpu_platform_contracts.module import Module, ModuleContext
 from gpu_platform_contracts.slots import SLOT_CONTRACTS
 
@@ -21,7 +20,6 @@ def load_slots(host: HostConfig, node_id: str, state_directory: Path, event_sink
         if (
             implementation.descriptor.slot != slot
             or implementation.descriptor.side not in {"node", "both"}
-            or not compatible_version(implementation.descriptor.api_version)
         ):
             raise ValueError(f"incompatible module: {slot}/{selection.module}")
         options = {**implementation.validate_options(selection.options), "architecture": host.architecture}

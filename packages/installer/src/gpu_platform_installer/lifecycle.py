@@ -12,7 +12,7 @@ from typing import Any, Callable
 import yaml
 
 from gpu_platform_contracts.config import PlatformConfig
-from gpu_platform_contracts.messages import ACTIVE_STATES, Command, NodeReport, Operation, compatible_version
+from gpu_platform_contracts.messages import ACTIVE_STATES, Command, NodeReport, Operation
 from gpu_platform_contracts.module import ModuleContext
 from gpu_platform_contracts.host import HostOwnership
 
@@ -192,8 +192,8 @@ class Installer:
     def validate_report(self, name: str, data: dict) -> NodeReport:
         report = NodeReport.model_validate(data)
         age = (datetime.now(timezone.utc) - report.observed_at).total_seconds()
-        if report.node_id != name or not compatible_version(report.version) or not -5 <= age <= 60:
-            raise RuntimeError(f"A current compatible node report is required: {name}")
+        if report.node_id != name or not -5 <= age <= 60:
+            raise RuntimeError(f"A current node report is required: {name}")
         if not report.maintenance:
             raise RuntimeError(f"Node must be in maintenance mode: {name}")
         if any(task.state in ACTIVE_STATES for task in report.tasks):
@@ -205,7 +205,7 @@ class Installer:
         if self.maintenance_reports is not None:
             bundle = json.loads(self.maintenance_reports.read_text())
             expected = {name for name, host in self.config.hosts.items() if "node" in host.roles}
-            if bundle.get("version") != 1 or bundle.get("configuration") != self.config_digest() or set(bundle.get("reports", {})) != expected:
+            if bundle.get("configuration") != self.config_digest() or set(bundle.get("reports", {})) != expected:
                 raise RuntimeError("Maintenance reports do not match the configured cluster")
             reports = bundle["reports"]
         elif "control" not in self.config.hosts[self.host].roles:

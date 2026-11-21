@@ -5,7 +5,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Sum
 from django.utils import timezone
-from gpu_platform_contracts.messages import CapabilityReport, compatible_version
+from gpu_platform_contracts.messages import CapabilityReport
 from gpu_platform_control.core.nodes.models import ComputeNode, StoragePool, SystemObservation
 from gpu_platform_control.core.accounts.models import UserProfile, UserGroup
 from gpu_platform_control.core.quotas.accounting import allocation_constraints, quantity
@@ -44,11 +44,6 @@ def register_capabilities(node_id, report: CapabilityReport):
     node.last_seen = timezone.now()
     node.state = "online"
     node.error = ""
-    if not compatible_version(report.version):
-        node.maintenance = True
-        node.error = "protocol_incompatible"
-        node.save()
-        return False
     from gpu_platform_control.core.quotas.quantities import policy_quantities
     from gpu_platform_control.core.policies import SYSTEM_STORAGE
     from gpu_platform_control.slots.configuration import cluster_config
@@ -185,7 +180,6 @@ def register_capabilities(node_id, report: CapabilityReport):
     from .bootstrap import ensure_default_image
 
     ensure_default_image(node)
-    return True
 
 
 def available_resources(node=None):

@@ -388,7 +388,7 @@ def registry_trust(context):
         if value.get("form") != "oci-registry":
             continue
         handoff = RegistryTrust.model_validate(value)
-        if handoff.node_id != context.node_id or handoff.version.split(".")[0] != "1":
+        if handoff.node_id != context.node_id:
             raise ValueError("runtime.registry_trust_scope_mismatch")
         trusted[handoff.endpoint] = handoff.ca_file
     trusted.update(context.options.get("registry_trust", {}))
@@ -467,7 +467,7 @@ def _install(context):
         if len(providers) != 1:
             raise ValueError("A GPU module must supply exactly one OCI runtime")
         provider = GPURuntime.model_validate(providers[0])
-        if provider.node_id != context.node_id or provider.version.split(".")[0] != "1":
+        if provider.node_id != context.node_id:
             raise ValueError("GPU runtime handoff does not match the host")
         cfg["gpu_binary"] = provider.binary
         if provider.prestart_hook:

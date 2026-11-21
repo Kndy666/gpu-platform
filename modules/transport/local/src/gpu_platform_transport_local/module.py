@@ -4,7 +4,7 @@ from pydantic import Field
 
 from gpu_platform_contracts.base import Contract
 from gpu_platform_contracts.handoffs import PortConnection
-from gpu_platform_contracts.messages import Command, Operation, Reply, compatible_version
+from gpu_platform_contracts.messages import Command, Operation, Reply
 from gpu_platform_contracts.module import ModuleDescriptor
 from gpu_platform_contracts.slots.transport import Transport
 
@@ -34,7 +34,7 @@ class Module(Transport):
 
     def request(self, endpoint, command):
         reply = Reply.model_validate(exchange(self.path(endpoint), command.model_dump(mode="json")))
-        if reply.id != command.id or not compatible_version(reply.version):
+        if reply.id != command.id:
             raise ConnectionError("invalid_reply_identity")
         return reply
 

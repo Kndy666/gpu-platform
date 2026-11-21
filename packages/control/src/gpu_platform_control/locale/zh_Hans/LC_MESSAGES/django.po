@@ -1461,9 +1461,6 @@ msgstr "当前密码不正确。"
 msgid "The new passwords do not match."
 msgstr "两次输入的新密码不一致。"
 
-msgid "Upgrade this node to a compatible protocol version before starting new tasks."
-msgstr "请先将此节点升级到兼容的协议版本，再启动新任务。"
-
 msgid "Enter an HTTPS Git repository URL without embedded credentials."
 msgstr "请输入 HTTPS Git 仓库地址，请勿在地址中包含账号或密码。"
 

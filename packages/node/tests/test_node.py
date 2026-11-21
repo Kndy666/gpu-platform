@@ -190,13 +190,12 @@ def test_node_identity_and_maintenance_guard_dispatch(engine, task_spec):
     assert engine.slots["runtime"].tasks == {}
 
 
-def test_protocol_incompatibility_preserves_live_tasks(engine, task_spec):
+def test_stop_command_correlates_reply_and_updates_task_state(engine, task_spec):
     engine.start(task_spec)
-    reply = engine.handle(
-        Command(version="99.0", operation=Operation.TASK_STOP, payload={"task_id": task_spec.id})
-    )
-    assert not reply.ok
-    assert engine.slots["runtime"].status(task_spec.id).state == "running"
+    command = Command(version="99.0", operation=Operation.TASK_STOP, payload={"task_id": task_spec.id})
+    reply = engine.handle(command)
+    assert reply.ok and reply.id == command.id
+    assert engine.slots["runtime"].status(task_spec.id).state == "ended"
 
 
 def test_expiry_works_after_engine_restart(engine, task_spec, tmp_path):

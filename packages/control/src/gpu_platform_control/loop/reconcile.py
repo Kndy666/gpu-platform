@@ -6,7 +6,7 @@ from django.utils import timezone
 from gpu_platform_contracts.environment import EnvironmentIdentity
 from gpu_platform_contracts.handoffs import VolumeRequest
 from gpu_platform_contracts.messages import (
-    CapabilityReport, NodeReport, Operation, TaskSpec, TaskStatus, compatible_version,
+    CapabilityReport, NodeReport, Operation, TaskSpec, TaskStatus,
 )
 from gpu_platform_contracts.assessment import ResourceIntent, ResourceAssessment
 from gpu_platform_control.core.requests.models import ResourceRequest
@@ -127,10 +127,6 @@ class Reconciler:
         capabilities = CapabilityReport.model_validate(
             self.gateway.request(self.node, Operation.CAPABILITIES)
         )
-        if not compatible_version(capabilities.version):
-            register_capabilities(self.node.pk, capabilities)
-            self.node.refresh_from_db()
-            return False
         report = NodeReport.model_validate(self.gateway.request(self.node, Operation.STATUS))
         if report.node_id != self.node.name:
             raise ConnectionError("node_identity_mismatch")
@@ -159,7 +155,6 @@ class Reconciler:
             transaction.on_commit(
                 lambda: self.gateway.request(self.node, Operation.EVENTS_ACK, ids=identifiers)
             )
-        return True
 
     def dispatch(self, request):
         from gpu_platform_control.core.workspace_copy import ensure_workspace_copy
@@ -222,8 +217,7 @@ class Reconciler:
 
     def tick(self):
         try:
-            if not self.observe():
-                return
+            self.observe()
             from .storage import sync_storage
             from gpu_platform_control.core.snapshots import sync_snapshots
             from gpu_platform_control.core.builds import BuildReconciler

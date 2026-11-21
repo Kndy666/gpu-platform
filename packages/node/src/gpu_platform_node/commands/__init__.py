@@ -21,7 +21,6 @@ from gpu_platform_contracts.messages import (
     Reply,
     TaskSpec,
     TaskStatus,
-    compatible_version,
 )
 from gpu_platform_contracts.module import SlotError, SlotPending
 from gpu_platform_contracts.resources import Quantity, ResourceUsage
@@ -315,7 +314,7 @@ class NodeEngine:
             Operation.DATASETS_DOWNLOAD,
             Operation.DATASETS_MANIFEST,
         }
-        if command.operation in bulk and compatible_version(command.version):
+        if command.operation in bulk:
             return self.operations.request(command, self.execute_reply,
                 cache_result=command.operation != Operation.DATASETS_IMPORT)
         with self.lock:
@@ -323,8 +322,6 @@ class NodeEngine:
 
     def execute_reply(self, command: Command) -> Reply:
         try:
-            if not compatible_version(command.version):
-                raise SlotError("protocol.incompatible", version=command.version)
             result = self.execute(command.operation, command.payload)
             if hasattr(result, "model_dump"):
                 result = result.model_dump(mode="json")

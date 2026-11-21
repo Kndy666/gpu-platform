@@ -17,7 +17,6 @@ from gpu_platform_contracts.messages import (
     Command,
     Operation,
     Reply,
-    compatible_version,
     encode_message,
     read_message,
 )
@@ -200,7 +199,7 @@ class Module(Transport):
                 reply = Reply.model_validate(read_message(process.stdout))
             finally:
                 timer.cancel()
-            if reply.id != command.id or not compatible_version(reply.version):
+            if reply.id != command.id:
                 raise ConnectionError("transport.invalid_reply")
             return reply
 

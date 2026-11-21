@@ -55,15 +55,14 @@ def test_registration_controls_resource_visibility(allocation):
     assert available_resources() == []
 
 
-def test_incompatible_node_pauses_admission_without_changing_reservations(allocation):
+def test_capability_updates_preserve_existing_reservations(allocation):
     user, first, second = allocation
     reserve_resources(user, first, 'job-a', {'licenses': 3})
-    assert register_capabilities(first.pk, inventory(first, version='2.0')) is False
+    register_capabilities(first.pk, inventory(first, version='2.0'))
     first.refresh_from_db()
-    assert first.maintenance
+    assert not first.maintenance
     assert ResourceReservation.objects.get(subject='job-a').amount == 3
-    with pytest.raises(ValidationError):
-        reserve_resources(user, first, 'job-b', {'licenses': 1})
+    reserve_resources(user, first, 'job-b', {'licenses': 1})
 
 
 @pytest.mark.parametrize('amount', ['NaN', 'Infinity', -1, '0.25'])

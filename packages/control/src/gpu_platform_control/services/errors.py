@@ -9,7 +9,6 @@ def message(code, node=None, parameters=None):
     known = {
         "feature_disabled": _("This feature is unavailable on the selected node."),
         "node_unavailable": _("The selected node is unavailable."),
-        "protocol_incompatible": _("Upgrade this node to a compatible protocol version before starting new tasks."),
         "image_quota_exceeded": _("Image quota is exhausted."),
         "image_architecture_mismatch": _("The image architecture does not match the destination node."),
         "image_unavailable": _("The selected image is unavailable."),

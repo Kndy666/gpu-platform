@@ -148,10 +148,6 @@ class NodeReport(Contract):
     events: list[ModuleEvent] = Field(default_factory=list)
 
 
-def compatible_version(version: str) -> bool:
-    return version.split(".")[0] == API_VERSION.split(".")[0]
-
-
 def encode_message(message: Contract) -> bytes:
     data = message.model_dump_json().encode("utf-8") + b"\n"
     if len(data) > MAX_MESSAGE_BYTES:

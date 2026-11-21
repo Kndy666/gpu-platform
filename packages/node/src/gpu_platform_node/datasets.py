@@ -210,7 +210,7 @@ class Datasets:
             raise ValueError("dataset manifest exceeds metadata limit")
         document = json.loads(encoded)
         selections = selected_paths(paths)
-        if document.get("version") != 1 or document.get("paths") != [str(path) for path in selections]:
+        if not isinstance(document, dict) or document.get("paths") != [str(path) for path in selections]:
             raise ValueError("dataset manifest selection mismatch")
         entries = document.get("entries")
         if not isinstance(entries, dict) or len(entries) > 200000:

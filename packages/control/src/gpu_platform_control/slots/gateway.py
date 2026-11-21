@@ -3,7 +3,7 @@
 from pathlib import Path
 from importlib.metadata import entry_points
 import time
-from gpu_platform_contracts.messages import Command, compatible_version
+from gpu_platform_contracts.messages import Command
 from gpu_platform_contracts.module import ModuleContext
 from .configuration import cluster_config
 
@@ -83,7 +83,7 @@ class Gateway:
     def request(self, node, operation, **payload):
         command = Command(operation=operation, payload=payload)
         reply = self.module(node, "transport").request(self.endpoint(node), command)
-        if reply.id != command.id or not compatible_version(reply.version):
+        if reply.id != command.id:
             raise ConnectionError("invalid_node_reply")
         if not reply.ok:
             raise NodeCommandError(reply.error)

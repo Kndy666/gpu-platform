@@ -59,7 +59,7 @@ class BuildReconciler:
                     ImageBuild.objects.filter(pk=build.pk).update(status="building")
                     continue
                 build.error = exc.message.model_dump_json()
-                if exc.message.code in {"command.failed", "node.maintenance", "protocol.incompatible"}:
+                if exc.message.code in {"command.failed", "node.maintenance"}:
                     build.save(update_fields=["error"])
                     continue
                 build.status = "failed"
