@@ -20,6 +20,7 @@ from gpu_platform_contracts.messages import (
     Operation,
     Reply,
     TaskSpec,
+    TaskStatus,
     compatible_version,
 )
 from gpu_platform_contracts.module import SlotError, SlotPending
@@ -59,6 +60,7 @@ class NodeEngine:
         self.state = read_json(self.state_path, {"maintenance": False, "tasks": {}, "allocations": {}})
         self.state.setdefault("builds", {})
         self.state.setdefault("build_results", {})
+        self.state.setdefault("terminal_tasks", {})
         self.operations = Operations(
             state_directory / "operations", self.streams.exists
         )
@@ -116,11 +118,17 @@ class NodeEngine:
         )
 
     def report(self):
+        tasks = {task.id: task for task in self.slot("runtime").list_tasks()}
+        tasks.update({
+            task_id: TaskStatus.model_validate(status)
+            for task_id, status in self.state["terminal_tasks"].items()
+            if task_id in self.state["tasks"]
+        })
         return NodeReport(
             node_id=self.node_id,
             observed_at=datetime.now(timezone.utc),
             maintenance=self.state["maintenance"],
-            tasks=self.slot("runtime").list_tasks(),
+            tasks=list(tasks.values()),
             usage=self.usage(),
             metrics=self.slots["metrics"].sample() if "metrics" in self.slots else {},
             events=self.events.pending(),
@@ -129,10 +137,42 @@ class NodeEngine:
 
     def release(self, task_id):
         allocation = self.state["allocations"].get(task_id)
+        if allocation is None and self.state["tasks"].get(task_id, {}).get("gpus"):
+            recovered = self.slot("gpu").lookup(task_id)
+            if recovered is not None:
+                allocation = recovered.id
+                self.state["allocations"][task_id] = allocation
+                self.save()
         if allocation is not None:
             self.slot("gpu").release(allocation)
             del self.state["allocations"][task_id]
             self.save()
+
+    def status(self, task_id):
+        if task_id in self.state["terminal_tasks"]:
+            return TaskStatus.model_validate(self.state["terminal_tasks"][task_id])
+        return self.slot("runtime").status(task_id)
+
+    def stop(self, task_id):
+        runtime = self.slot("runtime")
+        try:
+            runtime.status(task_id)
+        except (KeyError, FileNotFoundError):
+            if task_id not in self.state["tasks"] and task_id not in self.state["terminal_tasks"]:
+                raise
+            # Preparation can fail before a runtime record exists. Keep a durable result
+            # so cancellation, expiry, and acknowledgement can all be retried.
+            if task_id not in self.state["terminal_tasks"]:
+                self.state["terminal_tasks"][task_id] = TaskStatus(
+                    id=task_id, state="ended", ended_at=datetime.now(timezone.utc)
+                ).model_dump(mode="json")
+                self.save()
+            status = self.status(task_id)
+        else:
+            status = runtime.stop(task_id)
+        if status.state not in ACTIVE_STATES:
+            self.release(task_id)
+        return status
 
     def start(self, task: TaskSpec):
         if task.node_id != self.node_id:
@@ -142,9 +182,11 @@ class NodeEngine:
             if recorded != task.model_dump(mode="json"):
                 raise SlotError("task.conflict", task_id=task.id)
             try:
-                return self.slot("runtime").status(task.id)
+                return self.status(task.id)
             except (KeyError, FileNotFoundError):
                 pass
+        if task.id in self.state["terminal_tasks"]:
+            return self.status(task.id)
         if self.state["maintenance"]:
             raise SlotError("node.maintenance")
         if task.expires_at is not None and task.expires_at <= datetime.now(timezone.utc):
@@ -208,14 +250,12 @@ class NodeEngine:
                     runtime.status(spec.id)
                 except (KeyError, FileNotFoundError):
                     self.release(spec.id)
-            stopped = stop_expired(runtime, specs, datetime.now(timezone.utc))
+            stopped = stop_expired(self.stop, specs, datetime.now(timezone.utc))
             # Runtime expiry also covers its own durable records after an interrupted dispatch.
             stopped.extend(runtime.expire(datetime.now(timezone.utc)))
             for status in [*stopped, *runtime.list_tasks()]:
                 if status.state not in ACTIVE_STATES:
-                    cleaned = runtime.stop(status.id)
-                    if cleaned.state not in ACTIVE_STATES:
-                        self.release(status.id)
+                    self.stop(status.id)
             for build_id in list(self.state["builds"]):
                 try:
                     result = self.slot("build").status(build_id)
@@ -316,25 +356,22 @@ class NodeEngine:
         if operation == Operation.TASK_START:
             return self.start(TaskSpec.model_validate(payload))
         if operation == Operation.TASK_STOP:
-            status = self.slot("runtime").stop(payload["task_id"])
-            if status.state not in ACTIVE_STATES:
-                self.release(status.id)
-            return status
+            return self.stop(payload["task_id"])
         if operation == Operation.TASK_ACK:
             for task_id in TypeAdapter(list[str]).validate_python(payload["ids"]):
-                status = self.slot("runtime").status(task_id)
+                status = self.status(task_id)
                 if status.state in ACTIVE_STATES:
                     raise SlotPending(reason="task.cleanup_pending", task_id=task_id)
-                status = self.slot("runtime").stop(task_id)
+                status = self.stop(task_id)
                 if status.state in ACTIVE_STATES:
                     raise SlotPending(reason="task.cleanup_pending", task_id=task_id)
-                self.release(task_id)
-                self.slot("runtime").acknowledge(task_id)
+                if task_id not in self.state["terminal_tasks"]:
+                    self.slot("runtime").acknowledge(task_id)
                 self.state["tasks"].pop(task_id, None)
                 self.save()
             return {}
         if operation == Operation.TASK_STATUS:
-            return self.slot("runtime").status(payload["task_id"])
+            return self.status(payload["task_id"])
         if operation == Operation.TASK_EXTEND:
             expires_at = TypeAdapter(AwareDatetime).validate_python(payload["expires_at"])
             result = self.slot("runtime").extend(payload["task_id"], expires_at)

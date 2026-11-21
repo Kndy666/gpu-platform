@@ -37,6 +37,7 @@ def request_image_sync(user, image, target, *, bandwidth=0):
     publish_shared = user.is_staff and image.shared
     owner = image.owner if image.owner_id and not image.shared else user
     UserProfile.objects.select_for_update().get(user=owner)
+    image = ImageArtifact.objects.select_for_update().get(pk=image.pk)
     if image.state != "ready" or not image.verified:
         failure("image_unavailable")
     if image.node_id == target.pk:

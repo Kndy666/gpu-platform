@@ -8,6 +8,7 @@ from django.utils import timezone
 from gpu_platform_control.core.retention.models import ImageArtifact, PlatformSettings
 from gpu_platform_control.core.requests.models import ResourceRequest
 from gpu_platform_control.core.tasks.models import Workspace
+from gpu_platform_control.core.sync.models import SyncJob
 from .services import TERMINAL, audit
 
 log = logging.getLogger(__name__)
@@ -17,6 +18,7 @@ def in_use(image):
     return (
         ResourceRequest.objects.filter(image=image).exclude(status__in=TERMINAL).exists()
         or Workspace.objects.filter(request__image=image, cleanup_complete=False).exists()
+        or SyncJob.objects.filter(image=image, state__in=["queued", "running"]).exists()
         or ImageArtifact.objects.filter(node_id=image.node_id, reference=image.reference)
         .exclude(pk=image.pk)
         .exclude(state="deleted")
@@ -38,7 +40,7 @@ def keep_image(pk, actor):
 
 @transaction.atomic
 def recycle_image(pk, actor):
-    image = ImageArtifact.objects.get(pk=pk)
+    image = ImageArtifact.objects.select_for_update().get(pk=pk)
     if image.owner_id != actor.pk and (not actor.is_staff):
         raise ValidationError(tr("You need permission to manage this image."))
     if image.shared or image.owner_id is None:
@@ -52,7 +54,7 @@ def recycle_image(pk, actor):
 
 @transaction.atomic
 def prepare_collection(pk):
-    image = ImageArtifact.objects.get(pk=pk)
+    image = ImageArtifact.objects.select_for_update().get(pk=pk)
     if image.shared or image.owner_id is None or image.state == "deleted":
         return None
     if in_use(image):

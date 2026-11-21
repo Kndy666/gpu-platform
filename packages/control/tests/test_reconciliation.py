@@ -151,12 +151,13 @@ def test_offline_node_retains_tasks_ports_and_reservations(execution):
     assert ResourceReservation.objects.count() == 2
 
 
-def test_confirmed_stop_releases_port_and_quota(execution):
+def test_confirmed_stop_releases_port_and_quota(execution, django_capture_on_commit_callbacks):
     user, node, request, gateway = execution
     reconciler = Reconciler(node, gateway)
     reconciler.tick()
     Workspace.objects.filter(request=request).update(stop_requested=True)
-    reconciler.tick()
+    with django_capture_on_commit_callbacks(execute=True):
+        reconciler.tick()
     request.refresh_from_db()
     workspace = Workspace.objects.get(request=request)
     assert request.status == 'canceled'

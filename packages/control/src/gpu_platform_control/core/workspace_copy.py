@@ -9,15 +9,13 @@ from .services import audit, work_volume
 
 
 def ensure_workspace_copy(gateway, request):
-    destination = getattr(request, "volumeallocation", None)
-    if (
-        not request.source_environment_id
-        or not destination
-        or destination.state not in {"copy_pending", "copying"}
-    ):
+    if not request.source_environment_id:
         return True
     if not request.source_environment.workspace.cleanup_complete:
         return False
+    destination = getattr(request, "volumeallocation", None)
+    if not destination or destination.state not in {"copy_pending", "copying"}:
+        return True
     source = work_volume(request.source_environment)
     if source.state in {"deleting", "deleted"}:
         raise ValueError("source_volume_unavailable")

@@ -15,11 +15,12 @@ from gpu_platform_control.core.retention.models import VolumeAllocation
 from gpu_platform_control.core.nodes.models import SystemObservation
 from gpu_platform_control.core.services import work_volume
 from gpu_platform_control.core.ssh_access import authorized_keys
-from gpu_platform_control.core.tasks.lifecycle import allocate_port, mark_finished, reserve_dispatch
+from gpu_platform_control.core.tasks.lifecycle import (
+    allocate_port, complete_cleanup, mark_finished, reserve_dispatch,
+)
 from gpu_platform_control.services.resources import (
     register_capabilities,
     reserve_resources,
-    release_resources,
 )
 from gpu_platform_control.slots.gateway import Gateway, NodeCommandError
 
@@ -103,12 +104,8 @@ class Reconciler:
                 else "succeeded"
             )
             detail = status.error.model_dump_json() if status.error else ""
-            mark_finished(request, state, status.exit_code, detail, status.ended_at)
-            Workspace.objects.filter(pk=workspace.pk).update(
-                cleanup_complete=True, ssh_port=None, connection={}
-            )
-            release_resources(request.user, str(request.pk))
-            transaction.on_commit(lambda: self.acknowledge_task(status.id))
+            if mark_finished(request, state, status.exit_code, detail, status.ended_at):
+                transaction.on_commit(lambda: self.acknowledge_task(status.id))
         else:
             ResourceRequest.objects.filter(pk=request.pk).update(status=status.state)
             if status.state == "running" and request.status != "running":
@@ -122,6 +119,9 @@ class Reconciler:
         except NodeCommandError as exc:
             if exc.message.code != "operation.pending":
                 raise
+            return
+        request = ResourceRequest.objects.get(node=self.node, pk=identifier)
+        complete_cleanup(request)
 
     def observe(self):
         capabilities = CapabilityReport.model_validate(
@@ -146,6 +146,12 @@ class Reconciler:
         record_performance(self.node, report)
         for status in report.tasks:
             self.apply_status(status)
+        # A successful node acknowledgement may have lost its reply and stopped reports.
+        pending_cleanup = Workspace.objects.filter(
+            request__node=self.node, ended_at__isnull=False, cleanup_complete=False
+        ).exclude(request_id__in=[status.id for status in report.tasks])
+        for identifier in pending_cleanup.values_list("request_id", flat=True):
+            transaction.on_commit(lambda identifier=str(identifier): self.acknowledge_task(identifier))
         if report.events:
             from gpu_platform_control.core.events.ingest import ingest_events
 
@@ -167,7 +173,6 @@ class Reconciler:
                 self.apply_status(TaskStatus.model_validate(result))
             else:
                 mark_finished(request, "canceled" if workspace.stop_requested else "expired")
-                Workspace.objects.filter(pk=workspace.pk).update(cleanup_complete=True, ssh_port=None)
             return
         if request.starts_at and request.starts_at > self.clock():
             return
@@ -182,10 +187,7 @@ class Reconciler:
             with transaction.atomic():
                 if not reserve_dispatch(request, workspace):
                     return
-                if (
-                    request.mode == "interactive"
-                    and self.gateway.module(self.node, "entry").requires_public_port
-                ):
+                if self.gateway.module(self.node, "entry").requires_public_port:
                     allocate_port(workspace)
                 try:
                     spec = self.task_spec(request, workspace)

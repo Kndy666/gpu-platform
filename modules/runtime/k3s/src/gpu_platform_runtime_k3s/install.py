@@ -4,6 +4,7 @@ import hashlib
 import ipaddress
 import json
 from pathlib import Path
+import re
 import shutil
 import sys
 import tarfile
@@ -392,6 +393,12 @@ def _install(context):
     if not context.host.get("slots", {}).get("registry") and not context.host.get("slots", {}).get("build"):
         reference = context.options.get("default_image", "gpu-platform/environment:0.4.0")
         context.runner(["docker", "build", "--tag", reference, str(bootstrap)])
+        image = json.loads(
+            context.runner(["docker", "image", "inspect", reference], capture_output=True).stdout
+        )[0]
+        digest = image["Id"]
+        if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+            raise ValueError("The local environment image requires a valid content digest")
         archive = context.state_directory / "bootstrap" / "environment.tar"
         try:
             context.runner(["docker", "image", "save", "--output", str(archive), reference])
@@ -406,6 +413,8 @@ def _install(context):
                     {
                         "id": "standard-environment",
                         "reference": reference,
+                        "digest": digest,
+                        "size_bytes": image["Size"],
                         "form": "node-local",
                         "metadata": {"standard_environment": True},
                     }

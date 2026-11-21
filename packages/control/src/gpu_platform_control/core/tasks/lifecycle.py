@@ -54,7 +54,7 @@ def allocate_port(ws, occupied=()):
 
 @transaction.atomic
 def mark_finished(req, status, code=None, error="", ended_at=None):
-    ws = Workspace.objects.get(request=req)
+    ws = Workspace.objects.select_for_update().get(request=req)
     if ws.ended_at:
         return True
     now = ended_at or timezone.now()
@@ -67,6 +67,24 @@ def mark_finished(req, status, code=None, error="", ended_at=None):
     ws.ended_at, ws.exit_code, ws.error = now, code, error
     ws.save(update_fields=["ended_at", "exit_code", "error"])
     ResourceRequest.objects.filter(pk=req.pk).update(status=status)
+    if not ws.dispatch_payload:
+        complete_cleanup(req)
+    audit(None, "finished", req.pk, status=status, exit_code=code, error=error)
+    return True
+
+
+@transaction.atomic
+def complete_cleanup(req):
+    """Release controller reservations after node cleanup or before any dispatch."""
+    from gpu_platform_control.services.resources import release_resources
+
+    ws = Workspace.objects.select_for_update().get(request=req)
+    if not ws.ended_at or ws.cleanup_complete:
+        return
+    ws.cleanup_complete, ws.ssh_port, ws.connection = True, None, {}
+    ws.save(update_fields=["cleanup_complete", "ssh_port", "connection"])
+    release_resources(req.user, str(req.pk))
+    now = timezone.now()
     volume = work_volume(req)
     if volume is not None and not volume_in_use(volume, excluding=req.pk):
         VolumeAllocation.objects.filter(pk=volume.pk).update(
@@ -78,5 +96,3 @@ def mark_finished(req, status, code=None, error="", ended_at=None):
             VolumeAllocation.objects.filter(pk=original.pk).update(
                 retain_until=now + timedelta(days=PlatformSettings.load().workspace_retention_days)
             )
-    audit(None, "finished", req.pk, status=status, exit_code=code, error=error)
-    return True
