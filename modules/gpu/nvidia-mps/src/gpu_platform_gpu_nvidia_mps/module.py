@@ -87,12 +87,6 @@ class Module(GPU):
                 step=MIB_IN_GIB,
             ),
         ],
-        texts={
-            "gpu.mps_share": LocalizedText(
-                en="Compute shares reserve streaming multiprocessors in pairs; each card totals 100%.",
-                zh_hans="算力按两个流式多处理器一组分配，每张卡合计 100%。",
-            )
-        },
     )
 
     def __init__(self, context, inventory=cuda_inventory, run=subprocess.check_output):
@@ -485,9 +479,6 @@ class Module(GPU):
                 "gpu_memory": sum(d.used_memory_gib for d in inventory),
             },
         )
-
-    def explanation(self):
-        return Message(code="gpu.mps_share")
 
     def quota_hook(self, state):
         spec = json.loads((Path(state["bundle"]) / "config.json").read_text())

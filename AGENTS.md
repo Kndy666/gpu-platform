@@ -1,6 +1,6 @@
 # Project conventions
 
-- Follow `gpu-platform-architecture.md` for the modular control, panel, node, installer, and slot architecture.
+- Follow `docs/en/architecture.md` and `docs/en/modules.md` for the modular control, panel, node, installer, and slot architecture.
 - Write direct, concrete prose. Avoid defensive framing and contrast formulas such as “不是……而是……” or “not X, but Y”.
 - Use spacing, alignment, grouping, and visual hierarchy to communicate frontend structure. Keep secondary headings sparse and purposeful.
 - Test observable behavior, contracts, resource accounting, authorization, state transitions, and failure handling. Use portable fixtures and injected dependencies so tests run independently of a particular deployment or this machine.

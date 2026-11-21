@@ -35,7 +35,7 @@ Modules exchange typed objects called handoffs: volumes, images, accelerator all
 | `installer` | Configuration, checks, host setup, installation order, Compose generation |
 | `modules/<slot>/<implementation>` | Infrastructure implementation and its host assets |
 
-Control, node, and installer use contracts to discover implementations. Concrete infrastructure stays in modules. Import-linter checks these boundaries. The [architecture conventions](../../gpu-platform-architecture.md) define the shared rules.
+Control, node, and installer use contracts to discover implementations. Concrete infrastructure stays in modules. Import-linter checks these boundaries.
 
 ## From one server to several
 

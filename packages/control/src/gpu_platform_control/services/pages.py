@@ -127,7 +127,6 @@ def new_request(actor, mode="interactive", *, values=None, query=None):
         {
             "form_options": options,
             "mode": mode,
-            "gpu_explanation": execution_error(node.capabilities.get("gpu_explanation"), node),
             "capacity": request_capacity(actor, node=node),
             "title": tr("New development environment") if mode == "interactive" else tr("Jobs"),
         }

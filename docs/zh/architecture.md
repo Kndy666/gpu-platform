@@ -35,7 +35,7 @@ flowchart TB
 | `installer` | 配置、检查、主机准备、安装顺序和 Compose 生成 |
 | `modules/<slot>/<implementation>` | 基础设施实现及其主机资源 |
 
-控制中心、节点和安装器通过公共定义发现模块，具体基础设施实现在模块内。Import-linter 检查这些边界。[架构约定](../../gpu-platform-architecture.md)定义项目共同遵循的规则。
+控制中心、节点和安装器通过公共定义发现模块，具体基础设施实现在模块内。Import-linter 检查这些边界。[架构约定](architecture-conventions.md)定义项目共同遵循的规则。
 
 ## 从单机扩展到多机
 

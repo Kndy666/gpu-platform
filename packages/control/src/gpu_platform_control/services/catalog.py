@@ -84,8 +84,7 @@ def request_options(actor, node_id=None, mode='interactive'):
         'images': [{'id': image.pk, 'name': image.name, 'shared': image.shared} for image in images],
         'environments': [{'id': task.pk, 'purpose': task.purpose, 'volume_sizes': task.volume_sizes} for task in environments],
         'source_workspaces': {str(task.pk): {'size_gib': task.volume_sizes.get('work', 0)} for task in environments},
-        'resources': resources, 'defaults': defaults, 'features': node.capabilities.get('features', {}),
-        'gpu_explanation': node.capabilities.get('gpu_explanation')})
+        'resources': resources, 'defaults': defaults, 'features': node.capabilities.get('features', {})})
 
 
 @staff_only

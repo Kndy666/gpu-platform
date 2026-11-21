@@ -1,6 +1,6 @@
 # 架构约定
 
-[架构概览](architecture.md) · [English](../../gpu-platform-architecture.md) · [模块指南](modules.md)
+[架构概览](architecture.md) · [English](../en/architecture.md) · [模块指南](modules.md)
 
 本文规定包之间的依赖边界与扩展契约。[README](../../README.zh-CN.md)介绍部署场景，这里用于指导实现。
 

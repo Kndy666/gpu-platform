@@ -26,5 +26,5 @@ class GPU(Module, ABC):
     @abstractmethod
     def resources(self) -> ResourceUsage: ...
 
-    @abstractmethod
-    def explanation(self) -> Message: ...
+    def explanation(self) -> Message | None:
+        return None
