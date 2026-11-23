@@ -238,7 +238,7 @@ def managed_image_list():
 def image_summary(query):
     return {
         "ready_bytes": query.filter(state="ready").aggregate(total=Sum("size_bytes"))["total"] or 0,
-        "waiting_count": query.filter(recycle_after__isnull=False).count(),
+        "waiting_count": query.filter(Q(state="deleting") | Q(recycle_after__isnull=False)).count(),
         "error_count": query.exclude(cleanup_error="").count(),
     }
 

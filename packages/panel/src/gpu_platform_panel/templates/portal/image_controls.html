@@ -1,1 +1,15 @@
-{% load i18n %}{% if image.state == 'ready' and not image.shared and image.owner_id %}<div class="actions">{% if image.temporary or image.recycle_after %}<form method="post" action="{% url 'image_action' image.pk 'keep' %}">{% csrf_token %}<input type="hidden" name="origin" value="{{ origin }}"><button class="text-button">{% translate 'Retain indefinitely' %}</button></form>{% endif %}{% if not image.recycle_after %}<form method="post" action="{% url 'image_action' image.pk 'recycle' %}">{% csrf_token %}<input type="hidden" name="origin" value="{{ origin }}"><button class="text-button danger">{% translate 'Recycle' %}</button></form>{% endif %}</div>{% endif %}
+{% load i18n %}
+{% if image.state == 'ready' and not image.shared and image.owner_id %}
+  <div class="actions">
+    {% if image.temporary or image.recycle_after %}
+      <form method="post" action="{% url 'image_action' image.pk 'keep' %}">
+        {% csrf_token %}<input type="hidden" name="origin" value="{{ origin }}">
+        <button class="text-button">{% translate 'Retain indefinitely' %}</button>
+      </form>
+    {% endif %}
+    <form method="post" action="{% url 'image_action' image.pk 'delete' %}">
+      {% csrf_token %}<input type="hidden" name="origin" value="{{ origin }}">
+      <button class="text-button danger">{% translate 'Delete' %}</button>
+    </form>
+  </div>
+{% endif %}

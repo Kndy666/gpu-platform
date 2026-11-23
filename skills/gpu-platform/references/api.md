@@ -22,7 +22,7 @@ All paths below are relative to `/api/v1` and have no trailing slash.
 | Inspect save operations | `GET /snapshots`, `GET /snapshots/{id}` |
 | Find accessible images | `GET /images?available=true`, `GET /images/{id}` |
 | Synchronize an image and inspect progress | `POST /images/{id}/sync` with `{"target": NODE_ID}`, `GET /syncs` |
-| Retain or recycle an image | `POST /images/{id}/keep`, `POST /images/{id}/recycle`, `DELETE /images/{id}` |
+| Retain or delete an image | `POST /images/{id}/keep`, `DELETE /images/{id}` |
 | Build an image | `GET/POST /builds`, `GET /builds/{id}` |
 | Read personal and work volumes | `GET /volumes`, `GET /volumes/{id}` |
 | Browse or download public data | `GET /datasets`, `GET /datasets/download?path=...` |

@@ -52,7 +52,7 @@ from gpu_platform_control.core.configuration import config
 from .errors import execution_error
 from .boundary import NotFound
 from gpu_platform_control.core.datasets import dataset_download, dataset_content, Download
-from gpu_platform_control.core.image_lifecycle import keep_image, recycle_image
+from gpu_platform_control.core.image_lifecycle import keep_image, request_image_deletion
 from gpu_platform_control.core.audit.models import AuditLog
 from gpu_platform_control.core.retention.models import EnvironmentSnapshot, ImageArtifact, ImageBuild, PlatformSettings, VolumeAllocation
 from gpu_platform_control.core.requests.models import ResourceRequest
@@ -967,9 +967,9 @@ def images(request):
 def image(request, pk):
     obj = request.api_object
     if request.method == "DELETE":
-        recycle_image(obj.pk, request.user)
-        obj.refresh_from_db()
-    return success(image_data(obj), 202 if request.method == "DELETE" else 200)
+        obj = request_image_deletion(obj.pk, request.user)
+        return success(image_data(obj), 200 if obj.state == "deleted" else 202)
+    return success(image_data(obj))
 
 
 @endpoint("POST", idempotent=True, authorize=authorize_image)
@@ -978,7 +978,7 @@ def image_action(request, pk, action):
     body(request, set())
     if action not in {"keep", "recycle"}:
         raise Http404
-    (keep_image if action == "keep" else recycle_image)(obj.pk, request.user)
+    (keep_image if action == "keep" else request_image_deletion)(obj.pk, request.user)
     obj.refresh_from_db()
     return success(image_data(obj))
 

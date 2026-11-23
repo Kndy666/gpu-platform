@@ -161,11 +161,11 @@ msgstr "容量"
 msgid "Change password"
 msgstr "修改密码"
 
-msgid "Cleanup failed"
-msgstr "回收异常"
+msgid "Deletion failed"
+msgstr "删除失败"
 
-msgid "Cleanup retry pending"
-msgstr "回收待重试"
+msgid "Deletion will be retried"
+msgstr "等待重试删除"
 
 msgid "Collapse volumes"
 msgstr "收起数据卷"
@@ -586,8 +586,8 @@ msgstr "待审批 · 延期至"
 msgid "Pending check"
 msgstr "待检查"
 
-msgid "Pending cleanup"
-msgstr "等待回收"
+msgid "Pending deletion"
+msgstr "待删除"
 
 msgid "Pending requests"
 msgstr "待审批申请"
@@ -643,11 +643,8 @@ msgstr "原因"
 msgid "Recent tasks"
 msgstr "最近任务"
 
-msgid "Recycle"
-msgstr "回收"
-
-msgid "Recycling"
-msgstr "回收中"
+msgid "Scheduled deletion"
+msgstr "计划删除"
 
 msgid "Refresh interval"
 msgstr "刷新间隔"

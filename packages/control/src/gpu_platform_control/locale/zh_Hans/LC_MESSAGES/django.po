@@ -509,11 +509,14 @@ msgstr "镜像构建失败"
 msgid "Image quota GiB"
 msgstr "镜像额度 GiB"
 
-msgid "Image recycled"
-msgstr "镜像已回收"
+msgid "Image deleted"
+msgstr "镜像已删除"
 
-msgid "Image recycling has started."
-msgstr "镜像已经开始回收。"
+msgid "Image deletion has started."
+msgstr "镜像已经开始删除。"
+
+msgid "Image deletion requested."
+msgstr "已提交镜像删除。"
 
 msgid "Image reference"
 msgstr "镜像地址"
@@ -761,20 +764,20 @@ msgstr "排队任务"
 msgid "Reason"
 msgstr "原因"
 
-msgid "Recycle at"
-msgstr "回收时间"
+msgid "Scheduled deletion"
+msgstr "计划删除"
 
-msgid "Recycled"
-msgstr "已回收"
+msgid "Deleted"
+msgstr "已删除"
 
-msgid "Recycled at"
-msgstr "回收完成时间"
+msgid "Deleted at"
+msgstr "删除时间"
 
-msgid "Recycling"
-msgstr "回收中"
+msgid "Deleting"
+msgstr "删除中"
 
-msgid "Recycling error"
-msgstr "回收错误"
+msgid "Deletion error"
+msgstr "删除错误"
 
 msgid "Reject"
 msgstr "拒绝"
@@ -884,8 +887,11 @@ msgstr "保存中"
 msgid "Saving environment."
 msgstr "正在保存环境。"
 
-msgid "Schedule image recycling"
-msgstr "安排镜像回收"
+msgid "Schedule image deletion"
+msgstr "计划删除镜像"
+
+msgid "Request image deletion"
+msgstr "请求删除镜像"
 
 msgid "Scheduled"
 msgstr "已预约"
@@ -1061,17 +1067,14 @@ msgstr "个人卷正在删除，请等待完成。"
 msgid "The home volume storage pool has insufficient capacity."
 msgstr "个人卷所在磁盘可分配容量不足。"
 
-msgid "The image is in use. Recycle it after its tasks release their resources."
-msgstr "镜像仍在使用，释放任务后可回收。"
+msgid "The image is in use and cannot be deleted."
+msgstr "镜像仍在使用，无法删除。"
 
 msgid "The image is unavailable."
 msgstr "镜像不可用。"
 
 msgid "The image requires a verified digest."
 msgstr "镜像尚无已验证 digest。"
-
-msgid "The image will be recycled in 24 hours. You can keep it before then."
-msgstr "镜像将在 24 小时后回收，可在此之前保留。"
 
 msgid "The local node identity and connection are configured by the installer."
 msgstr "主机节点的标识和连接方式固定。"

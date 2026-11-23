@@ -290,11 +290,14 @@ def images(actor, *, values=None, query=None):
         submit_build(actor, values)
         return result(complete=True)
     query = parameters(query)
+    permanent_images = image_catalog(actor).filter(temporary=False).filter(
+        Q(state="ready", verified=True) | Q(owner=actor, state="deleting")
+    )
     return result(
         {
             "form_options": build_options(actor),
             "sync_targets": ComputeNode.objects.filter(enabled=True, capabilities__features__image_sync=True),
-            "images": history_page(query, image_catalog(actor, "permanent"), "images_page"),
+            "images": history_page(query, permanent_images, "images_page"),
             "temporary_images": history_page(query, image_catalog(actor, "temporary"), "temporary_page"),
             "builds": history_page(
                 query,

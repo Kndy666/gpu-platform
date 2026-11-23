@@ -28,28 +28,33 @@ def in_use(image):
 
 @transaction.atomic
 def keep_image(pk, actor):
-    image = ImageArtifact.objects.get(pk=pk)
+    image = ImageArtifact.objects.select_for_update().get(pk=pk)
     if image.owner_id != actor.pk and (not actor.is_staff):
         raise ValidationError(tr("You need permission to manage this image."))
     if image.state != "ready":
-        raise ValidationError(tr("Image recycling has started."))
+        raise ValidationError(tr("Image deletion has started."))
     (image.temporary, image.recycle_after) = (False, None)
     image.save(update_fields=["temporary", "recycle_after"])
     audit(actor, "image_kept", image.pk, name=image.name)
 
 
 @transaction.atomic
-def recycle_image(pk, actor):
+def request_image_deletion(pk, actor):
     image = ImageArtifact.objects.select_for_update().get(pk=pk)
     if image.owner_id != actor.pk and (not actor.is_staff):
         raise ValidationError(tr("You need permission to manage this image."))
     if image.shared or image.owner_id is None:
         raise ValidationError(tr("Shared base images are retained."))
+    if image.state in {"deleting", "deleted"}:
+        return image
     if image.state != "ready" or in_use(image):
-        raise ValidationError(tr("The image is in use. Recycle it after its tasks release their resources."))
-    image.recycle_after = timezone.now() + timedelta(hours=24)
-    image.save(update_fields=["recycle_after"])
-    audit(actor, "image_recycle_requested", image.pk, name=image.name)
+        raise ValidationError(tr("The image is in use and cannot be deleted."))
+    image.state = "deleting"
+    image.verified = False
+    image.recycle_after = None
+    image.save(update_fields=["state", "verified", "recycle_after"])
+    audit(actor, "image_delete_requested", image.pk, name=image.name)
+    return image
 
 
 @transaction.atomic

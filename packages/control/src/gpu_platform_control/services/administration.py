@@ -9,7 +9,7 @@ from django.core.paginator import Paginator
 from django.db import transaction
 from gpu_platform_control.core.configuration import config
 from gpu_platform_control.services.audit_display import audit_presentation
-from gpu_platform_control.core.image_lifecycle import keep_image, recycle_image
+from gpu_platform_control.core.image_lifecycle import keep_image, request_image_deletion
 from gpu_platform_control.core.metrics_history import DAY, MetricsArchive
 from gpu_platform_control.core.nodes.models import ComputeNode
 from gpu_platform_control.core.retention.models import PlatformSettings, VolumeAllocation
@@ -473,14 +473,11 @@ def audits(actor, *, values=None, query=None):
 @authenticated
 def image_action(actor, pk, action, *, values=None, query=None):
     notices: list[tuple[str, object]] = []
-    query = parameters(query)
-    values = parameters(values) if values is not None else None
-    visible = image_actions_for(actor)
-    image = find(visible, pk=pk)
-    if action not in {"keep", "recycle"}:
+    image = find(image_actions_for(actor), pk=pk)
+    if action not in {"keep", "delete"}:
         raise PermissionDenied
     try:
-        (keep_image if action == "keep" else recycle_image)(pk, actor)
+        (keep_image if action == "keep" else request_image_deletion)(pk, actor)
     except ValidationError as exc:
         notices.append(("error", "；".join(exc.messages)))
     else:
@@ -489,11 +486,9 @@ def image_action(actor, pk, action, *, values=None, query=None):
                 "success",
                 tr("Image retained.")
                 if action == "keep"
-                else tr("The image will be recycled in 24 hours. You can keep it before then."),
+                else tr("Image deletion requested."),
             )
         )
-    if actor.is_staff and values.get("origin") == "management":
-        return result(complete=True, notices=notices, identity=image.node_id)
     return result(complete=True, notices=notices, identity=image.node_id)
 
 

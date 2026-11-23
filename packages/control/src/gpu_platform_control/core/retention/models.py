@@ -21,10 +21,10 @@ class ImageArtifact(models.Model):
     verified = models.BooleanField(default=False, verbose_name=tr('Verified'))
     created_at = models.DateTimeField(auto_now_add=True, verbose_name=tr('Created'))
     temporary = models.BooleanField(default=False, verbose_name=tr('Environment snapshots'))
-    state = models.CharField(max_length=16, default='ready', choices=[('ready', tr('Available')), ('deleting', tr('Recycling')), ('deleted', tr('Recycled'))], verbose_name=tr('State'))
-    recycle_after = models.DateTimeField(null=True, blank=True, verbose_name=tr('Recycle at'))
-    deleted_at = models.DateTimeField(null=True, blank=True, verbose_name=tr('Recycled at'))
-    cleanup_error = models.TextField(blank=True, verbose_name=tr('Recycling error'))
+    state = models.CharField(max_length=16, default='ready', choices=[('ready', tr('Available')), ('deleting', tr('Deleting')), ('deleted', tr('Deleted'))], verbose_name=tr('State'))
+    recycle_after = models.DateTimeField(null=True, blank=True, verbose_name=tr('Scheduled deletion'))
+    deleted_at = models.DateTimeField(null=True, blank=True, verbose_name=tr('Deleted at'))
+    cleanup_error = models.TextField(blank=True, verbose_name=tr('Deletion error'))
     cleanup_retry_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):

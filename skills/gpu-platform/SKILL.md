@@ -34,4 +34,4 @@ An extension uses `POST /tasks/{id}/extensions` with timezone-aware `ends_at` an
 
 Use administrator endpoints for the scope the user authorized. Administrators can query `/admin/containers` and obtain a target's connection data; they connect as the target environment's user with their own enabled SSH key. Check `administrator_access.ready`. Key and role changes propagate to running environments and affect subsequent SSH connections.
 
-Inspect `fresh` and `sampled_at` before interpreting performance data. A missing hardware reading is represented by `null`. For stopping tasks, recycling images, deleting volumes, or changing members and groups, use the exact requested objects and scope. Report structured API errors and adjust invalid parameters from their field details.
+Inspect `fresh` and `sampled_at` before interpreting performance data. A missing hardware reading is represented by `null`. For stopping tasks, deleting images or volumes, or changing members and groups, use the exact requested objects and scope. Report structured API errors and adjust invalid parameters from their field details.

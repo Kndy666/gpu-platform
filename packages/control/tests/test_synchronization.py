@@ -428,7 +428,7 @@ def test_pending_bulk_operation_has_a_deadline():
 
 
 def test_independent_node_image_with_same_reference_does_not_block_retention(transfer_data):
-    from gpu_platform_control.core.image_lifecycle import in_use, recycle_image
+    from gpu_platform_control.core.image_lifecycle import in_use, request_image_deletion
 
     user, source, target, image = transfer_data
     ImageArtifact.objects.create(
@@ -440,9 +440,9 @@ def test_independent_node_image_with_same_reference_does_not_block_retention(tra
         architecture=image.architecture,
     )
     assert not in_use(image)
-    recycle_image(image.pk, user)
+    request_image_deletion(image.pk, user)
     image.refresh_from_db()
-    assert image.recycle_after is not None
+    assert image.state == "deleting"
     ImageArtifact.objects.create(
         node=source,
         owner=user,

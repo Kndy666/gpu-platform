@@ -7,7 +7,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from gpu_platform_contracts.messages import Operation
-from gpu_platform_control.core.image_lifecycle import collect_images, keep_image, prepare_collection, recycle_image
+from gpu_platform_control.core.image_lifecycle import collect_images, keep_image, prepare_collection, request_image_deletion
 from gpu_platform_control.core.nodes.models import ComputeNode
 from gpu_platform_control.core.retention.models import ImageArtifact
 from gpu_platform_control.core.requests.models import ResourceRequest
@@ -62,13 +62,15 @@ def test_failed_image_delete_retries_without_admitting_new_tasks(saved_image):
 def test_image_retention_actions_require_ownership(saved_image):
     owner, _, image = saved_image
     other = get_user_model().objects.create_user("other")
-    for operation in (keep_image, recycle_image):
+    for operation in (keep_image, request_image_deletion):
         with pytest.raises(ValidationError):
             operation(image.pk, other)
-    recycle_image(image.pk, owner)
-    image.refresh_from_db()
-    assert image.recycle_after > timezone.now()
     keep_image(image.pk, owner)
     image.refresh_from_db()
     assert not image.temporary
     assert image.recycle_after is None
+    request_image_deletion(image.pk, owner)
+    image.refresh_from_db()
+    assert image.state == "deleting"
+    assert image.recycle_after is None
+    assert not image.verified

@@ -63,6 +63,8 @@ def submit_task(actor, values):
                                      for group, entries in assessment.allocations.items()}
         if not task.resource_allocations:
             raise ValidationError(_('Adjust the per-device requests or GPU count to fit the available quotas.'))
+    UserProfile.objects.select_for_update().get(user=actor)
+    task.image = ImageArtifact.objects.select_for_update().get(pk=image.pk)
     validate_request(task)
     task.full_clean()
     task.save()
