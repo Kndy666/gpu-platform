@@ -1220,8 +1220,8 @@ msgstr "正在传输数据"
 msgid "Applying data"
 msgstr "正在写入目标节点"
 
-msgid "Usage statistics"
-msgstr "使用统计"
+msgid "Statistics"
+msgstr "统计"
 
 msgid "Online nodes"
 msgstr "在线节点"
@@ -1376,17 +1376,44 @@ msgstr "最小值"
 msgid "No samples in this time range."
 msgstr "该时间范围内无采样。"
 
-msgid "History archive"
-msgstr "采样归档"
-
-msgid "Disk use"
-msgstr "磁盘占用"
-
-msgid "Earliest available"
-msgstr "最早可查时间"
-
 msgid "Last successful write"
-msgstr "最近成功写入时间"
+msgstr "最近成功写入"
 
 msgid "History is stored at 1 minute for 7 days, 15 minutes for 90 days, and 1 hour for 365 days."
 msgstr "历史采样按 1 分钟保留 7 天、按 15 分钟保留 90 天、按 1 小时保留 365 天。"
+
+msgid "allocated"
+msgstr "已分配"
+
+msgid "Unallocated"
+msgstr "未分配"
+
+msgid "Accelerator allocation"
+msgstr "卡型分配"
+
+msgid "actual load"
+msgstr "实际负载"
+
+msgid "No accelerators reported."
+msgstr "暂无加速设备数据。"
+
+msgid "No running tasks."
+msgstr "暂无运行任务。"
+
+msgid "Node details"
+msgstr "节点明细"
+
+msgid "Usage details"
+msgstr "占用明细"
+
+msgid "View history"
+msgstr "查看历史"
+
+msgid "Reset zoom"
+msgstr "重置缩放"
+
+msgid "Sample details"
+msgstr "采样明细"
+
+msgid "Control plane sample archive"
+msgstr "控制端采样归档"

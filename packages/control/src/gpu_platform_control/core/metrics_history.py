@@ -232,28 +232,26 @@ class MetricsArchive:
     def write_status(self, state: str, last_write: int | None, blocks: dict):
         self._write(self.root / "status.json", json.dumps({"state": state, "last_write": last_write}).encode(), blocks)
 
-    def status(self):
+    def write_state(self):
         try:
             data = json.loads((self.root / "status.json").read_text())
         except (OSError, ValueError):
             data = {"state": "waiting", "last_write": None}
         try:
-            blocks = list(self.blocks())
-            used = sum(block.size for block in blocks)
-            first = None
-            for block in sorted(blocks, key=lambda block: block.start):
-                if first is not None and block.start >= first:
-                    break
-                points = self.read(block.path)["points"]
-                if points:
-                    stamp = min(map(int, points))
-                    first = stamp if first is None else min(stamp, first)
             if self._free() <= self.reserve:
                 data["state"] = "space"
         except OSError:
             data["state"] = "error"
-            used, first = 0, None
-        return {**data, "used_mib": round(used / MIB, 2), "max_mib": self.limit // MIB, "first": first}
+        return data
+
+    def status(self):
+        data = self.write_state()
+        try:
+            used = sum(block.size for block in self.blocks())
+        except OSError:
+            data["state"] = "error"
+            used = 0
+        return {**data, "used_mib": round(used / MIB, 2), "max_mib": self.limit // MIB}
 
     def _windows(self, node, start, end, cutoffs):
         grouped: dict[int, dict] = {}
@@ -275,21 +273,32 @@ class MetricsArchive:
                         continue
                 yield source, window_start, window_end, data
 
-    def series(self, node: int, start: int, end: int, metric: str, selected: str, now: int):
-        cutoffs = {step: floor(now - retention, span) for step, (span, retention) in TIERS.items()}
+    @staticmethod
+    def _cutoffs(now: int):
+        return {step: floor(now - retention, span) for step, (span, retention) in TIERS.items()}
+
+    def resolution(self, nodes: list[int], start: int, end: int, now: int):
+        cutoffs = self._cutoffs(now)
         start = max(start, cutoffs[HOUR])
         source_step = MINUTE if start >= cutoffs[MINUTE] else 900 if start >= cutoffs[900] else HOUR
         if source_step == MINUTE and end - start <= MAX_POINTS * MINUTE:
-            for hour in range(floor(start, HOUR), end, HOUR):
-                if not self.name(MINUTE, node, hour).exists() and str(hour) in self.read(
-                    self.name(900, node, hour)
-                ).get("hours", []):
-                    source_step = 900
-                    break
-        step = next(size for size in (MINUTE, 900, HOUR, 4 * HOUR, DAY)
-                    if size >= source_step and math.ceil((end - start) / size) + 1 <= MAX_POINTS)
+            hours = range(floor(start, HOUR), end, HOUR)
+            if any(not self.name(MINUTE, node, hour).exists() and str(hour) in self.read(
+                self.name(900, node, hour)
+            ).get("hours", []) for node in nodes for hour in hours):
+                source_step = 900
+        points_per_node = min(MAX_POINTS, max(375, 8000 // max(1, len(nodes))))
+        return next(size for size in (MINUTE, 900, HOUR, 4 * HOUR, DAY)
+                    if size >= source_step and math.ceil((end - start) / size) + 1 <= points_per_node)
+
+    def series(self, node: int, start: int, end: int, metric: str, selected: str, now: int,
+               *, step: int | None = None, aggregate: bool = False):
+        cutoffs = self._cutoffs(now)
+        start = max(start, cutoffs[HOUR])
+        step = step or self.resolution([node], start, end, now)
         points: dict[int, dict] = defaultdict(dict)
         labels: dict[str, dict] = {}
+        first_metric_at = None
         for source, lower, upper, data in self._windows(node, start, end, cutoffs):
             for stamp, values in data["points"].items():
                 stamp = int(stamp)
@@ -299,6 +308,10 @@ class MetricsArchive:
                 for key, value in values.items():
                     if not key.startswith(metric + "/"):
                         continue
+                    first_metric_at = stamp if first_metric_at is None else min(first_metric_at, stamp)
+                    if aggregate:
+                        collect(bucket, "node", value)
+                        continue
                     info = data["labels"][key]
                     labels[key] = info
                     collect(bucket, key, value)
@@ -306,14 +319,16 @@ class MetricsArchive:
                         model_key = "model/" + info["model"]
                         labels[model_key] = {"label": info["model"], "group": True}
                         collect(bucket, model_key, value)
-        key = selected if selected in labels else next(iter(sorted(labels, key=lambda key: (not labels[key].get("group"), key))), "")
+        key = "node" if aggregate else selected if selected in labels else next(
+            iter(sorted(labels, key=lambda key: (not labels[key].get("group"), key))), ""
+        )
         values = []
         for stamp in range(floor(start, step), end, step):
             value = points.get(stamp, {}).get(key)
             values.append([stamp * 1000, round(value[0] / value[3], 3), value[1], value[2], value[3]]
                           if value else [stamp * 1000, None, None, None, 0])
         return {"series": values, "step": step, "choices": labels, "selected": key,
-                "has_data": any(value[4] for value in values)}
+                "has_data": any(value[4] for value in values), "first_metric_at": first_metric_at}
 
 
 class PendingMetrics:

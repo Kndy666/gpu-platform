@@ -205,8 +205,20 @@ def audits(request):
 def performance_data(request):
     from django.template.loader import render_to_string
 
-    result = service.performance(request.user, query=parameters(request.GET))
-    response = JsonResponse({"html": render_to_string("portal/performance_nodes.html", result.data, request)})
+    result = service.performance(request.user, query=parameters(request.GET), include_archive=False)
+    response = JsonResponse({
+        "html": render_to_string("portal/performance_nodes.html", result.data, request),
+        "archive_notice": result.data["archive_notice"],
+    })
+    response["Cache-Control"] = "no-store"
+    return response
+
+
+@staff_required
+@require_GET
+def performance_history_data(request):
+    history = service.performance_history(request.user, query=parameters(request.GET), chart_only=True)
+    response = JsonResponse(history.data)
     response["Cache-Control"] = "no-store"
     return response
 
@@ -248,5 +260,20 @@ def usage_data(request):
     response = JsonResponse({"html": render_to_string(
         "portal/usage_live.html", {"live": current_usage(request.user).data}, request
     )})
+    response["Cache-Control"] = "no-store"
+    return response
+
+
+@staff_required
+@require_GET
+def usage_history_data(request):
+    from django.template.loader import render_to_string
+
+    try:
+        report = usage_statistics(request.user, query=parameters(request.GET))
+    except ValidationError as exc:
+        response = JsonResponse({"error": exc.messages[0]}, status=400)
+    else:
+        response = JsonResponse({"html": render_to_string("portal/usage_history_results.html", report.data, request)})
     response["Cache-Control"] = "no-store"
     return response

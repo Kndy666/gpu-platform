@@ -109,7 +109,7 @@ The synchronization page shows progress for image and public-directory copies. M
 
 ## Usage statistics and performance history
 
-Administrators can open **Resources → Usage statistics** to see current allocations and usage across all retained task and audit records. **Resources → Performance** shows live telemetry and compressed history. The history starts when the controller begins recording. Minute samples are retained for 7 days, 15-minute aggregates for 90 days, and hourly aggregates for 365 days.
+Administrators can open **Resources → Statistics** to see current allocations and usage across all retained task and audit records. **Resources → Performance** shows live telemetry, archive usage, and compressed history. The history starts when the controller begins recording. Minute samples are retained for 7 days, 15-minute aggregates for 90 days, and hourly aggregates for 365 days.
 
 The Gzip archives live in `metrics-history/` under the controller state directory. The controller defaults to a 512 MiB archive budget and a 2 GiB free-space reserve. Override either value in the cluster configuration:
 

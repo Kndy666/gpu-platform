@@ -22,7 +22,7 @@ def management_navigation(context):
             [
                 ("nodes", _("Nodes"), reverse("manage_nodes")),
                 ("performance", _("Performance"), reverse("manage_performance")),
-                ("usage", _("Usage statistics"), reverse("manage_usage")),
+                ("usage", _("Statistics"), reverse("manage_usage")),
                 ("containers", _("Containers"), reverse("manage_containers")),
                 ("storage", _("Storage"), reverse("manage_storage")),
                 ("images", _("Images"), reverse("manage_images")),

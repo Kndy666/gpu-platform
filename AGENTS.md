@@ -1,5 +1,6 @@
 # Project conventions
 
+- Use the GitHub MCP connector for repository pushes.
 - Follow `docs/en/architecture.md` and `docs/en/modules.md` for the modular control, panel, node, installer, and slot architecture.
 - Write direct, concrete prose. Avoid defensive framing and contrast formulas such as “不是……而是……” or “not X, but Y”.
 - Use spacing, alignment, grouping, and visual hierarchy to communicate frontend structure. Keep secondary headings sparse and purposeful.

@@ -1476,8 +1476,8 @@ msgstr "请等待当前镜像复制完成后再更改副本的共享方式。"
 msgid "Set a whole number."
 msgstr "请输入整数。"
 
-msgid "Usage statistics"
-msgstr "使用统计"
+msgid "Statistics"
+msgstr "统计"
 
 msgid "Enter valid dates."
 msgstr "请输入有效日期。"
@@ -1527,20 +1527,22 @@ msgstr "网络接收速率"
 msgid "Network transmit rate"
 msgstr "网络发送速率"
 
-msgid "Recording"
-msgstr "正在归档"
+msgid "Sample archiving paused due to low disk space"
+msgstr "磁盘空间不足，采样归档已暂停"
 
-msgid "Waiting for samples"
-msgstr "等待采样"
-
-msgid "Paused for disk space"
-msgstr "磁盘空间不足，归档已暂停"
-
-msgid "Archive write failed"
-msgstr "归档写入失败"
+msgid "Sample archive write failed"
+msgstr "采样归档写入失败"
 
 msgid "Some samples were dropped"
 msgstr "部分样本未归档"
+
+#, python-format
+msgid "%(warning)s · Last successful write %(time)s"
+msgstr "%(warning)s · 最近成功写入 %(time)s"
+
+#, python-format
+msgid "Samples for this selection begin %(time)s."
+msgstr "所选节点和指标从 %(time)s 起有采样。"
 
 msgid "%(model)s (all devices)"
 msgstr "%(model)s（全部设备）"

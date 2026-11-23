@@ -1,12 +1,16 @@
+from datetime import datetime, timezone as utc_clock
+
 from .boundary import authenticated, staff_only, find, parameters, result
 from django.utils.translation import gettext_lazy as tr
+from django.utils import timezone
+from django.utils.formats import date_format
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
-from typing import Any
 from gpu_platform_control.core.configuration import config
 from gpu_platform_control.services.audit_display import audit_presentation
 from gpu_platform_control.core.image_lifecycle import keep_image, recycle_image
+from gpu_platform_control.core.metrics_history import DAY, MetricsArchive
 from gpu_platform_control.core.nodes.models import ComputeNode
 from gpu_platform_control.core.retention.models import PlatformSettings, VolumeAllocation
 from gpu_platform_control.core.accounts.models import UserGroup
@@ -95,7 +99,7 @@ def approvals(actor, *, values=None, query=None):
 
 
 @staff_only
-def performance(actor, *, values=None, query=None):
+def performance(actor, *, values=None, query=None, include_archive=True):
     notices: list[tuple[str, object]] = []
     query = parameters(query)
     values = parameters(values) if values is not None else None
@@ -103,9 +107,17 @@ def performance(actor, *, values=None, query=None):
 
     selection = query.dict().get("node")
     node = ComputeNode.objects.filter(pk=selection).first() if selection and selection.isdigit() and len(selection) <= 18 else None
+    archive = MetricsArchive.configured()
+    archive_state = archive.status() if include_archive else archive.write_state()
+    stamp = archive_state["last_write"]
+    last_write = datetime.fromtimestamp(stamp, utc_clock.utc) if stamp is not None else None
     return result(
-        {"section": "performance", "section_title": tr("Node performance"), "nodes": performance_nodes(node),
-         "performance_node": node.pk if node else None},
+        {
+            "section": "performance", "section_title": tr("Node performance"), "nodes": performance_nodes(node),
+            "performance_node": node.pk if node else None,
+            "archive": {**archive_state, "last_at": last_write} if include_archive else None,
+            "archive_notice": _archive_notice(archive_state["state"], last_write),
+        },
         notices=notices,
     )
 
@@ -530,15 +542,30 @@ def notification_settings_options(actor):
     )
 
 
-@staff_only
-def performance_history(actor, *, query=None):
-    from gpu_platform_control.core.metrics_history import DAY, FIELDS, MetricsArchive
-    from django.utils import timezone
+def _archive_notice(state, last_write):
+    warning = {
+        "space": tr("Sample archiving paused due to low disk space"),
+        "error": tr("Sample archive write failed"),
+        "dropped": tr("Some samples were dropped"),
+    }.get(state)
+    if warning and last_write is not None:
+        return tr("%(warning)s · Last successful write %(time)s") % {
+            "warning": warning, "time": date_format(timezone.localtime(last_write), "SHORT_DATETIME_FORMAT"),
+        }
+    return warning
 
-    query = parameters(query).dict()
+
+@staff_only
+def performance_history(actor, *, query=None, chart_only=False):
+    filters = parameters(query)
+    query = filters.dict()
     nodes = list(ComputeNode.objects.order_by("pk").values("id", "name"))
-    node_ids = {str(node["id"]): node["id"] for node in nodes}
-    node = node_ids.get(query.get("node", ""), nodes[0]["id"] if nodes else None)
+    selected = set(filters.getlist("nodes"))
+    if "nodes" not in filters:
+        linked = query.get("node")
+        selected = {linked} if any(str(node["id"]) == linked for node in nodes) else {
+            str(node["id"]) for node in nodes
+        }
     ranges = (1, 7, 30, 90, 365)
     days = next((days for days in ranges if str(days) == query.get("days")), 1)
     labels = {
@@ -554,38 +581,50 @@ def performance_history(actor, *, query=None):
         "network_transmit": (tr("Network transmit rate"), "MiB/s"),
     }
     metric = query.get("metric", "cpu")
-    if metric not in {name for group in FIELDS.values() for name in group.values()}:
+    if metric not in labels:
         metric = "cpu"
     archive = MetricsArchive.configured()
-    now = int(timezone.now().timestamp())
-    history: dict[str, Any] = archive.series(node, now - days * DAY, now, metric, query.get("series", ""), now) if node else {
-        "series": [], "step": 60, "choices": {}, "selected": "", "has_data": False,
+    end = int(timezone.now().timestamp())
+    start = end - days * DAY
+    step = archive.resolution([node["id"] for node in nodes if str(node["id"]) in selected], start, end, end)
+    timestamps: list[int] = []
+    series = []
+    coverage_starts = []
+    for color, node in enumerate(nodes):
+        if str(node["id"]) not in selected:
+            continue
+        samples_by_time = archive.series(node["id"], start, end, metric, "", end, step=step, aggregate=True)
+        rows = samples_by_time["series"]
+        if samples_by_time["first_metric_at"] is not None:
+            coverage_starts.append(samples_by_time["first_metric_at"])
+        if not timestamps:
+            timestamps = [row[0] for row in rows]
+        samples = sum(row[4] for row in rows)
+        series.append({
+            **node, "color": color, "points": [row[1:] for row in rows],
+            "mean": round(sum(row[1] * row[4] for row in rows if row[4]) / samples, 2) if samples else None,
+            "peak": max((row[3] for row in rows if row[4]), default=None),
+            "samples": samples,
+        })
+    first_sample = min(coverage_starts, default=None)
+    coverage_note = None
+    if first_sample is not None and first_sample - start >= step:
+        local_start = timezone.localtime(datetime.fromtimestamp(first_sample, utc_clock.utc))
+        coverage_note = tr("Samples for this selection begin %(time)s.") % {
+            "time": date_format(local_start, "SHORT_DATETIME_FORMAT"),
+        }
+    history = {
+        "timestamps": timestamps, "nodes": series, "step": step,
+        "label": labels[metric][0], "unit": labels[metric][1], "days": days,
+        "has_data": any(node["samples"] for node in series),
+        "zone": timezone.get_current_timezone_name(),
+        "coverage_note": coverage_note,
     }
-    status = archive.status()
-    status_messages = {
-        "ready": tr("Recording"),
-        "waiting": tr("Waiting for samples"),
-        "space": tr("Paused for disk space"),
-        "error": tr("Archive write failed"),
-        "dropped": tr("Some samples were dropped"),
-    }
-    from datetime import datetime, timezone as utc_clock
-
+    if chart_only:
+        return result(history)
     return result({
-        "history": {**history, "choices": {
-            key: tr("%(model)s (all devices)") % {"model": info["label"]} if info.get("group") else info["label"]
-            for key, info in history["choices"].items()
-        }}, "archive": {**status, "state_label": status_messages.get(status["state"]),
-            "first_at": datetime.fromtimestamp(status["first"], utc_clock.utc) if status["first"] is not None else None,
-            "last_at": datetime.fromtimestamp(status["last_write"], utc_clock.utc) if status["last_write"] else None,
-        },
-        "history_nodes": nodes, "history_node": node, "history_ranges": ranges, "history_days": days,
-        "history_metric": metric, "history_label": labels[metric][0], "history_unit": labels[metric][1],
+        "history": history,
+        "history_nodes": [{**node, "selected": str(node["id"]) in selected} for node in nodes],
+        "history_ranges": ranges, "history_metric": metric,
         "history_metrics": {key: label for key, (label, _) in labels.items()},
-        "history_timezone": timezone.get_current_timezone_name(),
-        "history_rows": [
-            {"at": datetime.fromtimestamp(stamp / 1000, utc_clock.utc), "mean": mean,
-             "min": minimum, "max": maximum, "samples": count}
-            for stamp, mean, minimum, maximum, count in history["series"] if count
-        ],
     })

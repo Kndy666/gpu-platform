@@ -25,6 +25,7 @@
   if (performancePanel) {
     const input = $('[data-performance-interval]'), status = $('[data-performance-status]');
     const manual = $('[data-performance-refresh]'), pause = $('[data-performance-pause]');
+    const archiveNotice = $('[data-history-archive-notice]');
     let seconds = 5, timer = null, busy = false, paused = false;
     try {
       const saved = Number(localStorage.getItem('performance-refresh-seconds'));
@@ -44,6 +45,9 @@
         if (!response.ok || response.redirected || !response.headers.get('content-type')?.includes('application/json')) throw new Error('refresh');
         const data = await response.json();
         performancePanel.innerHTML = data.html;
+        const warning = data.archive_notice ?? '';
+        if (archiveNotice.textContent !== warning) archiveNotice.textContent = warning;
+        archiveNotice.hidden = !warning;
         status.textContent = paused ? gettext('Paused') : gettext('Refreshing automatically');
         performancePanel.classList.remove('performance-disconnected');
       } catch (_) {

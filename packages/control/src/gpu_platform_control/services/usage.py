@@ -274,7 +274,7 @@ def usage_statistics(actor, *, query=None):
         count = (date.fromisoformat(max(trend)) - first_bin).days // days + 1
         timestamps = [(first_bin + timedelta(days=offset * days)).isoformat() for offset in range(count)]
     return result({
-        "section": "usage", "section_title": tr("Usage statistics"), "as_of": now, "first": first,
+        "section": "usage", "section_title": tr("Statistics"), "as_of": now, "first": first,
         "total_accounts": sum(account.is_active for account in users.values()),
         "applicants": sum(bool(row["applications"]) for row in people), "totals": totals, "people": people,
         "by_node": active_rows(by_node.values()), "by_model": model_rows,
@@ -284,6 +284,7 @@ def usage_statistics(actor, *, query=None):
         "model_options": [{"id": key, "label": model_label(key)} for key in sorted(model_options)],
         "trend": {"dates": timestamps, "series": [
             {"name": model_label(model) + (" · NPU" if exclusive else " · GPU"),
+             "kind": "NPU" if exclusive else "GPU",
              "values": [round(trend.get(stamp, {}).get((model, exclusive), 0.), 3) for stamp in timestamps]}
             for model, exclusive in sorted({key for values in trend.values() for key in values})
         ]},

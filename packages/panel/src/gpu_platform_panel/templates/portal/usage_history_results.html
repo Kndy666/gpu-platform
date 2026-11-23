@@ -1,0 +1,37 @@
+{% load i18n %}
+<p hidden data-report-period>
+  {% if filters.from or filters.to %}{{ filters.from|default:'—' }} – {{ filters.to|default:'—' }}{% else %}{% translate 'All retained records' %}{% if totals.applications %} ({{ first|date:'Y-m-d' }} – {{ as_of|date:'Y-m-d' }}){% endif %}{% endif %}
+</p>
+<dl class="usage-kpis" data-report-part>
+  <div><dt>{% translate 'Applicants / enabled accounts' %}</dt><dd>{{ applicants }} / {{ total_accounts }}</dd></div>
+  <div><dt>{% translate 'Applications' %}</dt><dd>{{ totals.applications }}</dd></div>
+  <div><dt>{% translate 'Tasks with runtime' %}</dt><dd>{{ totals.tasks }}</dd></div>
+  <div><dt>{% translate 'Task hours' %}</dt><dd>{{ totals.hours|floatformat:1 }}</dd></div>
+  <div><dt>{% translate 'Equivalent GPU hours' %}</dt><dd>{{ totals.gpu_hours|floatformat:1 }}</dd></div>
+  <div><dt>{% translate 'NPU device hours' %}</dt><dd>{{ totals.npu_hours|floatformat:1 }}</dd></div>
+</dl>
+{% if trend.dates %}
+<div class="usage-charts">
+  <section class="panel usage-chart-panel" hidden>
+    <h3>{% translate 'Accelerator allocation over time' %}</h3>
+    <div class="usage-chart-legend" data-chart-legend></div>
+    <div class="usage-chart" aria-label="{% translate 'Accelerator allocation over time' %}" role="img" data-chart="trend" data-source="usage-trend" data-hours="{% translate 'Accelerator hours' %}"></div>
+    {{ trend|json_script:"usage-trend" }}
+  </section>
+  <section class="panel usage-chart-panel" hidden>
+    <h3>{% translate 'Accelerator hours by account' %}</h3>
+    <div class="usage-chart-legend" data-chart-legend></div>
+    <div class="usage-chart" aria-label="{% translate 'Accelerator hours by account' %}" role="img" data-chart="ranking" data-source="usage-ranking" data-gpu="{% translate 'Equivalent GPU hours' %}" data-npu="{% translate 'NPU device hours' %}"></div>
+    {{ ranking|json_script:"usage-ranking" }}
+  </section>
+</div>
+{% endif %}
+<details class="usage-disclosure">
+<summary>{% translate 'Usage details' %}</summary>
+{% translate 'Usage by account' as account_caption %}{% translate 'Account' as account_label %}
+{% include 'portal/usage_history_table.html' with rows=people caption=account_caption label=account_label %}
+{% translate 'Usage by accelerator model' as model_caption %}{% translate 'Accelerator model' as model_label %}
+{% include 'portal/usage_history_table.html' with rows=by_model caption=model_caption label=model_label %}
+{% translate 'Usage by node' as node_caption %}{% translate 'Node' as node_label %}
+{% include 'portal/usage_history_table.html' with rows=by_node caption=node_caption label=node_label %}
+</details>

@@ -1,35 +1,42 @@
 {% load i18n %}
 <section class="usage-history" id="history" aria-labelledby="performance-history-title">
   <div class="section-heading"><h2 id="performance-history-title">{% translate 'Historical performance' %}</h2></div>
-  <form method="get" action="{% url 'manage_performance' %}#history" class="usage-filters" aria-labelledby="performance-history-title">
-    <label>{% translate 'Node' %}<select name="node">{% for node in history_nodes %}<option value="{{ node.id }}"{% if node.id == history_node %} selected{% endif %}>{{ node.name }}</option>{% endfor %}</select></label>
-    <label>{% translate 'Time range' %}<select name="days">{% for days in history_ranges %}<option value="{{ days }}"{% if days == history_days %} selected{% endif %}>{% if days == 1 %}{% translate 'Last 24 hours' %}{% else %}{% blocktranslate with count=days %}Last {{ count }} days{% endblocktranslate %}{% endif %}</option>{% endfor %}</select></label>
-    <label>{% translate 'Metric' %}<select name="metric">{% for key, label in history_metrics.items %}<option value="{{ key }}"{% if key == history_metric %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
-    {% if history.choices|length > 1 %}
-    <label>{% translate 'Series' %}<select name="series">{% for key, label in history.choices.items %}<option value="{{ key }}"{% if key == history.selected %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
-    {% endif %}
-    <div><button type="submit">{% translate 'Apply' %}</button></div>
+  <form method="get" action="{% url 'manage_performance' %}#history" class="history-controls"
+        data-history-url="{% url 'manage_performance_history_data' %}" aria-labelledby="performance-history-title">
+    <input type="hidden" name="nodes" value="">
+    <details class="history-nodes" data-history-dropdown>
+      <summary><span>{% translate 'Nodes' %}</span><span class="history-node-count" data-history-node-count>{{ history.nodes|length }} / {{ history_nodes|length }}</span></summary>
+      <div class="history-node-options">
+        {% for node in history_nodes %}
+        <label><input type="checkbox" name="nodes" value="{{ node.id }}"{% if node.selected %} checked{% endif %}><span>{{ node.name }}</span></label>
+        {% empty %}<p class="muted">{% translate 'No nodes are configured.' %}</p>{% endfor %}
+      </div>
+    </details>
+    <label class="history-filter"><span>{% translate 'Time range' %}</span><select name="days">{% for days in history_ranges %}<option value="{{ days }}"{% if days == history.days %} selected{% endif %}>{% if days == 1 %}{% translate 'Last 24 hours' %}{% else %}{% blocktranslate with count=days %}Last {{ count }} days{% endblocktranslate %}{% endif %}</option>{% endfor %}</select></label>
+    <label class="history-filter"><span>{% translate 'Metric' %}</span><select name="metric">{% for key, label in history_metrics.items %}<option value="{{ key }}"{% if key == history_metric %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+    <noscript><button type="submit">{% translate 'View history' %}</button></noscript>
+    <p class="history-coverage" data-history-coverage role="status"{% if not history.coverage_note %} hidden{% endif %}>{{ history.coverage_note|default_if_none:'' }}</p>
   </form>
-  {% if history.has_data %}
-  <section class="panel usage-chart-panel" hidden>
-    <div class="usage-chart" aria-label="{{ history_label }}" role="img" data-chart="metrics" data-source="history-points" data-zone="{{ history_timezone }}"
-      data-unit="{{ history_unit }}" data-mean="{% translate 'Average' %}" data-peak="{% translate 'Peak' %}"></div>
-    {{ history.series|json_script:"history-points" }}
-  </section>
-  <details class="usage-series-details">
-    <summary>{{ history_label }} · {% translate 'Sampled intervals' %} {{ history_rows|length }} / {{ history.series|length }} · {% blocktranslate with seconds=history.step %}{{ seconds }} s per point{% endblocktranslate %}</summary>
+  <p class="notice error" role="status" data-history-error hidden></p>
+  <p class="notice error history-archive-notice" data-history-archive-notice role="status"{% if not archive_notice %} hidden{% endif %}>{{ archive_notice|default_if_none:'' }}</p>
+  <div class="panel usage-chart-panel history-chart-panel" data-history-panel hidden>
+    <div class="history-chart-toolbar">
+      <div class="usage-chart-legend" data-chart-legend></div>
+      <button class="analytics-reset" type="button" data-history-zoom-reset>{% translate 'Reset zoom' %}</button>
+    </div>
+    <div class="usage-chart history-chart" aria-label="{{ history.label }}" role="img" data-history-plot
+         data-mean="{% translate 'Average' %}" data-peak="{% translate 'Peak' %}"></div>
+  </div>
+  {{ history|json_script:"history-points" }}
+  <p class="panel empty" data-history-empty{% if history.has_data %} hidden{% endif %}>{% translate 'No samples in this time range.' %}</p>
+  <details class="usage-disclosure" data-history-disclosure{% if not history.has_data %} hidden{% endif %}>
+    <summary>{% translate 'Sample details' %}</summary>
     <div class="table-wrap usage-table">
-      <table><thead><tr><th scope="col">{% translate 'Time' %}</th><th scope="col">{% translate 'Average' %}</th><th scope="col">{% translate 'Minimum' %}</th><th scope="col">{% translate 'Peak' %}</th><th scope="col">{% translate 'Samples' %}</th></tr></thead>
-      <tbody>{% for row in history_rows %}<tr><td><time datetime="{{ row.at|date:'c' }}">{{ row.at|date:'Y-m-d H:i T' }}</time></td><td>{{ row.mean|floatformat:2 }} {{ history_unit }}</td>
-      <td>{{ row.min|floatformat:2 }} {{ history_unit }}</td><td>{{ row.max|floatformat:2 }} {{ history_unit }}</td><td>{{ row.samples }}</td></tr>{% endfor %}</tbody></table>
+      <table>
+        <thead><tr><th scope="col">{% translate 'Node' %}</th><th scope="col">{% translate 'Average' %}</th><th scope="col">{% translate 'Peak' %}</th><th scope="col">{% translate 'Samples' %}</th></tr></thead>
+        <tbody data-history-summary>{% for node in history.nodes %}<tr><td>{{ node.name }}</td><td>{% if node.mean != None %}{{ node.mean|floatformat:2 }} {{ history.unit }}{% else %}—{% endif %}</td>
+        <td>{% if node.peak != None %}{{ node.peak|floatformat:2 }} {{ history.unit }}{% else %}—{% endif %}</td><td>{{ node.samples }}</td></tr>{% endfor %}</tbody>
+      </table>
     </div>
   </details>
-  {% else %}<p class="panel empty">{% translate 'No samples in this time range.' %}</p>{% endif %}
-  <dl class="archive-status">
-    <div><dt>{% translate 'History archive' %}</dt><dd>{{ archive.state_label }}</dd></div>
-    <div><dt>{% translate 'Disk use' %}</dt><dd>{{ archive.used_mib|floatformat:2 }} / {{ archive.max_mib }} MiB</dd></div>
-    <div><dt>{% translate 'Earliest available' %}</dt><dd>{% if archive.first_at %}<time datetime="{{ archive.first_at|date:'c' }}">{{ archive.first_at|date:'Y-m-d H:i T' }}</time>{% else %}—{% endif %}</dd></div>
-    <div><dt>{% translate 'Last successful write' %}</dt><dd>{% if archive.last_at %}<time datetime="{{ archive.last_at|date:'c' }}">{{ archive.last_at|date:'Y-m-d H:i T' }}</time>{% else %}—{% endif %}</dd></div>
-  </dl>
-  <p class="muted usage-meta">{% translate 'History is stored at 1 minute for 7 days, 15 minutes for 90 days, and 1 hour for 365 days.' %}</p>
 </section>

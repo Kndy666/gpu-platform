@@ -57,7 +57,7 @@ def test_user_pages_render_materialized_data(route):
     assert client.get(route).status_code == 200
 
 
-@pytest.mark.parametrize('route', ['/management/approvals/', '/management/nodes/', '/management/performance/', '/management/usage/', '/management/usage/data/', '/management/containers/', '/management/members/', '/management/members/new/', '/management/groups/', '/management/groups/new/', '/management/storage/', '/management/images/', '/management/settings/', '/management/audits/'])
+@pytest.mark.parametrize('route', ['/management/approvals/', '/management/nodes/', '/management/performance/', '/management/performance/history/', '/management/usage/', '/management/usage/data/', '/management/usage/history/', '/management/containers/', '/management/members/', '/management/members/new/', '/management/groups/', '/management/groups/new/', '/management/storage/', '/management/images/', '/management/settings/', '/management/audits/'])
 def test_staff_pages_render_materialized_data(route):
     user = get_user_model().objects.create_user('admin', is_staff=True, is_superuser=True)
     client = Client()

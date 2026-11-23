@@ -93,3 +93,6 @@ msgstr "移除"
 
 msgid "GPU %(number)s: %(compute)s%%  %(memory)s GiB"
 msgstr "GPU %(number)s：%(compute)s%%  %(memory)s GiB"
+
+msgid "Select a node to compare performance."
+msgstr "请选择要对比的节点。"
