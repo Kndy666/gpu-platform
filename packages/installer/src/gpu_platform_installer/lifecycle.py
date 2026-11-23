@@ -35,6 +35,22 @@ class Installer:
         self.maintenance_reports: Path | None = None
         self.local_state_probe: Callable[[], dict] = self.probe_local
 
+    def workspace_ssh_support(self, modules):
+        from gpu_platform_contracts.peer_ssh import FEATURE, RELAY
+
+        host = resolve_host(self.config, self.host)
+        if "node" not in host.roles or not host.features.workspace_ssh:
+            return "disabled"
+        runtime = modules.get("runtime")
+        if not runtime or not runtime.descriptor.provides.get(FEATURE):
+            return "runtime unavailable"
+        transport = modules.get("transport")
+        if "control" in host.roles:
+            ports = self.loader("transport", "local").descriptor.provides.get("port", set())
+        else:
+            ports = transport.descriptor.provides.get("port", set()) if transport else set()
+        return "same node and cross node" if RELAY in ports else "same node"
+
     def plan(self, *, machine_checks: bool = False) -> dict[str, Any]:
         modules = validate(self.config, self.host, loader=self.loader, facts=self.facts,
                            runner=self.runner, machine_checks=machine_checks)
@@ -42,6 +58,7 @@ class Installer:
         return {
             "host": self.host,
             "modules": order,
+            "workspace_ssh": self.workspace_ssh_support(modules),
             "uninstall_modules": list(reversed(order)),
             "compose": render_compose(self.config, self.host, modules, self.directory / "platform.yaml"),
         }

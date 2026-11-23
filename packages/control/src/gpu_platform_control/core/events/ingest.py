@@ -18,6 +18,10 @@ def ingest_events(node, events):
         for module in node.capabilities.get('modules', [])
         for code in module.get('events', {})
     }
+    if node.capabilities.get("features", {}).get("workspace_ssh") or any(
+        module.get("provides", {}).get("workspace_ssh") for module in node.capabilities.get("modules", [])
+    ):
+        declarations.update({("runtime", "workspace_ssh_connected"), ("runtime", "workspace_ssh_rejected")})
     acknowledged = []
     for event in events:
         if EventReceipt.objects.filter(source="node:"+str(node.pk), event_id=event.id).exists():

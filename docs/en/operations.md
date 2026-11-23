@@ -107,6 +107,8 @@ Standard environments provide Rootless Docker. On NVIDIA nodes, inner GPU contai
 
 The synchronization page shows progress for image and public-directory copies. Members synchronize their own private images; administrators also synchronize shared images and public directories. Image copies require matching CPU architectures; private copies consume their owner's image quota. Public data supports manual and periodic synchronization, bandwidth limits, checksum verification, and interrupted-file resume. Personal and work volumes stay on their node.
 
+New workspaces on supported nodes can use **Workspace SSH** to connect to other running workspaces under the same account. Copy the destination command from the connection panel and run it inside the source workspace. Use the same address with `scp` or `sftp`, for example `scp results.tar <user>@<workspace-address>:/workspace/`. No SSH key setup is needed inside the workspace. K3s supports same-node connections by default. Cross-node connections also require workspace relay support in both nodes' transport modules, which is included in `local` and `reverse-ssh`. Set `features.workspace_ssh: false` on a host to disable the feature there.
+
 ## Usage statistics and performance history
 
 Administrators can open **Resources → Statistics** to see current allocations and usage across all retained task and audit records. **Resources → Performance** shows live telemetry, archive usage, and compressed history. The history starts when the controller begins recording. Minute samples are retained for 7 days, 15-minute aggregates for 90 days, and hourly aggregates for 365 days.

@@ -6,7 +6,8 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from uuid import uuid4
 
-from gpu_platform_contracts.handoffs import Image, Snapshot
+from gpu_platform_contracts.handoffs import Image, PortConnection, Snapshot
+from gpu_platform_contracts.peer_ssh import FEATURE, SSH_PORT
 from gpu_platform_contracts.assessment import ResourceAssessment
 from gpu_platform_contracts.messages import ACTIVE_STATES, TaskSpec, TaskStatus
 from gpu_platform_contracts.module import ModuleDescriptor
@@ -85,7 +86,11 @@ class Module(Runtime):
             "gpu_allocation": {"nvidia-mps", "ascend-device"},
             "readonly_directory": {"local-directory"},
         },
-        provides={"snapshot": {"oci-archive"}},
+        provides={"snapshot": {"oci-archive"}, FEATURE: {"ssh"}},
+        events={
+            "workspace_ssh_connected": LocalizedText(en="Workspace SSH connection opened", zh_hans="容器间 SSH 已连接"),
+            "workspace_ssh_rejected": LocalizedText(en="Workspace SSH connection rejected", zh_hans="容器间 SSH 连接被拒绝"),
+        },
         resources=[
             ResourceDefinition(
                 key="cpu",
@@ -193,7 +198,7 @@ class Module(Runtime):
             if record["task"] != task.model_dump(mode="json"):
                 raise ValueError("runtime.task_conflict")
             return self.status(task.id)
-        objects = task_objects(task, inputs, self.context.options)
+        objects = task_objects(task, inputs, self.context.options, state_directory=self.context.state_directory)
         self.save(
             task.id,
             {
@@ -309,6 +314,30 @@ class Module(Runtime):
         record.pop("stopping", None)
         self.save(task_id, record)
         return status
+
+    def workspace_ssh_endpoint(self, task_id: str, owner: str) -> PortConnection | None:
+        from ipaddress import ip_address
+
+        record = self.read(task_id)
+        task = record["task"]
+        if (task["owner"] != owner or FEATURE not in task.get("extensions", {})
+                or record.get("terminal") or record.get("stopping")):
+            return None
+        name = name_for(task_id)
+        pods = self.client.list("Pod", f"platform.task-key={name}") if task["kind"] == "batch" else [
+            self.client.get("Pod", name)
+        ]
+        for pod in pods:
+            if not pod:
+                continue
+            self.client.check_owner(pod, task_id)
+            status = pod.get("status", {})
+            if (pod["metadata"].get("deletionTimestamp") or status.get("phase") != "Running"
+                    or not any(item.get("type") == "Ready" and item.get("status") == "True"
+                               for item in status.get("conditions", []))):
+                continue
+            return PortConnection(host=str(ip_address(status["podIP"])), port=SSH_PORT)
+        return None
 
     def list_tasks(self):
         result = []

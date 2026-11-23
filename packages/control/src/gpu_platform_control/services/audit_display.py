@@ -3,6 +3,8 @@ import json
 from gpu_platform_control.core.requests.models import ResourceRequest
 
 ACTION_LABELS = {
+    "workspace_ssh_connected": tr("Workspace SSH connection opened"),
+    "workspace_ssh_rejected": tr("Workspace SSH connection rejected"),
     "extension_submitted": tr("Request extension"),
     "extension_approved": tr("Extension approved"),
     "extension_rejected": tr("Extension rejected"),

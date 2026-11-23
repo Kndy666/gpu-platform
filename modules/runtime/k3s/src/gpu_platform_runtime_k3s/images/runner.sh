@@ -73,6 +73,18 @@ shutdown_docker() {
     docker_pid=''
 }
 trap shutdown_docker EXIT
+if [[ -r /run/platform/peer_host_certificate ]]; then
+    install -m 600 /run/platform-peer/host /run/user/ssh_host_ed25519_key
+    sudo -n install -d -m 755 /etc/ssh/ssh_config.d
+    sudo -n tee /etc/ssh/ssh_config.d/40-platform-workspaces.conf >/dev/null <<'PEER_SSH'
+Host *.workspaces.internal
+    ProxyCommand /bin/bash /run/platform/peer_proxy %h
+    IdentityAgent /run/platform-peer/identity
+    IdentityFile none
+    UserKnownHostsFile /run/platform/peer_known_hosts
+    StrictHostKeyChecking yes
+PEER_SSH
+fi
 [[ -f /run/user/ssh_host_ed25519_key ]] || ssh-keygen -q -t ed25519 -N '' -f /run/user/ssh_host_ed25519_key
 cat > /run/user/sshd_config <<'CONF'
 Port 2222
@@ -96,6 +108,14 @@ PrintMotd no
 StrictModes yes
 Subsystem sftp internal-sftp
 CONF
+if [[ -r /run/platform/peer_host_certificate ]]; then
+    cat >> /run/user/sshd_config <<'PEER_SSHD'
+HostCertificate /run/platform/peer_host_certificate
+TrustedUserCAKeys /run/platform/peer_user_authority
+AuthorizedPrincipalsCommand /usr/bin/cat /run/platform/peer_principal
+PEER_SSHD
+    printf 'AuthorizedPrincipalsCommandUser %s\n' "$TASK_USER" >> /run/user/sshd_config
+fi
 printf 'AuthorizedKeysCommandUser %s\nAllowUsers %s\n' "$TASK_USER" "$TASK_USER" >> /run/user/sshd_config
 printf 'SetEnv' >> /run/user/sshd_config
 for name in PATH LD_LIBRARY_PATH PYTHONPATH VIRTUAL_ENV CONDA_PREFIX CUDA_HOME CUDA_PATH CUDA_VISIBLE_DEVICES CUDA_MPS_PIPE_DIRECTORY LANG LC_ALL OMP_NUM_THREADS OMP_THREAD_LIMIT OPENBLAS_NUM_THREADS MKL_NUM_THREADS DOCKER_HOST DOCKER_CONFIG XDG_RUNTIME_DIR ${TASK_ENV_NAMES:-}; do

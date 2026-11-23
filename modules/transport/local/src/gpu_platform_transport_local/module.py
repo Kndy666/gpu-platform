@@ -25,7 +25,7 @@ class Module(Transport):
         slot="transport",
         version="0.4.0",
         side="both",
-        provides={"port": {"tcp"}, "stream": {"bytes"}},
+        provides={"port": {"tcp", "workspace-ssh"}, "stream": {"bytes"}},
         parameters=Options.model_json_schema(),
     )
 

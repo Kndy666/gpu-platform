@@ -11,6 +11,7 @@ from uuid import uuid4
 from pydantic import AwareDatetime, TypeAdapter, ValidationError
 
 from gpu_platform_contracts.handoffs import TaskInputs, VolumeRequest
+from gpu_platform_contracts.events import ModuleEvent
 from gpu_platform_contracts.assessment import ResourceAssessment, ResourceIntent
 from gpu_platform_contracts.messages import (
     ACTIVE_STATES,
@@ -31,6 +32,8 @@ from ..autonomy import stop_expired
 from ..datasets import Datasets
 from ..events import Events
 from ..operations import Operations
+from ..peer_ssh import PeerBroker
+from gpu_platform_contracts.peer_ssh import FEATURE, PeerIdentity, PeerLease, PeerRequest
 from ..state import read_json, write_json
 from ..sync import Streams
 
@@ -51,7 +54,8 @@ class NodeEngine:
         self.architecture = architecture
         self.slots = slots
         self.directory = state_directory
-        self.features = features or {}
+        self.features = dict(features or {})
+        self.peer: PeerBroker | None = None
         self.datasets = datasets
         self.streams = Streams(state_directory / "streams", receiver=self.receive_dataset_file)
         self.lock = threading.RLock()
@@ -66,6 +70,27 @@ class NodeEngine:
         for slot in self.slots.values():
             if hasattr(slot, "context"):
                 slot.context.bind_events(self.events.publish)
+
+    def configure_peer_ssh(self):
+        runtime = self.slot("runtime")
+        capable = bool(runtime.descriptor.provides.get(FEATURE))
+        enabled = capable and self.features.get(FEATURE, False)
+        self.features[FEATURE] = enabled
+        if enabled or (capable and any(FEATURE in spec.get("extensions", {}) for spec in self.state["tasks"].values())):
+            self.peer = PeerBroker(self.directory / "peer-ssh", runtime.workspace_ssh_endpoint, self.audit_peer)
+            for task_id, spec in self.state["tasks"].items():
+                value = spec.get("extensions", {}).get(FEATURE)
+                if value and task_id not in self.state["terminal_tasks"]:
+                    try:
+                        self.peer.prepare(task_id, PeerIdentity.model_validate(value))
+                    except (OSError, ValueError):
+                        logger.exception("Could not restore workspace SSH for %s", task_id)
+
+    def audit_peer(self, source, target, connected):
+        self.events.publish(ModuleEvent(
+            slot="runtime", code="workspace_ssh_connected" if connected else "workspace_ssh_rejected",
+            task_id=source, parameters={"target_task": target, "node": self.node_id},
+        ))
 
     def save(self):
         with self.lock:
@@ -154,6 +179,8 @@ class NodeEngine:
         return self.slot("runtime").status(task_id)
 
     def stop(self, task_id):
+        if self.peer:
+            self.peer.revoke(task_id)
         runtime = self.slot("runtime")
         try:
             status = runtime.stop(task_id)
@@ -189,6 +216,10 @@ class NodeEngine:
             raise SlotError("node.maintenance")
         if task.expires_at is not None and task.expires_at <= datetime.now(timezone.utc):
             raise SlotError("task.expired", task_id=task.id)
+        if peer := task.extensions.get(FEATURE):
+            if not self.peer:
+                raise SlotError("feature.disabled", feature=FEATURE)
+            self.peer.prepare(task.id, PeerIdentity.model_validate(peer))
         self.state["tasks"][task.id] = task.model_dump(mode="json")
         self.save()
         inputs = TaskInputs()
@@ -347,7 +378,32 @@ class NodeEngine:
                 error=Message(code="command.failed", parameters={"operation": command.operation.value}),
             )
 
+    def execute_peer(self, operation, payload):
+        self.require_feature(FEATURE)
+        if self.peer is None:
+            raise SlotError("feature.disabled", feature=FEATURE)
+        from uuid import UUID
+
+        if operation == Operation.PEER_KEYS:
+            return self.peer.keys(payload["task_id"])
+        if operation == Operation.PEER_LEASES:
+            grants = {str(item.task_id): item for item in TypeAdapter(list[PeerLease]).validate_python(payload["leases"])}
+            owners = {key: task["owner"] for key, task in self.state["tasks"].items()
+                      if FEATURE in task.get("extensions", {}) and key not in self.state["terminal_tasks"]}
+            self.peer.lease(grants, owners)
+        elif operation == Operation.PEER_PENDING:
+            return {"requests": self.peer.requests()}
+        elif operation == Operation.PEER_SOURCE:
+            return self.peer.claim(PeerRequest.model_validate(payload))
+        elif operation == Operation.PEER_TARGET:
+            return self.peer.approve(str(UUID(payload["target"])), payload["owner"])
+        else:
+            self.peer.reject(UUID(payload["session"]))
+        return {}
+
     def execute(self, operation, payload):
+        if operation.value.startswith("peer."):
+            return self.execute_peer(operation, payload)
         if operation == Operation.EVENTS_ACK:
             self.events.acknowledge(TypeAdapter(list[str]).validate_python(payload["ids"]))
             return {}
@@ -378,7 +434,9 @@ class NodeEngine:
                     raise SlotPending(reason="task.cleanup_pending", task_id=task_id)
                 if task_id not in self.state["terminal_tasks"]:
                     self.slot("runtime").acknowledge(task_id)
-                self.state["tasks"].pop(task_id, None)
+                task = self.state["tasks"].pop(task_id, None)
+                if self.peer and task and FEATURE in task.get("extensions", {}):
+                    self.peer.forget(task_id)
                 self.save()
             return {}
         if operation == Operation.TASK_STATUS:

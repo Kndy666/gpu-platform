@@ -10,13 +10,14 @@ from typing import Any
 
 from gpu_platform_contracts.handoffs import TaskInputs
 from gpu_platform_contracts.messages import TaskSpec
+from gpu_platform_contracts.peer_ssh import FEATURE, PeerIdentity
 
 
 def name_for(task_id):
     return "task-" + hashlib.sha256(task_id.encode()).hexdigest()[:32]
 
 
-def task_objects(task: TaskSpec, inputs: TaskInputs, options: dict):
+def task_objects(task: TaskSpec, inputs: TaskInputs, options: dict, *, state_directory: Path | None = None):
     name = name_for(task.id)
     labels = {"platform.task-key": name, "app.kubernetes.io/managed-by": "gpu-platform"}
     annotations = {"platform.task": task.id, "platform.owner": task.owner}
@@ -104,6 +105,22 @@ def task_objects(task: TaskSpec, inputs: TaskInputs, options: dict):
             {"name": "shm", "mountPath": "/dev/shm"},
         ]
     )
+    if value := task.extensions.get(FEATURE):
+        from uuid import UUID
+
+        identity = PeerIdentity.model_validate(value)
+        if state_directory is None:
+            raise ValueError("runtime.peer_state_directory_required")
+        peer_directory = state_directory / "peer-ssh" / str(UUID(task.id)) / "mount"
+        volumes.append({"name": "peer-ssh", "hostPath": {"path": str(peer_directory), "type": "Directory"}})
+        mounts.append({"name": "peer-ssh", "mountPath": "/run/platform-peer", "readOnly": True})
+        secret["stringData"].update({
+            "peer_proxy": (Path(__file__).parent / "images" / "peer-proxy.sh").read_text(),
+            "peer_host_certificate": identity.host_certificate + "\n",
+            "peer_user_authority": identity.user_authority + "\n",
+            "peer_principal": f"account-{task.owner}\n",
+            "peer_known_hosts": f"@cert-authority *.workspaces.internal {identity.host_authority}\n",
+        })
     mounts.extend(
         {"name": "resource-view", "mountPath": "/" + path, "subPath": path, "readOnly": True}
         for path in [

@@ -14,6 +14,7 @@ class ModuleSelection(Contract):
 
 
 class FeatureConfig(Contract):
+    workspace_ssh: bool = True
     save_environment: bool = True
     public_datasets: bool = True
     image_sync: bool = True

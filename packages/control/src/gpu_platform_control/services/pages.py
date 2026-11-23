@@ -182,7 +182,10 @@ def task(actor, pk, *, values=None, query=None):
     )
     from gpu_platform_control.core.features import enabled
     from .resource_display import task_resources
+    from .peer_ssh import connection as peer_ssh_connection, peers
+    from gpu_platform_control.slots.gateway import Gateway
 
+    internal_ssh = peer_ssh_connection(req) if req.user_id == actor.pk else None
     return result(
         {
             "can_save_environment": enabled(req.node, "save_environment"),
@@ -192,6 +195,8 @@ def task(actor, pk, *, values=None, query=None):
             "volume": volume,
             "host": config()["platform"]["public_host"],
             "administrator_access": admin_access,
+            "internal_ssh": internal_ssh,
+            "internal_ssh_peers": peers(req, Gateway()) if internal_ssh else [],
             "admin_connection": bool(actor.is_staff and req.user_id != actor.pk),
             "managed": managed,
             "can_extend": can_extend,

@@ -164,6 +164,7 @@ def main(argv=None):
     path = Path(args.socket or host.parameters.get("socket_path", str(engine.directory / "node.sock")))
     stop = threading.Event()
     with Server(path, engine, host.parameters.get("socket_group", 10001)) as server:
+        engine.configure_peer_ssh()
 
         def autonomy():
             while not stop.is_set():
@@ -187,6 +188,8 @@ def main(argv=None):
         finally:
             stop.set()
             worker.join(timeout=10)
+            if engine.peer:
+                engine.peer.close()
 
 
 if __name__ == "__main__":

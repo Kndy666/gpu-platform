@@ -1549,3 +1549,9 @@ msgstr "所选节点和指标从 %(time)s 起有采样。"
 
 msgid "%(model)s (all devices)"
 msgstr "%(model)s（全部设备）"
+
+msgid "Workspace SSH connection opened"
+msgstr "容器间 SSH 已连接"
+
+msgid "Workspace SSH connection rejected"
+msgstr "容器间 SSH 连接被拒绝"

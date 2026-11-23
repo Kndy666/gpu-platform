@@ -23,6 +23,8 @@ from gpu_platform_control.services.resources import (
     reserve_resources,
 )
 from gpu_platform_control.slots.gateway import Gateway, NodeCommandError
+from gpu_platform_control.services.peer_ssh import prepare_identity, supported
+from gpu_platform_contracts.peer_ssh import FEATURE
 
 
 class Reconciler:
@@ -209,6 +211,9 @@ class Reconciler:
                     request.save(update_fields=["resource_quantities"])
                     payload = spec.model_dump(mode="json")
                     reserve_resources(request.user, self.node, str(request.pk), payload["resources"])
+                    if supported(self.node):
+                        peer = prepare_identity(self.gateway, self.node, request.pk)
+                        payload["extensions"][FEATURE] = peer.model_dump(mode="json")
                 except ValidationError:
                     transaction.set_rollback(True)
                     return

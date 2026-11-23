@@ -601,7 +601,20 @@ class ConnectionResponse(Input):
     data: ConnectionResponseData
 
 
+class InternalSSH(Input):
+    alias: str
+    command: str
+
+
+class InternalSSHPeer(Input):
+    name: str
+    command: str
+    reachable: bool
+
+
 class ConnectionResponseData(Input):
+    internal_ssh: InternalSSH | None = None
+    internal_ssh_peers: list[InternalSSHPeer] | None = None
     status: str | None = None
     connection: SSHConnection | None = None
     administrator_access: AdministratorSSHAccess | None = None
@@ -974,6 +987,8 @@ MODELS: dict[str, type[BaseModel]] = {
     "AdministratorSSHAccessKeysItem": AdministratorSSHAccessKeysItem,
     "ConnectionResponse": ConnectionResponse,
     "ConnectionResponseData": ConnectionResponseData,
+    "InternalSSH": InternalSSH,
+    "InternalSSHPeer": InternalSSHPeer,
     "GroupDelete": GroupDelete,
     "PerformanceMetrics": PerformanceMetrics,
     "PerformanceMetricsCpu": PerformanceMetricsCpu,

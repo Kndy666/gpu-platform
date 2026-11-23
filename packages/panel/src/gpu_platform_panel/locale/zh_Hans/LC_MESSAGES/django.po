@@ -1414,3 +1414,9 @@ msgstr "采样明细"
 
 msgid "Control plane sample archive"
 msgstr "控制端采样归档"
+
+msgid "Workspace SSH"
+msgstr "容器间 SSH"
+
+msgid "Connection"
+msgstr "连接"

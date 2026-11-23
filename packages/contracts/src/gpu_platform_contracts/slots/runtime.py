@@ -3,7 +3,7 @@ from datetime import datetime
 
 from ..environment import StandardEnvironment
 from ..assessment import ResourceAssessment, ResourceIntent
-from ..handoffs import Image, Snapshot, TaskInputs
+from ..handoffs import Image, PortConnection, Snapshot, TaskInputs
 from ..messages import TaskSpec, TaskStatus
 from ..module import Module
 from ..resources import ResourceUsage
@@ -11,6 +11,10 @@ from ..resources import ResourceUsage
 
 class Runtime(Module, ABC):
     environment = StandardEnvironment()
+
+    def workspace_ssh_endpoint(self, task_id: str, owner: str) -> PortConnection | None:
+        """Resolve the SSH endpoint of a ready, peer-enabled task owned by this account."""
+        return None
 
     @abstractmethod
     def assess(self, intent: ResourceIntent) -> ResourceAssessment: ...

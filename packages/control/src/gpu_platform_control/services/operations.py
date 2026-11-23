@@ -851,6 +851,13 @@ def connection(request, pk):
     from gpu_platform_control.core.ssh_access import administrator_access
 
     data = {"status": req.status, "connection": connection_data(req)}
+    if req.user_id == request.user.pk:
+        from .peer_ssh import connection as peer_ssh_connection, peers
+        from gpu_platform_control.slots.gateway import Gateway
+
+        if internal_ssh := peer_ssh_connection(req):
+            data["internal_ssh"] = internal_ssh
+            data["internal_ssh_peers"] = peers(req, Gateway())
     access = administrator_access(request.user)
     if access is not None:
         data["administrator_access"] = access

@@ -52,6 +52,7 @@ defaults:
     public_datasets: true
     image_sync: true
     dataset_sync: true
+    workspace_ssh: true
   parameters:
     datasets: /data1/platform/datasets
     web_port: 8000
