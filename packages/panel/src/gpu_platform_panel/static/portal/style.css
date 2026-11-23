@@ -251,3 +251,29 @@ progress {display:block;max-width:100%;margin-bottom:.35rem;accent-color:var(--a
 @media(max-width:700px){.login-page{padding:40px 20px 70px}.login-box{padding:34px 26px}.login-box h1{font-size:34px;margin-bottom:26px}.sync-form .sync-direction{margin-bottom:0}}
 
 .resource-separator{display:inline-block;width:14px}.language-switcher button:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:3px}
+
+.usage-kpis {display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin:0 0 16px}
+.usage-kpis div,.archive-status div {padding:14px 16px;border:1px solid var(--line);border-radius:var(--radius);background:var(--card)}
+.usage-kpis dt,.archive-status dt {font-size:.85rem;color:var(--muted)}
+.usage-kpis dd {margin:6px 0 0;font-size:1.55rem;font-weight:600;font-variant-numeric:tabular-nums}
+.usage-meta {margin:8px 0 16px;font-size:.85rem}
+.usage-table {margin-bottom:16px}
+.usage-table caption {text-align:left;padding:14px 22px;font-weight:600;color:var(--ink)}
+.usage-table td {font-variant-numeric:tabular-nums}
+.usage-history {margin-top:28px}
+.usage-filters {display:flex;flex-wrap:wrap;align-items:end;gap:10px 14px;margin:0 0 16px}
+.usage-filters label {display:grid;gap:5px;font-size:.85rem;color:var(--muted);flex:1 1 130px;min-width:0}
+.usage-filters label input,.usage-filters label select {color:var(--ink)}
+.usage-charts {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.usage-chart-panel {padding:14px 16px;min-width:0}
+.usage-chart-panel h3 {font-size:1rem;margin:0 0 8px}
+.usage-chart {height:300px;min-width:0}
+.usage-sort {border:0;background:none;color:inherit;font:inherit;padding:0;text-align:left;cursor:pointer}
+.usage-table th[aria-sort=ascending] .usage-sort::after {content:" ↑"}
+.usage-table th[aria-sort=descending] .usage-sort::after {content:" ↓"}
+.usage-series-details {margin-bottom:16px}
+.usage-series-details summary {margin-bottom:10px;cursor:pointer}
+.archive-status {display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.archive-status dd {margin:5px 0 0}
+.usage-enhancement[hidden],.usage-chart-panel[hidden] {display:none}
+@media(max-width:900px){.usage-charts{grid-template-columns:minmax(0,1fr)}}

@@ -122,13 +122,15 @@ class NodeEngine:
             for task_id, status in self.state["terminal_tasks"].items()
             if task_id in self.state["tasks"]
         })
+        usage = self.usage()
+        metrics = self.slots["metrics"].sample() if "metrics" in self.slots else {}
         return NodeReport(
             node_id=self.node_id,
             observed_at=datetime.now(timezone.utc),
             maintenance=self.state["maintenance"],
             tasks=list(tasks.values()),
-            usage=self.usage(),
-            metrics=self.slots["metrics"].sample() if "metrics" in self.slots else {},
+            usage=usage,
+            metrics=metrics,
             events=self.events.pending(),
             sync=[*self.operations.reports(), *self.streams.reports()],
         )

@@ -9,7 +9,7 @@ from .services import ACTIVE, approve, audit, extend, policy_for
 
 
 def submit_request(req):
-    audit(req.user, "submit", req.pk)
+    audit(req.user, "submit", req.pk, node_id=req.node_id)
     if approval_mode(req.user) == "automatic":
         return approve(req.pk, None, "policy_automatic")
     return req

@@ -1,0 +1,51 @@
+{% load i18n %}
+<div class="usage-overview" data-report-part>
+  <dl class="usage-kpis">
+    <div><dt>{% translate 'Online nodes' %}</dt><dd>{{ live.online }} / {{ live.node_count }}</dd></div>
+    <div><dt>{% translate 'Running tasks' %}</dt><dd>{{ live.running_count }}</dd></div>
+    <div><dt>{% translate 'CPU usage' %}</dt><dd>{% if live.cpu != None %}{{ live.cpu|floatformat:1 }}%{% else %}—{% endif %}</dd></div>
+    <div><dt>{% translate 'Memory usage' %}</dt><dd>{% if live.memory != None %}{{ live.memory|floatformat:1 }}%{% else %}—{% endif %}</dd></div>
+    {% if live.capacity.GPU.available %}<div><dt>{% translate 'GPU quota / capacity' %}</dt><dd>{{ live.capacity.GPU.allocated|floatformat:'-2' }} / {{ live.capacity.GPU.available }}</dd><span class="table-sub">{{ live.capacity.GPU.percent|floatformat:1 }}%</span></div>{% endif %}
+    {% if live.capacity.NPU.available %}<div><dt>{% translate 'NPU quota / capacity' %}</dt><dd>{{ live.capacity.NPU.allocated|floatformat:'-2' }} / {{ live.capacity.NPU.available }}</dd><span class="table-sub">{{ live.capacity.NPU.percent|floatformat:1 }}%</span></div>{% endif %}
+  </dl>
+  <p class="muted usage-meta">{% translate 'Snapshot' %} <time datetime="{{ live.as_of|date:'c' }}">{{ live.as_of|date:'Y-m-d H:i:s T' }}</time> · {% translate 'Nodes with current samples' %} {{ live.sampled }} / {{ live.node_count }}</p>
+  {% if live.capacity.GPU.actual != None or live.capacity.NPU.actual != None %}<p class="muted usage-meta">
+    {% translate 'Average utilization' %}
+    {% if live.capacity.GPU.actual != None %} · GPU {{ live.capacity.GPU.actual|floatformat:1 }}%{% endif %}
+    {% if live.capacity.NPU.actual != None %} · NPU {{ live.capacity.NPU.actual|floatformat:1 }}%{% endif %}
+  </p>{% endif %}
+</div>
+<div class="table-wrap usage-table" data-report-part>
+  <table>
+    <caption>{% translate 'Current use by node' %}</caption>
+    <thead><tr><th scope="col">{% translate 'Node' %}</th><th scope="col">{% translate 'CPU usage' %}</th><th scope="col">{% translate 'Memory usage' %}</th><th scope="col">{% translate 'Accelerator quota / capacity' %}</th><th scope="col">{% translate 'Running tasks' %}</th></tr></thead>
+    <tbody>
+    {% for node in live.nodes %}
+      <tr><td><a href="{% url 'manage_performance' %}?node={{ node.id }}">{{ node.name }}</a><span class="table-sub">{{ node.state }}</span></td>
+      <td>{% if node.cpu != None %}{{ node.cpu|floatformat:1 }}%{% else %}—{% endif %}</td>
+      <td>{% if node.memory != None %}{{ node.memory|floatformat:1 }}%{% else %}—{% endif %}</td>
+      <td>{{ node.allocated|floatformat:'-2' }} / {{ node.available }} {{ node.kind }}</td>
+      <td>{% for task in node.running %}<div><a href="{% url 'task' task.id %}" title="{{ task.purpose }}">{{ task.name }}</a> <span class="muted">({{ task.username }})</span></div>{% empty %}—{% endfor %}</td></tr>
+    {% empty %}<tr><td colspan="5" class="empty">{% translate 'No nodes are configured.' %}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% if live.models %}
+<div class="table-wrap usage-table" data-report-part>
+  <table>
+    <caption>{% translate 'Current use by accelerator model' %}</caption>
+    <thead><tr><th scope="col">{% translate 'Accelerator model' %}</th><th scope="col">{% translate 'Accelerator quota / capacity' %}</th><th scope="col">{% translate 'Average utilization' %}</th><th scope="col">{% translate 'Sampled devices' %}</th></tr></thead>
+    <tbody>
+      {% for model in live.models %}<tr><td>{{ model.name }} <span class="muted">{{ model.kind }}</span></td>
+      <td>{{ model.allocated|floatformat:'-2' }} / {{ model.available }}</td>
+      <td>{% if model.actual != None %}{{ model.actual|floatformat:1 }}%{% else %}—{% endif %}</td><td>{{ model.samples|length }}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% if live.resources %}
+<p class="muted usage-meta" data-report-part>
+  {% translate 'CPU quota / capacity' %} {{ live.resources.cpu.used|floatformat:'-1' }} / {{ live.resources.cpu.total|floatformat:'-1' }} ·
+  {% translate 'Memory quota / capacity' %} {{ live.resources.memory.used|floatformat:'-1' }} / {{ live.resources.memory.total|floatformat:1 }} GiB
+</p>
+{% endif %}

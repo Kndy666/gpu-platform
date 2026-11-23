@@ -7,6 +7,8 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db import close_old_connections
 from gpu_platform_control.core.nodes.models import ComputeNode, SystemObservation
+from gpu_platform_control.core.metrics_history import MetricsArchive
+from gpu_platform_control.loop.metrics_history import HistoryRecorder
 from gpu_platform_control.loop.reconcile import Reconciler
 from gpu_platform_control.loop.transfers import Transfers
 from gpu_platform_control.slots.gateway import Gateway
@@ -34,13 +36,14 @@ class Command(BaseCommand):
             def sync(node):
                 close_old_connections()
                 try:
-                    Reconciler(node, gateway).tick()
+                    Reconciler(node, gateway, metrics_history=history.submit).tick()
                 except Exception:
                     logging.getLogger(__name__).exception("Node reconciliation failed: %s", node.name)
                 finally:
                     close_old_connections()
 
             with (
+                HistoryRecorder(MetricsArchive.configured()) as history,
                 ThreadPoolExecutor(max_workers=8) as executor,
                 ThreadPoolExecutor(max_workers=1) as transfer_executor,
             ):

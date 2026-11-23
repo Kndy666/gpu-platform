@@ -3,6 +3,7 @@ from django.utils.translation import gettext_lazy as tr
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
+from typing import Any
 from gpu_platform_control.core.configuration import config
 from gpu_platform_control.services.audit_display import audit_presentation
 from gpu_platform_control.core.image_lifecycle import keep_image, recycle_image
@@ -100,8 +101,11 @@ def performance(actor, *, values=None, query=None):
     values = parameters(values) if values is not None else None
     from gpu_platform_control.core.performance import performance_nodes
 
+    selection = query.dict().get("node")
+    node = ComputeNode.objects.filter(pk=selection).first() if selection and selection.isdigit() and len(selection) <= 18 else None
     return result(
-        {"section": "performance", "section_title": tr("Node performance"), "nodes": performance_nodes()},
+        {"section": "performance", "section_title": tr("Node performance"), "nodes": performance_nodes(node),
+         "performance_node": node.pk if node else None},
         notices=notices,
     )
 
@@ -524,3 +528,64 @@ def notification_settings_options(actor):
             "initial": {key: getattr(settings, key) for key in ("enabled", "events", "reminder_minutes")},
         }
     )
+
+
+@staff_only
+def performance_history(actor, *, query=None):
+    from gpu_platform_control.core.metrics_history import DAY, FIELDS, MetricsArchive
+    from django.utils import timezone
+
+    query = parameters(query).dict()
+    nodes = list(ComputeNode.objects.order_by("pk").values("id", "name"))
+    node_ids = {str(node["id"]): node["id"] for node in nodes}
+    node = node_ids.get(query.get("node", ""), nodes[0]["id"] if nodes else None)
+    ranges = (1, 7, 30, 90, 365)
+    days = next((days for days in ranges if str(days) == query.get("days")), 1)
+    labels = {
+        "cpu": (tr("CPU usage"), "%"),
+        "cpu_temperature": (tr("CPU temperature"), "°C"),
+        "memory": (tr("Memory usage"), "%"),
+        "device_load": (tr("Accelerator utilization"), "%"),
+        "device_memory": (tr("Accelerator memory usage"), "%"),
+        "device_temperature": (tr("Accelerator temperature"), "°C"),
+        "device_power": (tr("Accelerator power"), "W"),
+        "disk": (tr("Disk usage"), "%"),
+        "network_receive": (tr("Network receive rate"), "MiB/s"),
+        "network_transmit": (tr("Network transmit rate"), "MiB/s"),
+    }
+    metric = query.get("metric", "cpu")
+    if metric not in {name for group in FIELDS.values() for name in group.values()}:
+        metric = "cpu"
+    archive = MetricsArchive.configured()
+    now = int(timezone.now().timestamp())
+    history: dict[str, Any] = archive.series(node, now - days * DAY, now, metric, query.get("series", ""), now) if node else {
+        "series": [], "step": 60, "choices": {}, "selected": "", "has_data": False,
+    }
+    status = archive.status()
+    status_messages = {
+        "ready": tr("Recording"),
+        "waiting": tr("Waiting for samples"),
+        "space": tr("Paused for disk space"),
+        "error": tr("Archive write failed"),
+        "dropped": tr("Some samples were dropped"),
+    }
+    from datetime import datetime, timezone as utc_clock
+
+    return result({
+        "history": {**history, "choices": {
+            key: tr("%(model)s (all devices)") % {"model": info["label"]} if info.get("group") else info["label"]
+            for key, info in history["choices"].items()
+        }}, "archive": {**status, "state_label": status_messages.get(status["state"]),
+            "first_at": datetime.fromtimestamp(status["first"], utc_clock.utc) if status["first"] is not None else None,
+            "last_at": datetime.fromtimestamp(status["last_write"], utc_clock.utc) if status["last_write"] else None,
+        },
+        "history_nodes": nodes, "history_node": node, "history_ranges": ranges, "history_days": days,
+        "history_metric": metric, "history_label": labels[metric][0], "history_unit": labels[metric][1],
+        "history_metrics": {key: label for key, (label, _) in labels.items()},
+        "history_timezone": timezone.get_current_timezone_name(),
+        "history_rows": [
+            {"at": datetime.fromtimestamp(stamp / 1000, utc_clock.utc), "mean": mean,
+             "min": minimum, "max": maximum, "samples": count}
+            for stamp, mean, minimum, maximum, count in history["series"] if count
+        ],
+    })

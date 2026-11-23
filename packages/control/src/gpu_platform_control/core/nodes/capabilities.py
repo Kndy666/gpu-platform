@@ -26,3 +26,21 @@ def accelerator_texts(node):
         else str(default)
         for key, default in defaults.items()
     }
+
+
+def exclusive_accelerators(node):
+    return any(resource["unit"] == "count" for resource in accelerator_module(node).get("resources", []))
+
+
+def allocation_snapshot(node, gpus):
+    if not gpus:
+        return {}
+    from gpu_platform_control.core.nodes.models import SystemObservation
+
+    observation = SystemObservation.objects.filter(node=node, name="gpu_inventory").first()
+    inventory = {device["uuid"]: device["name"] for device in observation.data["devices"]} if observation else {}
+    exclusive = exclusive_accelerators(node)
+    return {"gpu": gpus, "devices": {
+        entry["device_id"]: {"model": inventory.get(entry["device_id"]), "exclusive": exclusive}
+        for entry in gpus
+    }}

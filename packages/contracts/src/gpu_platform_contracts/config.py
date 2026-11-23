@@ -71,11 +71,17 @@ class SyncConfig(Contract):
     datasets: list[DatasetSyncPolicy] = Field(default_factory=list)
 
 
+class MetricsHistoryConfig(Contract):
+    max_mib: int = Field(default=512, ge=1)
+    reserve_mib: int = Field(default=2048, ge=0)
+
+
 class ControlConfig(Contract):
     auth: ModuleSelection = Field(default_factory=lambda: ModuleSelection(module="local"))
     notify: list[ModuleSelection] = Field(default_factory=list)
     groups: dict[str, dict[str, Any]] = Field(default_factory=dict)
     sync: SyncConfig = Field(default_factory=SyncConfig)
+    metrics_history: MetricsHistoryConfig = Field(default_factory=MetricsHistoryConfig)
     database: dict[str, Any] = Field(default_factory=lambda: {"engine": "sqlite", "name": "control.sqlite3"})
 
 

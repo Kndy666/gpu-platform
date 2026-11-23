@@ -1,0 +1,21 @@
+{% load i18n %}
+<div class="table-wrap usage-table" data-report-part>
+  <table data-usage-sort>
+    <caption>{{ caption }}</caption>
+    <thead><tr>
+      <th scope="col"><button class="usage-sort" type="button">{{ label }}</button></th>
+      <th scope="col"><button class="usage-sort" type="button">{% translate 'Applications' %}</button></th>
+      <th scope="col"><button class="usage-sort" type="button">{% translate 'Tasks with runtime' %}</button></th>
+      <th scope="col"><button class="usage-sort" type="button">{% translate 'Task hours' %}</button></th>
+      <th scope="col"><button class="usage-sort" type="button">{% translate 'Equivalent GPU hours' %}</button></th>
+      <th scope="col"><button class="usage-sort" type="button">{% translate 'NPU device hours' %}</button></th>
+    </tr></thead>
+    <tbody>{% for row in rows %}
+      <tr><td>{{ row.label }}{% if row.username %} <span class="muted">({{ row.username }})</span>{% endif %}{% if row.kind %} <span class="muted">{{ row.kind }}</span>{% endif %}</td>
+      <td data-value="{{ row.applications }}">{{ row.applications }}</td><td data-value="{{ row.tasks }}">{{ row.tasks }}</td>
+      <td data-value="{{ row.hours|floatformat:'3u' }}">{{ row.hours|floatformat:2 }}</td>
+      <td data-value="{{ row.gpu_hours|floatformat:'3u' }}">{{ row.gpu_hours|floatformat:2 }}</td>
+      <td data-value="{{ row.npu_hours|floatformat:'3u' }}">{{ row.npu_hours|floatformat:2 }}</td></tr>
+    {% empty %}<tr><td colspan="6" class="empty">{% translate 'No matching usage records.' %}</td></tr>{% endfor %}</tbody>
+  </table>
+</div>

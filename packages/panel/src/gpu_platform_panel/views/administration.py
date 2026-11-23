@@ -5,6 +5,7 @@ from django.shortcuts import redirect
 from django.urls import reverse
 from django.views.decorators.http import require_POST, require_GET
 import gpu_platform_control.services.administration as service
+from gpu_platform_control.services.usage import current_usage, usage_statistics
 from .adapter import service_arguments, errors_as_http, render_result, notify, edit, receivers, parameters
 from django.core.exceptions import ValidationError
 from django.contrib import messages
@@ -93,7 +94,8 @@ def approvals(request):
 @errors_as_http
 def performance(request):
     result = service.performance(request.user, **service_arguments(request))
-    return render_result(request, "portal/manage_performance.html", result)
+    history = service.performance_history(request.user, query=parameters(request.GET))
+    return render_result(request, "portal/manage_performance.html", result, **history.data)
 
 
 @staff_required
@@ -203,7 +205,7 @@ def audits(request):
 def performance_data(request):
     from django.template.loader import render_to_string
 
-    result = service.performance(request.user)
+    result = service.performance(request.user, query=parameters(request.GET))
     response = JsonResponse({"html": render_to_string("portal/performance_nodes.html", result.data, request)})
     response["Cache-Control"] = "no-store"
     return response
@@ -218,3 +220,33 @@ def image_action(request, pk, action):
     if request.user.is_staff and request.POST.get("origin") == "management":
         return redirect(reverse("manage_images") + f"?node={result.identity}")
     return redirect("images")
+
+
+@staff_required
+@require_GET
+def usage(request):
+    query = parameters(request.GET)
+    try:
+        report = usage_statistics(request.user, query=query)
+        error = None
+    except ValidationError as exc:
+        report = usage_statistics(request.user)
+        error = exc.messages[0]
+    response = render_result(request, "portal/manage_usage.html", report,
+                             live=current_usage(request.user).data, filter_error=error)
+    response["Cache-Control"] = "no-store"
+    if error:
+        response.status_code = 400
+    return response
+
+
+@staff_required
+@require_GET
+def usage_data(request):
+    from django.template.loader import render_to_string
+
+    response = JsonResponse({"html": render_to_string(
+        "portal/usage_live.html", {"live": current_usage(request.user).data}, request
+    )})
+    response["Cache-Control"] = "no-store"
+    return response

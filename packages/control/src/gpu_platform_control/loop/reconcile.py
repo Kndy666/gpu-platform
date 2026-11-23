@@ -26,8 +26,9 @@ from gpu_platform_control.slots.gateway import Gateway, NodeCommandError
 
 
 class Reconciler:
-    def __init__(self, node, gateway=None, clock=timezone.now):
+    def __init__(self, node, gateway=None, clock=timezone.now, *, metrics_history=None):
         self.node, self.gateway, self.clock = node, gateway or Gateway(), clock
+        self.metrics_history = metrics_history
 
     def task_spec(self, request, workspace):
         user = request.user
@@ -139,7 +140,9 @@ class Reconciler:
         )
         from gpu_platform_control.core.performance import record_performance
 
-        record_performance(self.node, report)
+        performance = record_performance(self.node, report)
+        if performance and self.metrics_history:
+            self.metrics_history(self.node.pk, performance)
         for status in report.tasks:
             self.apply_status(status)
         # A successful node acknowledgement may have lost its reply and stopped reports.
@@ -210,7 +213,9 @@ class Reconciler:
                     transaction.set_rollback(True)
                     return
                 workspace.dispatch_payload = payload
-                workspace.allocations = {"gpu": payload["gpus"]} if payload["gpus"] else {}
+                from gpu_platform_control.core.nodes.capabilities import allocation_snapshot
+
+                workspace.allocations = allocation_snapshot(self.node, payload["gpus"])
                 workspace.save(update_fields=["dispatch_payload", "allocations"])
         result = self.gateway.request(self.node, Operation.TASK_START, **payload)
         self.apply_status(TaskStatus.model_validate(result))

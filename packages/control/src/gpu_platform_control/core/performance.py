@@ -30,12 +30,13 @@ def record_performance(node, report):
     data["sampled_at"] = report.observed_at.isoformat()
     data["series"] = report.metrics
     SystemObservation.objects.update_or_create(node=node, name="performance", defaults={"data": data})
+    return data
 
 
-def performance_nodes(node=None):
+def performance_nodes(node=None, *, now=None):
     observations = {item.node_id: item for item in SystemObservation.objects.filter(name="performance")}
     nodes = ComputeNode.objects.filter(pk=node.pk) if node else ComputeNode.objects.order_by("pk")
-    now = timezone.now()
+    now = now or timezone.now()
     result = []
     for node in nodes:
         observation = observations.get(node.pk)

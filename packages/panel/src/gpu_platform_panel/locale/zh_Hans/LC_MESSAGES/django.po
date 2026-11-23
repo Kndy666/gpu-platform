@@ -1219,3 +1219,174 @@ msgstr "正在传输数据"
 
 msgid "Applying data"
 msgstr "正在写入目标节点"
+
+msgid "Usage statistics"
+msgstr "使用统计"
+
+msgid "Online nodes"
+msgstr "在线节点"
+
+msgid "Running tasks"
+msgstr "运行中的任务"
+
+msgid "Snapshot"
+msgstr "统计时点"
+
+msgid "Nodes with current samples"
+msgstr "有最新采样的节点"
+
+msgid "Current use by node"
+msgstr "各节点当前使用"
+
+msgid "Accelerator quota / capacity"
+msgstr "加速设备分配量 / 可调度容量"
+
+msgid "No nodes are configured."
+msgstr "尚未配置节点。"
+
+msgid "Current use by accelerator model"
+msgstr "各卡型当前使用"
+
+msgid "Accelerator model"
+msgstr "卡型"
+
+msgid "Average utilization"
+msgstr "平均实际负载"
+
+msgid "Sampled devices"
+msgstr "有采样的设备数"
+
+msgid "CPU quota / capacity"
+msgstr "CPU 分配量 / 可调度容量"
+
+msgid "GPU quota / capacity"
+msgstr "GPU 分配量 / 可调度容量"
+
+msgid "NPU quota / capacity"
+msgstr "NPU 分配量 / 可调度容量"
+
+msgid "Memory quota / capacity"
+msgstr "内存分配量 / 可调度容量"
+
+msgid "Applications"
+msgstr "申请数"
+
+msgid "Tasks with runtime"
+msgstr "有运行时长的任务"
+
+msgid "Task hours"
+msgstr "任务小时"
+
+msgid "Equivalent GPU hours"
+msgstr "GPU 整卡小时"
+
+msgid "NPU device hours"
+msgstr "NPU 设备小时"
+
+msgid "No matching usage records."
+msgstr "没有符合条件的使用记录。"
+
+msgid "Copy report"
+msgstr "复制汇报"
+
+msgid "Current use"
+msgstr "当前使用"
+
+msgid "Historical use"
+msgstr "历史占用"
+
+msgid "From date"
+msgstr "起始日期"
+
+msgid "Through date"
+msgstr "结束日期"
+
+msgid "Account"
+msgstr "账号"
+
+msgid "All accounts"
+msgstr "全部账号"
+
+msgid "All nodes"
+msgstr "全部节点"
+
+msgid "All models"
+msgstr "全部卡型"
+
+msgid "Reset"
+msgstr "重置"
+
+msgid "All retained records"
+msgstr "全部留存记录"
+
+msgid "Applicants / enabled accounts"
+msgstr "申请账号 / 启用账号"
+
+msgid "Accelerator allocation over time"
+msgstr "各卡型占用趋势"
+
+msgid "Accelerator hours"
+msgstr "加速设备占用小时"
+
+msgid "Accelerator hours by account"
+msgstr "人员占用时长排行"
+
+msgid "Usage by account"
+msgstr "按人员统计"
+
+msgid "Usage by accelerator model"
+msgstr "按卡型统计"
+
+msgid "Usage by node"
+msgstr "按节点统计"
+
+msgid "Historical performance"
+msgstr "历史负载"
+
+msgid "Last 24 hours"
+msgstr "最近 24 小时"
+
+msgid "Last %(count)s days"
+msgstr "最近 %(count)s 天"
+
+msgid "Metric"
+msgstr "指标"
+
+msgid "Series"
+msgstr "设备或卡型"
+
+msgid "Average"
+msgstr "平均值"
+
+msgid "Peak"
+msgstr "峰值"
+
+msgid "Samples"
+msgstr "样本数"
+
+msgid "Sampled intervals"
+msgstr "有采样的时段"
+
+msgid "%(seconds)s s per point"
+msgstr "每点 %(seconds)s 秒"
+
+msgid "Minimum"
+msgstr "最小值"
+
+msgid "No samples in this time range."
+msgstr "该时间范围内无采样。"
+
+msgid "History archive"
+msgstr "采样归档"
+
+msgid "Disk use"
+msgstr "磁盘占用"
+
+msgid "Earliest available"
+msgstr "最早可查时间"
+
+msgid "Last successful write"
+msgstr "最近成功写入时间"
+
+msgid "History is stored at 1 minute for 7 days, 15 minutes for 90 days, and 1 hour for 365 days."
+msgstr "历史采样按 1 分钟保留 7 天、按 15 分钟保留 90 天、按 1 小时保留 365 天。"

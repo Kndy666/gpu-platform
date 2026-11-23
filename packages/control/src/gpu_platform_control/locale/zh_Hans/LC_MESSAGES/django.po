@@ -1475,3 +1475,72 @@ msgstr "请等待当前镜像复制完成后再更改副本的共享方式。"
 
 msgid "Set a whole number."
 msgstr "请输入整数。"
+
+msgid "Usage statistics"
+msgstr "使用统计"
+
+msgid "Enter valid dates."
+msgstr "请输入有效日期。"
+
+msgid "The start date must be on or before the end date."
+msgstr "起始日期须早于或等于结束日期。"
+
+msgid "Select an available account and node."
+msgstr "请选择可用的账号和节点。"
+
+msgid "Unknown account"
+msgstr "未知账号"
+
+msgid "Unknown node"
+msgstr "未知节点"
+
+msgid "Unknown accelerator"
+msgstr "未知卡型"
+
+msgid "CPU usage"
+msgstr "CPU 使用率"
+
+msgid "CPU temperature"
+msgstr "CPU 温度"
+
+msgid "Memory usage"
+msgstr "内存使用率"
+
+msgid "Accelerator utilization"
+msgstr "加速设备利用率"
+
+msgid "Accelerator memory usage"
+msgstr "加速设备内存使用率"
+
+msgid "Accelerator temperature"
+msgstr "加速设备温度"
+
+msgid "Accelerator power"
+msgstr "加速设备功耗"
+
+msgid "Disk usage"
+msgstr "磁盘使用率"
+
+msgid "Network receive rate"
+msgstr "网络接收速率"
+
+msgid "Network transmit rate"
+msgstr "网络发送速率"
+
+msgid "Recording"
+msgstr "正在归档"
+
+msgid "Waiting for samples"
+msgstr "等待采样"
+
+msgid "Paused for disk space"
+msgstr "磁盘空间不足，归档已暂停"
+
+msgid "Archive write failed"
+msgstr "归档写入失败"
+
+msgid "Some samples were dropped"
+msgstr "部分样本未归档"
+
+msgid "%(model)s (all devices)"
+msgstr "%(model)s（全部设备）"

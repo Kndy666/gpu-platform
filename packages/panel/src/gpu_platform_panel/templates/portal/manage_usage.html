@@ -1,0 +1,59 @@
+{% extends 'portal/manage_base.html' %}{% load i18n %}
+{% block page_scripts %}{% include 'portal/usage_scripts.html' %}{% endblock %}
+{% block manage_actions %}
+<button type="button" class="button secondary usage-enhancement" data-copy="usage-report" data-usage-copy hidden>{% translate 'Copy report' %}</button>
+<textarea hidden id="usage-report"></textarea>
+{% endblock %}
+{% block manage_content %}
+<section aria-labelledby="usage-current">
+  <div class="section-heading"><h2 id="usage-current" data-report-part>{% translate 'Current use' %}</h2>
+    <button type="button" class="text-button usage-enhancement" data-usage-refresh hidden>{% translate 'Refresh now' %}</button>
+  </div>
+  <p class="muted" role="status" data-usage-refresh-status></p>
+  <div data-usage-url="{% url 'manage_usage_data' %}">{% include 'portal/usage_live.html' %}</div>
+</section>
+<section class="usage-history" aria-labelledby="usage-history">
+  <div class="section-heading"><h2 id="usage-history" data-report-part>{% translate 'Historical use' %}</h2></div>
+  <form method="get" class="usage-filters" aria-labelledby="usage-history">
+    <label>{% translate 'From date' %}<input type="date" name="from" value="{{ filters.from }}"></label>
+    <label>{% translate 'Through date' %}<input type="date" name="to" value="{{ filters.to }}"></label>
+    <label>{% translate 'Account' %}<select name="account"><option value="">{% translate 'All accounts' %}</option>{% for option in account_options %}<option value="{{ option.id }}"{% if filters.account == option.id %} selected{% endif %}>{{ option.label }}</option>{% endfor %}</select></label>
+    <label>{% translate 'Node' %}<select name="node"><option value="">{% translate 'All nodes' %}</option>{% for option in node_options %}<option value="{{ option.id }}"{% if filters.node == option.id %} selected{% endif %}>{{ option.label }}</option>{% endfor %}</select></label>
+    <label>{% translate 'Accelerator model' %}<select name="model"><option value="">{% translate 'All models' %}</option>{% for option in model_options %}<option value="{{ option.id }}"{% if filters.model == option.id %} selected{% endif %}>{{ option.label }}</option>{% endfor %}</select></label>
+    <div class="actions"><button type="submit">{% translate 'Apply' %}</button><a class="text-button" href="{% url 'manage_usage' %}">{% translate 'Reset' %}</a></div>
+  </form>
+  {% if filter_error %}<p class="notice error" role="alert">{{ filter_error }}</p>{% endif %}
+  <p class="muted usage-meta" data-report-part>
+    {% if filters.from or filters.to %}{{ filters.from|default:'—' }} – {{ filters.to|default:'—' }}{% else %}{% translate 'All retained records' %}{% if totals.applications %} ({{ first|date:'Y-m-d' }} – {{ as_of|date:'Y-m-d' }}){% endif %}{% endif %}
+    · {% translate 'Snapshot' %} <time datetime="{{ as_of|date:'c' }}">{{ as_of|date:'Y-m-d H:i:s T' }}</time>
+  </p>
+  <dl class="usage-kpis" data-report-part>
+    <div><dt>{% translate 'Applicants / enabled accounts' %}</dt><dd>{{ applicants }} / {{ total_accounts }}</dd></div>
+    <div><dt>{% translate 'Applications' %}</dt><dd>{{ totals.applications }}</dd></div>
+    <div><dt>{% translate 'Tasks with runtime' %}</dt><dd>{{ totals.tasks }}</dd></div>
+    <div><dt>{% translate 'Task hours' %}</dt><dd>{{ totals.hours|floatformat:1 }}</dd></div>
+    <div><dt>{% translate 'Equivalent GPU hours' %}</dt><dd>{{ totals.gpu_hours|floatformat:1 }}</dd></div>
+    <div><dt>{% translate 'NPU device hours' %}</dt><dd>{{ totals.npu_hours|floatformat:1 }}</dd></div>
+  </dl>
+  {% if trend.dates %}
+  <div class="usage-charts">
+    <section class="panel usage-chart-panel" hidden>
+      <h3>{% translate 'Accelerator allocation over time' %}</h3>
+      <div class="usage-chart" aria-label="{% translate 'Accelerator allocation over time' %}" role="img" data-chart="trend" data-source="usage-trend" data-hours="{% translate 'Accelerator hours' %}"></div>
+      {{ trend|json_script:"usage-trend" }}
+    </section>
+    <section class="panel usage-chart-panel" hidden>
+      <h3>{% translate 'Accelerator hours by account' %}</h3>
+      <div class="usage-chart" aria-label="{% translate 'Accelerator hours by account' %}" role="img" data-chart="ranking" data-source="usage-ranking" data-gpu="{% translate 'Equivalent GPU hours' %}" data-npu="{% translate 'NPU device hours' %}"></div>
+      {{ ranking|json_script:"usage-ranking" }}
+    </section>
+  </div>
+  {% endif %}
+  {% translate 'Usage by account' as account_caption %}{% translate 'Account' as account_label %}
+  {% include 'portal/usage_history_table.html' with rows=people caption=account_caption label=account_label %}
+  {% translate 'Usage by accelerator model' as model_caption %}{% translate 'Accelerator model' as model_label %}
+  {% include 'portal/usage_history_table.html' with rows=by_model caption=model_caption label=model_label %}
+  {% translate 'Usage by node' as node_caption %}{% translate 'Node' as node_label %}
+  {% include 'portal/usage_history_table.html' with rows=by_node caption=node_caption label=node_label %}
+</section>
+{% endblock %}
