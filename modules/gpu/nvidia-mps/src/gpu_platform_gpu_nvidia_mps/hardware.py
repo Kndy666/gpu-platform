@@ -1,6 +1,14 @@
 import csv
 import ctypes
 import subprocess
+from typing import Literal
+
+from gpu_platform_contracts.base import Contract
+
+
+class DriverOwnership(Contract):
+    daemon: Literal["stopped", "starting", "ready"]
+    compute_modes: dict[str, int]
 
 
 def run(args):

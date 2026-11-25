@@ -1,6 +1,5 @@
 import shlex
 import subprocess
-import json
 import os
 from pathlib import Path
 
@@ -8,6 +7,8 @@ from gpu_platform_contracts.host import HostOwnership
 from gpu_platform_contracts.handoffs import GPURuntime
 from gpu_platform_contracts.module import CheckResult
 from gpu_platform_contracts.texts import Message
+
+from .hardware import DriverOwnership
 
 
 def check_host(context):
@@ -70,10 +71,10 @@ def uninstall_host(context):
         raise RuntimeError("gpu.active_leases_prevent_uninstall")
     ownership = root / "server-ownership.json"
     if ownership.exists():
-        record = json.loads(ownership.read_text())
+        record = DriverOwnership.model_validate_json(ownership.read_text())
         env = {**os.environ, "CUDA_MPS_PIPE_DIRECTORY": str(root / "pipes"),
                "CUDA_MPS_LOG_DIRECTORY": str(root / "logs")}
-        if record.get("daemon"):
+        if record.daemon != "stopped":
             result = context.runner(["nvidia-cuda-mps-control", "-p", "3", "-q"], env=env, check=False)
             if result.returncode:
                 probe = context.runner(
@@ -82,15 +83,10 @@ def uninstall_host(context):
                 )
                 if probe.returncode == 0:
                     raise RuntimeError("gpu.daemon_shutdown_failed")
-        elif record.get("server"):
-            context.runner(["nvidia-cuda-mps-control", "-p", "3", "server", "delete", "shared"],
-                           env=env)
-        for device, mode in record.get("compute_modes", {}).items():
+        for device, mode in record.compute_modes.items():
             result = context.runner(["nvidia-smi", "-i", device, "--query-gpu=compute_mode",
                                      "--format=csv,noheader"], capture_output=True)
-            desired = record.get("transition") or ("DEFAULT" if record.get("isolated") else "EXCLUSIVE_PROCESS")
-            applied = {"default", "0"} if desired == "DEFAULT" else {"exclusive_process", "3"}
-            if result.stdout.strip().lower().replace(" ", "_") in applied:
+            if result.stdout.strip().lower() in {"default", "0"}:
                 context.runner(["nvidia-smi", "-i", device, "-c", str(mode)])
         ownership.unlink()
     if HostOwnership(context, "gpu-docker").cleanup():

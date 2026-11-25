@@ -62,12 +62,12 @@ def test_failed_daemon_shutdown_keeps_recovery_record_and_compute_mode(tmp_path)
     root = tmp_path / "gpu"
     root.mkdir()
     record = root / "server-ownership.json"
-    record.write_text(json.dumps({"daemon": True, "compute_modes": {"gpu-a": 0}}))
+    record.write_text(json.dumps({"daemon": "ready", "compute_modes": {"gpu-a": 3}}))
     commands = []
 
     def runner(args, **kwargs):
         commands.append(args)
-        return SimpleNamespace(returncode=1 if "-q" in args else 0, stdout="shared,Ready\n")
+        return SimpleNamespace(returncode=1 if "-q" in args else 0, stdout="")
 
     with pytest.raises(RuntimeError):
         uninstall_host(SimpleNamespace(state_directory=tmp_path, runner=runner))
