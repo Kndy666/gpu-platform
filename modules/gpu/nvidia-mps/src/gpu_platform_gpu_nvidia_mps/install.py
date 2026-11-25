@@ -88,7 +88,9 @@ def uninstall_host(context):
         for device, mode in record.get("compute_modes", {}).items():
             result = context.runner(["nvidia-smi", "-i", device, "--query-gpu=compute_mode",
                                      "--format=csv,noheader"], capture_output=True)
-            if result.stdout.strip().lower().replace(" ", "_") in {"exclusive_process", "3"}:
+            desired = record.get("transition") or ("DEFAULT" if record.get("isolated") else "EXCLUSIVE_PROCESS")
+            applied = {"default", "0"} if desired == "DEFAULT" else {"exclusive_process", "3"}
+            if result.stdout.strip().lower().replace(" ", "_") in applied:
                 context.runner(["nvidia-smi", "-i", device, "-c", str(mode)])
         ownership.unlink()
     if HostOwnership(context, "gpu-docker").cleanup():

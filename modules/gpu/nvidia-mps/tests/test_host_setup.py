@@ -10,7 +10,7 @@ from gpu_platform_gpu_nvidia_mps.install import compose
 from gpu_platform_gpu_nvidia_mps.module import Module
 
 
-def test_shared_daemon_uses_v3_multiuser_and_uninstall_restores_original_compute_mode(tmp_path):
+def test_private_daemon_uses_v3_multiuser_and_uninstall_restores_original_compute_mode(tmp_path):
     commands = []
 
     def driver(args, **kwargs):
@@ -18,26 +18,25 @@ def test_shared_daemon_uses_v3_multiuser_and_uninstall_restores_original_compute
         if args[3:5] == ["server", "list"]:
             raise subprocess.CalledProcessError(1, args)
         if "--query-gpu=compute_mode" in args:
-            return "Default\n"
+            return "Exclusive_Process\n"
         return ""
 
     module = Module(ModuleContext(state_directory=tmp_path),
                     inventory=lambda: [{"uuid": "gpu-a"}], run=driver)
     module.ensure_server()
     assert ["nvidia-cuda-mps-control", "-d", "-p", "3", "-m"] in commands
-    assert ["nvidia-cuda-mps-control", "-p", "3", "server", "create", "shared", "--uid=0",
-            "--allowed-devices=gpu-a"] in commands
+    assert ["nvidia-smi", "-i", "gpu-a", "-c", "DEFAULT"] in commands
     ownership = module.root / "server-ownership.json"
-    assert json.loads(ownership.read_text())["compute_modes"] == {"gpu-a": 0}
+    assert json.loads(ownership.read_text())["compute_modes"] == {"gpu-a": 3}
 
     def host(args, **kwargs):
         commands.append(args)
-        return SimpleNamespace(stdout="Exclusive_Process\n", returncode=0)
+        return SimpleNamespace(stdout="Default\n", returncode=0)
 
     context = SimpleNamespace(state_directory=tmp_path, runner=host)
     uninstall_host(context)
     assert ["nvidia-cuda-mps-control", "-p", "3", "-q"] in commands
-    assert ["nvidia-smi", "-i", "gpu-a", "-c", "0"] in commands
+    assert ["nvidia-smi", "-i", "gpu-a", "-c", "3"] in commands
     assert not ownership.exists()
     count = len(commands)
     uninstall_host(context)

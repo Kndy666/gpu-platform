@@ -45,12 +45,23 @@ class Image(Handoff):
     credentials: dict[str, str] = Field(default_factory=dict, repr=False)
 
 
+class GPUWorker(Contract):
+    """An isolated accelerator service sharing only its client libraries with the workspace."""
+
+    image: str = Field(min_length=1)
+    environment: dict[str, str] = Field(default_factory=dict)
+    mounts: list[dict[str, Any]] = Field(default_factory=list)
+    client_directory: str = Field(pattern=r"^/[A-Za-z0-9_./-]+$")
+    ready_file: str = Field(pattern=r"^/[A-Za-z0-9_./-]+$")
+
+
 class GPUAllocation(Handoff):
     id: str
     task_id: str
     devices: list[GPURequest]
     environment: dict[str, str] = Field(default_factory=dict)
     mounts: list[dict[str, Any]] = Field(default_factory=list)
+    worker: GPUWorker | None = None
 
 
 class GPURuntime(Handoff):

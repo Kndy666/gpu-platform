@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from gpu_platform_contracts.environment import EnvironmentIdentity
-from gpu_platform_contracts.handoffs import TaskInputs, Volume
+from gpu_platform_contracts.handoffs import GPUAllocation, GPUWorker, TaskInputs, Volume
 from gpu_platform_contracts.messages import TaskSpec
 from gpu_platform_contracts.module import ModuleContext
 from gpu_platform_contracts.testing import RuntimeContract
@@ -137,14 +137,33 @@ def test_cross_owner_handoff_has_no_execution_side_effect(execution):
     assert not runtime.record_path(task.id).exists()
 
 
-def test_cpu_memory_limits_and_identity_apply_to_execution(execution):
+@pytest.mark.parametrize("with_worker", [False, True])
+def test_cpu_memory_limits_and_identity_apply_to_execution(execution, with_worker):
     runtime, cluster, task, inputs = execution
+    if with_worker:
+        inputs.gpu = GPUAllocation(
+            id="gpu", task_id=task.id, node_id=task.node_id, form="nvidia-mps", devices=[],
+            environment={"NVIDIA_VISIBLE_DEVICES": "void"},
+            worker=GPUWorker(image="example.invalid/worker", client_directory="/client", ready_file="/tmp/ready",
+                             environment={"NVIDIA_VISIBLE_DEVICES": "device-a", "PLATFORM_GPU_LEASE": "fixture"}),
+        )
     runtime.start(task, inputs)
     pod = next(obj for (kind, _), obj in cluster.objects.items() if kind == "Pod")
     spec = pod["spec"]
     resources = spec["containers"][0]["resources"]
     assert resources["limits"] == resources["requests"]
-    assert resources["limits"]["cpu"] == str(task.resources["cpu"])
+    if with_worker:
+        worker, = spec["initContainers"]
+        assert worker["restartPolicy"] == "Always"
+        assert worker["resources"]["requests"] == worker["resources"]["limits"]
+        for key, suffix, total in (("cpu", "m", 2000), ("memory", "Mi", 4096), ("ephemeral-storage", "Mi", 3072)):
+            assert sum(int(r[key].removesuffix(suffix)) for r in (resources["limits"], worker["resources"]["limits"])) == total
+        workspace = spec["containers"][0]
+        assert {item["name"]: item["value"] for item in workspace["env"]}["NVIDIA_VISIBLE_DEVICES"] == "void"
+        assert "PLATFORM_GPU_LEASE" not in {item["name"] for item in workspace["env"]}
+        assert any(mount["mountPath"] == "/client" and mount["readOnly"] for mount in workspace["volumeMounts"])
+    else:
+        assert resources["limits"]["cpu"] == str(task.resources["cpu"])
     assert spec["securityContext"]["runAsUser"] == task.identity.uid
     assert spec["automountServiceAccountToken"] is False
     assert {mount["mountPath"] for mount in spec["containers"][0]["volumeMounts"]} >= {

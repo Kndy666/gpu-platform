@@ -197,6 +197,8 @@ class NodeEngine:
             status = self.status(task_id)
         if status.state not in ACTIVE_STATES:
             self.release(task_id)
+        elif task_id in self.state["allocations"] or self.state["tasks"].get(task_id, {}).get("gpus"):
+            self.slot("gpu").reconcile(task_id, stopping=True)
         return status
 
     def start(self, task: TaskSpec):
@@ -274,9 +276,12 @@ class NodeEngine:
                     self.state["allocations"][spec.id] = recovered.id
                     self.save()
                 try:
-                    runtime.status(spec.id)
+                    status = runtime.status(spec.id)
                 except (KeyError, FileNotFoundError):
                     self.release(spec.id)
+                else:
+                    if status.state in ACTIVE_STATES:
+                        self.slot("gpu").reconcile(spec.id)
             stopped = stop_expired(self.stop, specs, datetime.now(timezone.utc))
             # Runtime expiry also covers its own durable records after an interrupted dispatch.
             stopped.extend(runtime.expire(datetime.now(timezone.utc)))

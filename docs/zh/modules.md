@@ -38,6 +38,14 @@ hosts:
 
 将这些选择合并到主机配置，远程节点还需按[部署指南](operations.md)配置通信与登录入口。Ascend 镜像需包含匹配的 CANN 环境。模块通过 `npu_count` 分配整颗芯片；单卡算力额度 100% 对应一颗、200% 对应两颗，不足一颗的部分向下取整。
 
+## 独立 CUDA 工作进程
+
+升级 NVIDIA 节点前，先用正在运行的节点版本排空工作区。按比例分配算力时，K3s 需要能够获取对应的 `ghcr.io/kndy666/gpu-platform-cuda-worker:0.4.0` 镜像。使用镜像站或自建版本时，可设置 `slots.gpu.options.isolated_worker_image`。发布流程为 AMD64 和 ARM64 构建镜像。本地构建可使用[工作进程 Dockerfile](../../modules/gpu/nvidia-mps/src/gpu_platform_gpu_nvidia_mps/images/Dockerfile) 所在目录作为构建上下文。
+
+当申请的每张卡都是 100% 算力时，工作区直接使用原生 NVIDIA 驱动，各卡仍按申请值限制显存。工作区可以使用全部获批 CPU 和系统内存。
+
+只要有一张卡申请部分算力，整个工作区就使用独立的 GPU 工作进程和 MPS 服务。工作进程执行固定 SM 分区和显存限制，占用任务获批 CPU 和系统内存的四分之一。工作区通过 Pod 回环接口发送 CUDA 和 NCCL 调用，故障恢复仅操作本次分配的服务。随附客户端暂不支持 NVSHMEM 对称显存。嵌套 Docker 容器使用 GPU 目前需要申请原生整卡。
+
 ## 编写自己的实现
 
 例如，学校或企业可以实现认证插槽来验证已有账号；使用其他存储系统的部署可以实现存储插槽，向运行模块提供可接收的卷交接物。

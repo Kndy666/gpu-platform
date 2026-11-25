@@ -8,13 +8,78 @@ import shlex
 from pathlib import Path
 from typing import Any
 
-from gpu_platform_contracts.handoffs import TaskInputs
+from gpu_platform_contracts.handoffs import GPUWorker, TaskInputs
 from gpu_platform_contracts.messages import TaskSpec
 from gpu_platform_contracts.peer_ssh import FEATURE, PeerIdentity
 
 
 def name_for(task_id):
     return "task-" + hashlib.sha256(task_id.encode()).hexdigest()[:32]
+
+
+def accelerator_mounts(entries, prefix, volumes):
+    mounts = []
+    for index, entry in enumerate(entries):
+        key = f"{prefix}-{index}"
+        volumes.append({"name": key, "hostPath": {"path": entry["source"], "type": "Directory"}})
+        mounts.append({"name": key, "mountPath": entry["target"], "readOnly": entry.get("read_only", True)})
+    return mounts
+
+
+def attach_gpu_worker(spec, workspace, worker: GPUWorker, cpu, memory, storage):
+    # Charge both containers to the approved task budget, including Kueue requests.
+    worker_cpu = int(cpu) * 250
+    worker_memory = int(memory) * 256
+    worker_storage = min(128, int(storage) * 1024 // 4)
+
+    def resources(millicores, mib, disk_mib):
+        limits = {"cpu": f"{millicores}m", "memory": f"{mib}Mi", "ephemeral-storage": f"{disk_mib}Mi"}
+        return {"limits": limits, "requests": limits.copy()}
+
+    workspace["resources"] = resources(
+        int(cpu) * 1000 - worker_cpu,
+        int(memory) * 1024 - worker_memory,
+        int(storage) * 1024 - worker_storage,
+    )
+    volumes = spec["volumes"]
+    volumes.extend(
+        [
+            {"name": "gpu-client", "emptyDir": {"sizeLimit": "64Mi"}},
+            {"name": "gpu-worker-tmp", "emptyDir": {"sizeLimit": "64Mi"}},
+            {"name": "gpu-worker-shm", "emptyDir": {"medium": "Memory", "sizeLimit": f"{worker_memory}Mi"}},
+        ]
+    )
+    libraries = {"name": "gpu-client", "mountPath": worker.client_directory}
+    workspace["volumeMounts"].append({**libraries, "readOnly": True})
+    spec["initContainers"] = [
+        {
+            "name": "gpu-worker",
+            "image": worker.image,
+            "imagePullPolicy": "IfNotPresent",
+            "restartPolicy": "Always",
+            "env": [{"name": key, "value": value} for key, value in worker.environment.items()],
+            "resources": resources(worker_cpu, worker_memory, worker_storage),
+            "volumeMounts": [
+                libraries,
+                {"name": "gpu-worker-tmp", "mountPath": "/tmp"},
+                {"name": "gpu-worker-shm", "mountPath": "/dev/shm"},
+                *accelerator_mounts(worker.mounts, "gpu-worker", volumes),
+            ],
+            "securityContext": {
+                "runAsNonRoot": True,
+                "runAsUser": 65534,
+                "runAsGroup": 65534,
+                "allowPrivilegeEscalation": False,
+                "readOnlyRootFilesystem": True,
+                "capabilities": {"drop": ["ALL"]},
+            },
+            "startupProbe": {
+                "exec": {"command": ["test", "-f", worker.ready_file]},
+                "periodSeconds": 2,
+                "failureThreshold": 60,
+            },
+        }
+    ]
 
 
 def task_objects(task: TaskSpec, inputs: TaskInputs, options: dict, *, state_directory: Path | None = None):
@@ -46,6 +111,9 @@ def task_objects(task: TaskSpec, inputs: TaskInputs, options: dict, *, state_dir
         "TASK_CPU": str(cpu),
         "TASK_ENV_NAMES": " ".join(task.environment),
     }
+    if inputs.gpu and inputs.gpu.worker:
+        env["TASK_ACCELERATOR_CLIENT"] = inputs.gpu.worker.client_directory
+        env["TASK_ENV_NAMES"] = " ".join(dict.fromkeys([*task.environment, *inputs.gpu.environment]))
     for key in task.environment:
         if not key.isascii() or not key.replace("_", "a").isalnum() or key[0].isdigit():
             raise ValueError("runtime.invalid_environment_key")
@@ -142,12 +210,7 @@ def task_objects(task: TaskSpec, inputs: TaskInputs, options: dict, *, state_dir
     }
     if inputs.gpu:
         environment.update(inputs.gpu.environment)
-        for index, mount in enumerate(inputs.gpu.mounts):
-            key = f"gpu-{index}"
-            volumes.append({"name": key, "hostPath": {"path": mount["source"], "type": "Directory"}})
-            mounts.append(
-                {"name": key, "mountPath": mount["target"], "readOnly": mount.get("read_only", True)}
-            )
+        mounts.extend(accelerator_mounts(inputs.gpu.mounts, "gpu", volumes))
     container: dict[str, Any] = {
         "name": "workspace",
         "image": inputs.image.reference if inputs.image else task.image,
@@ -184,6 +247,8 @@ def task_objects(task: TaskSpec, inputs: TaskInputs, options: dict, *, state_dir
         "containers": [container],
         "volumes": volumes,
     }
+    if inputs.gpu and inputs.gpu.worker:
+        attach_gpu_worker(spec, container, inputs.gpu.worker, cpu, memory, system_storage)
     if inputs.image and inputs.image.credentials:
         credentials = inputs.image.credentials
         if not re.fullmatch(r"[A-Za-z0-9.:[\]-]+", credentials["server"]):

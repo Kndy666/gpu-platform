@@ -2,6 +2,7 @@ import csv
 import fcntl
 import hashlib
 import json
+import logging
 import os
 import secrets
 import subprocess
@@ -21,9 +22,14 @@ from gpu_platform_contracts.texts import LocalizedText, Message
 
 from .allocation import MIB_IN_GIB, choose_devices, memory_mib, resolve_gpu_max
 from .hardware import cuda_inventory
+from .private_server import PrivateServer
 
 
 class Options(Contract):
+    isolated_worker_image: str = Field(
+        default="ghcr.io/kndy666/gpu-platform-cuda-worker:0.4.0", min_length=1,
+        description="CUDA worker image used for fractional compute allocations.",
+    )
     node_container_name: str = Field(default="gpu-platform-node", pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$",
         description="Node service container invoked by the host OCI GPU hook.")
 
@@ -112,10 +118,7 @@ class Module(GPU):
 
     def save(self, record):
         path = self.records / (self.key(record["task"]) + ".json")
-        temporary = path.with_suffix(".tmp")
-        temporary.write_text(json.dumps(record))
-        temporary.chmod(0o600)
-        temporary.replace(path)
+        self.write_record(path, record)
 
     def mps(self, *args):
         return self.run(
@@ -268,22 +271,26 @@ class Module(GPU):
 
     def allocate(self, task_id, requests):
         with self.locked():
-            self.ensure_server()
             path = self.records / (self.key(task_id) + ".json")
             if path.exists():
                 record = json.loads(path.read_text())
                 if record["request"] != [r.model_dump(mode="json") for r in requests]:
                     raise ValueError("gpu.allocation_conflict")
+                if not (record.get("native") or record["handoff"].get("worker")):
+                    raise SlotPending(reason="gpu.capacity_unavailable")
                 if record.get("prepared"):
                     return GPUAllocation.model_validate(record["handoff"])
                 self._release(record)
             allocation = self.selection(requests)
             if allocation is None:
                 raise SlotPending(reason="gpu.capacity_unavailable")
+            native = all(a["compute_percent"] == 100 for a in allocation)
+            self.ensure_server(needs_mps=not native)
             identifier = self.key(task_id)
             token = secrets.token_urlsafe(32)
-            for index, entry in enumerate(allocation):
-                entry["partition"] = f"p_{identifier}_{index}"
+            if not native:
+                for index, entry in enumerate(allocation):
+                    entry["partition"] = f"p_{identifier}_{index}"
             handoff = GPUAllocation(
                 id=identifier,
                 task_id=task_id,
@@ -301,48 +308,32 @@ class Module(GPU):
                     "NVIDIA_VISIBLE_DEVICES": ",".join(a["uuid"] for a in allocation),
                     "CUDA_VISIBLE_DEVICES": ",".join(a["uuid"] for a in allocation),
                     "NVIDIA_DRIVER_CAPABILITIES": "compute,utility",
-                    "CUDA_MPS_PIPE_DIRECTORY": "/run/platform-mps",
                     "PLATFORM_GPU_TASK": task_id,
                     "PLATFORM_GPU_LEASE": token,
                     "PLATFORM_GPU_DEVICES": ",".join(a["uuid"] for a in allocation),
                 },
-                mounts=[
-                    {
-                        "source": str(self.pipes / "shared" / ("t_" + identifier)),
-                        "target": "/run/platform-mps",
-                        "read_only": True,
-                    }
-                ],
             )
+            private = None
+            if not native:
+                private = PrivateServer(self, identifier)
+                if private.exists():
+                    raise RuntimeError("Private GPU server name already in use")
+                handoff.environment["CUDA_MPS_PIPE_DIRECTORY"] = "/run/platform-mps"
+                private.handoff(handoff, allocation, Options(**self.context.options).isolated_worker_image)
             record = {
                 "task": task_id,
                 "token": token,
                 "request": [r.model_dump(mode="json") for r in requests],
                 "allocations": allocation,
-                "prepared": False,
+                "native": native,
+                "prepared": native,
                 "handoff": handoff.model_dump(mode="json"),
             }
             self.save(record)
+            if private is None:
+                return handoff
             try:
-                for entry in allocation:
-                    self.mps(
-                        "sm-partition",
-                        "create",
-                        entry["partition"],
-                        "--server=shared",
-                        "--device=" + entry["uuid"],
-                        "--chunks=" + str(entry["sm_count"] // 2),
-                    )
-                self.mps("namespace", "create", "t_" + identifier, "--server=shared")
-                for entry in allocation:
-                    self.mps(
-                        "namespace",
-                        "set",
-                        "t_" + identifier,
-                        "--server=shared",
-                        "--device=" + entry["uuid"],
-                        "--sm-partition=" + entry["partition"],
-                    )
+                private.provision(record)
                 record["prepared"] = True
                 self.save(record)
             except Exception:
@@ -357,71 +348,118 @@ class Module(GPU):
                 return None
             return GPUAllocation.model_validate(json.loads(path.read_text())["handoff"])
 
-    def ensure_server(self):
-        devices = self.read_inventory()
+    def ensure_server(self, *, needs_mps=True):
+        ownership = self.root / "server-ownership.json"
+        record = json.loads(ownership.read_text()) if ownership.exists() else {"compute_modes": {}}
+        record.setdefault("compute_modes", {})
+        leases = self.leases()
+        if any(not (lease.get("native") or lease["handoff"].get("worker")) for lease in leases):
+            raise SlotPending(reason="gpu.capacity_unavailable")
         (self.root / "logs").mkdir(mode=0o700, exist_ok=True)
         try:
             servers = self.mps("server", "list", "--format=csv,noheader")
-        except subprocess.SubprocessError:
-            if self.leases():
+        except subprocess.CalledProcessError:
+            servers = None
+        switching = not record.get("isolated") or "transition" in record
+        if switching:
+            if leases:
+                raise SlotPending(reason="gpu.capacity_unavailable")
+            if servers is not None:
+                self.retire_shared_server(servers, record, ownership)
+        if servers is not None and not record.get("daemon"):
+            raise RuntimeError("Cannot use an unmanaged MPS daemon for isolated GPU allocations")
+        if servers is None and leases:
+            private_leases = any(lease["handoff"].get("worker") for lease in leases)
+            if private_leases and not record.get("daemon"):
                 raise RuntimeError("gpu.server_lost")
-            ownership = self.root / "server-ownership.json"
-            record = json.loads(ownership.read_text()) if ownership.exists() else {"compute_modes": {}}
-            for device in devices:
-                if device["uuid"] not in record["compute_modes"]:
-                    mode = self.run(["nvidia-smi", "-i", device["uuid"], "--query-gpu=compute_mode",
-                                     "--format=csv,noheader"], text=True, timeout=30).strip()
-                    modes = {"default": 0, "exclusive_thread": 1, "prohibited": 2, "exclusive_process": 3}
-                    record["compute_modes"][device["uuid"]] = modes[mode.lower().replace(" ", "_")]
-            record["daemon"] = True
-            temporary = ownership.with_suffix(".tmp")
-            temporary.write_text(json.dumps(record))
-            temporary.chmod(0o600)
-            temporary.replace(ownership)
-            for device in devices:
+        configure = switching or servers is None
+        if configure:
+            self.configure_compute_modes(record, ownership, leases, switching)
+            if needs_mps and servers is None:
+                record["daemon"] = True
+                record["routing_pending"] = True
+                self.write_record(ownership, record)
                 self.run(
-                    ["nvidia-smi", "-i", device["uuid"], "-c", "EXCLUSIVE_PROCESS"], text=True, timeout=30
+                    ["nvidia-cuda-mps-control", "-d", "-p", "3", "-m"],
+                    text=True,
+                    timeout=30,
+                    env={
+                        **os.environ,
+                        "CUDA_MPS_PIPE_DIRECTORY": str(self.pipes),
+                        "CUDA_MPS_LOG_DIRECTORY": str(self.root / "logs"),
+                    },
                 )
-            self.run(
-                ["nvidia-cuda-mps-control", "-d", "-p", "3", "-m"],
-                text=True,
-                timeout=30,
-                env={
-                    **os.environ,
-                    "CUDA_MPS_PIPE_DIRECTORY": str(self.pipes),
-                    "CUDA_MPS_LOG_DIRECTORY": str(self.root / "logs"),
-                },
+                servers = ""
+        if configure or record.get("routing_pending"):
+            if servers is not None:
+                self.mps("context-share", "set", "default_socket=off")
+            record["isolated"] = True
+            record.pop("transition", None)
+            record.pop("routing_pending", None)
+            self.write_record(ownership, record)
+
+    def retire_shared_server(self, servers, record, ownership):
+        names = {row[0].strip() for row in csv.reader(servers.splitlines()) if row}
+        if not record.get("daemon") or names - {"shared"}:
+            raise RuntimeError("Cannot change GPU mode with an unmanaged MPS server")
+        if "shared" in names:
+            if not record.get("server"):
+                raise RuntimeError("Cannot retire an unmanaged MPS server")
+            if self.mps("client", "list", "--server=shared", "--format=csv,noheader").strip():
+                raise RuntimeError("Drain MPS clients before retiring the shared GPU server")
+            self.mps("server", "delete", "shared")
+            record.pop("server", None)
+            self.write_record(ownership, record)
+
+    def configure_compute_modes(self, record, ownership, leases, switching):
+        modes = {"default": 0, "exclusive_thread": 1, "prohibited": 2, "exclusive_process": 3}
+        updates = []
+        for device in self.read_inventory():
+            uuid = device["uuid"]
+            mode = (
+                self.run(
+                    ["nvidia-smi", "-i", uuid, "--query-gpu=compute_mode", "--format=csv,noheader"],
+                    text=True,
+                    timeout=30,
+                )
+                .strip()
+                .lower()
+                .replace(" ", "_")
             )
-            self.mps("context-share", "set", "default_socket=off")
-            servers = ""
-        if not any(
-            row and row[0].strip() == "shared" and any(value.strip() == "Ready" for value in row)
-            for row in csv.reader(servers.splitlines())
-        ):
-            if self.leases():
-                raise RuntimeError("gpu.server_lost")
-            ownership = self.root / "server-ownership.json"
-            record = json.loads(ownership.read_text()) if ownership.exists() else {}
-            record["server"] = True
-            temporary = ownership.with_suffix(".tmp")
-            temporary.write_text(json.dumps(record))
-            temporary.chmod(0o600)
-            temporary.replace(ownership)
-            self.mps(
-                "server",
-                "create",
-                "shared",
-                "--uid=0",
-                "--allowed-devices=" + ",".join(d["uuid"] for d in devices),
-            )
+            record["compute_modes"].setdefault(uuid, modes[mode])
+            if (
+                switching
+                and self.run(
+                    ["nvidia-smi", "-i", uuid, "--query-compute-apps=pid", "--format=csv,noheader,nounits"],
+                    text=True,
+                    timeout=30,
+                ).strip()
+            ):
+                raise RuntimeError("Drain GPU clients before changing the node execution mode")
+            if mode != "default":
+                if leases:
+                    raise RuntimeError("Cannot change GPU compute mode while allocations are active")
+                updates.append(uuid)
+        # Persist ownership before modifying any physical device. Retry unfinished transitions.
+        if switching or updates:
+            record["transition"] = "DEFAULT"
+            self.write_record(ownership, record)
+        for uuid in updates:
+            self.run(["nvidia-smi", "-i", uuid, "-c", "DEFAULT"], text=True, timeout=30)
+
+    @staticmethod
+    def write_record(path, record):
+        temporary = path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(record))
+        temporary.chmod(0o600)
+        temporary.replace(path)
 
     def _release(self, record):
         identifier = self.key(record["task"])
-        namespaces = list(
-            csv.reader(self.mps("namespace", "list", "--server=shared", "--format=csv,noheader").splitlines())
-        )
-        if any("t_" + identifier in [v.strip() for v in row] for row in namespaces):
-            self.mps("namespace", "delete", "t_" + identifier, "--server=shared", "--force")
+        if record["handoff"].get("worker"):
+            PrivateServer(self, identifier).release()
+        elif not record.get("native"):
+            raise RuntimeError("Drain shared GPU allocations with their owning node version before upgrading")
         cgroup = record.get("cgroup")
         if cgroup and Path(cgroup).exists():
             for entry in record["allocations"]:
@@ -441,22 +479,6 @@ class Module(GPU):
                     text=True,
                     timeout=30,
                 )
-        partitions = list(
-            csv.reader(
-                self.mps(
-                    "sm-partition", "list", "--server=shared", "--all", "--format=csv,noheader"
-                ).splitlines()
-            )
-        )
-        for entry in record["allocations"]:
-            if any(entry["partition"] in [v.strip() for v in row] for row in partitions):
-                self.mps(
-                    "sm-partition",
-                    "delete",
-                    entry["partition"],
-                    "--server=shared",
-                    "--device=" + entry["uuid"],
-                )
         (self.records / (identifier + ".json")).unlink(missing_ok=True)
 
     def release(self, allocation_id):
@@ -466,6 +488,24 @@ class Module(GPU):
             path = self.records / (allocation_id + ".json")
             if path.exists():
                 self._release(json.loads(path.read_text()))
+
+    def reconcile(self, task_id, *, stopping=False):
+        identifier = self.key(task_id)
+        private = PrivateServer(self, identifier)
+        if not private.generation.exists():
+            return
+        with self.locked():
+            path = self.records / (identifier + ".json")
+            if path.is_file():
+                record = json.loads(path.read_text())
+                if record.get("prepared") and record["handoff"].get("worker"):
+                    try:
+                        if stopping:
+                            private.close()
+                        else:
+                            private.reconcile(record)
+                    except (OSError, RuntimeError, subprocess.SubprocessError):
+                        logging.getLogger(__name__).exception("GPU worker recovery pending for %s", identifier)
 
     def resources(self):
         inventory = self.inventory()

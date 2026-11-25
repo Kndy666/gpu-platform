@@ -105,6 +105,7 @@ class GPU:
 
     def __init__(self):
         self.leases = {}
+        self.closing = set()
 
     def allocate(self, task_id, requests):
         allocation = GPUAllocation(
@@ -115,6 +116,11 @@ class GPU:
 
     def release(self, allocation_id):
         self.leases.pop(allocation_id, None)
+        self.closing.discard(allocation_id)
+
+    def reconcile(self, task_id, *, stopping=False):
+        if stopping:
+            self.closing.add(task_id)
 
     def lookup(self, task_id):
         return self.leases.get(task_id)
@@ -312,10 +318,11 @@ def test_gpu_release_waits_for_runtime_cleanup(engine, task_spec):
     original_stop = runtime.stop
     runtime.stop = lambda task_id: TaskStatus(id=task_id, state="running")
     engine.tick()
+    assert engine.slots["gpu"].closing == {task_spec.id}
     assert task_spec.id in engine.slots["gpu"].leases
     runtime.stop = original_stop
     engine.tick()
-    assert not engine.slots["gpu"].leases
+    assert not engine.slots["gpu"].closing and not engine.slots["gpu"].leases
 
 
 def test_unknown_runtime_state_preserves_allocations(engine, task_spec):

@@ -38,6 +38,14 @@ hosts:
 
 Merge these selections into your host definitions; remote hosts also need transport and login-entry settings from the [deployment guide](operations.md). Ascend images need a compatible CANN stack. The module assigns whole chips through `npu_count`; a per-device compute quota of 100% permits one chip, 200% permits two, with fractional chips rounded down.
 
+## Isolated CUDA workers
+
+Drain NVIDIA nodes using their running node version before upgrading. Make the matching `ghcr.io/kndy666/gpu-platform-cuda-worker:0.4.0` image available to K3s for fractional allocations. Set `slots.gpu.options.isolated_worker_image` to use a mirror or another build. The release workflow builds the worker for AMD64 and ARM64. For local builds, use the directory containing the [worker Dockerfile](../../modules/gpu/nvidia-mps/src/gpu_platform_gpu_nvidia_mps/images/Dockerfile) as the build context.
+
+When every requested card has a 100% compute allocation, the workspace uses the native NVIDIA driver on its reserved devices. Each device keeps its requested memory limit. The workspace receives its full CPU and system memory allocation.
+
+If any card has a fractional compute allocation, the entire request uses a private GPU worker and a dedicated MPS server. The worker enforces fixed SM partitions and device memory limits. It receives one quarter of the task's CPU and system memory. Workspace clients send CUDA and NCCL calls over pod loopback. A failed worker recovers within its own allocation. The bundled client lacks NVSHMEM symmetric memory support. GPU access from nested Docker containers currently requires a native allocation.
+
 ## Add your own implementation
 
 For example, an organization can implement the authentication slot to verify its existing accounts. A site with another storage backend can implement the storage slot and provide volume handoffs accepted by its runtime.

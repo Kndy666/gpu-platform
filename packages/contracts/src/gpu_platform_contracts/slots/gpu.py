@@ -23,6 +23,9 @@ class GPU(Module, ABC):
     @abstractmethod
     def release(self, allocation_id: str) -> None: ...
 
+    def reconcile(self, task_id: str, *, stopping: bool = False) -> None:
+        """Recover or quiesce a task's accelerator service while retaining its reservation."""
+
     @abstractmethod
     def resources(self) -> ResourceUsage: ...
 

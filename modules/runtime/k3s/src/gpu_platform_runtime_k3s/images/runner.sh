@@ -2,6 +2,10 @@
 set -euo pipefail
 umask 077
 source "${1:-/run/platform/task.env}"
+if [[ -n "${TASK_ACCELERATOR_CLIENT:-}" ]]; then
+    export PATH="$TASK_ACCELERATOR_CLIENT/bin:$PATH"
+    export LD_LIBRARY_PATH="$TASK_ACCELERATOR_CLIENT${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+fi
 [[ "${TASK_USER:?}" =~ ^[A-Za-z_][A-Za-z0-9_.-]{0,31}$ ]] || exit 64
 [[ "${TASK_HOME:?}" == "/home/$TASK_USER" ]] || exit 64
 sudo -n /bin/bash -s -- "$TASK_USER" "$TASK_HOME" <<'IDENTITY'

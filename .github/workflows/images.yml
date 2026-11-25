@@ -14,7 +14,16 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        component: [control, node]
+        include:
+          - component: control
+            context: .
+            file: docker/control/Dockerfile
+          - component: node
+            context: .
+            file: docker/node/Dockerfile
+          - component: cuda-worker
+            context: modules/gpu/nvidia-mps/src/gpu_platform_gpu_nvidia_mps/images
+            file: modules/gpu/nvidia-mps/src/gpu_platform_gpu_nvidia_mps/images/Dockerfile
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3
@@ -33,8 +42,8 @@ jobs:
             type=sha
       - uses: docker/build-push-action@v6
         with:
-          context: .
-          file: docker/${{ matrix.component }}/Dockerfile
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.metadata.outputs.tags }}

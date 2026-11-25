@@ -8,15 +8,12 @@ from gpu_platform_gpu_nvidia_mps.module import Module
 
 
 @pytest.fixture
-def gpu(tmp_path):
+def gpu(tmp_path, driver):
     devices = [
         {"uuid": "device", "name": "Accelerator", "index": 0, "sm_count": 80, "usable_memory_mib": 8192}
     ]
 
-    def run(args, **kwargs):
-        return "shared,Ready\n" if args[3:5] == ["server", "list"] else ""
-
-    return Module(ModuleContext(state_directory=tmp_path), inventory=lambda: devices, run=run)
+    return Module(ModuleContext(state_directory=tmp_path), inventory=lambda: devices, run=driver)
 
 
 @pytest.fixture
