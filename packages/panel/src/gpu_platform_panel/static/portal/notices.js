@@ -150,6 +150,8 @@
   if (composer) {
     const {audience, member, group, presentation, seconds, expires_at} = composer.elements;
     const confirmation = composer.querySelector('[data-notice-confirmation]');
+    const send = composer.querySelector('[data-notice-send]');
+    const preview = composer.querySelector('[data-notice-preview]');
     function showFields() {
       member.closest('.field').hidden = audience.value !== 'member';
       group.closest('.field').hidden = audience.value !== 'group';
@@ -159,6 +161,8 @@
     }
     composer.addEventListener('input', () => {
       if (confirmation) confirmation.hidden = true;
+      if (send) send.hidden = true;
+      preview.classList.remove('secondary');
       showFields();
     });
     showFields();

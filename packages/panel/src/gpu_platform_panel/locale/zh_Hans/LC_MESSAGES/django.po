@@ -1484,8 +1484,14 @@ msgstr "面板内链接"
 msgid "Read"
 msgstr "已读"
 
-msgid "Review recipients"
-msgstr "确认接收人"
+msgid "Preview notification"
+msgstr "预览通知"
+
+msgid "Notification preview"
+msgstr "通知预览"
+
+msgid "Number of recipients"
+msgstr "接收人数"
 
 msgid "Seconds before fading"
 msgstr "显示时长（秒）"

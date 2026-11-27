@@ -213,13 +213,20 @@ def send_notice(actor, values, *, confirmation=None):
     fingerprint = _fingerprint(actor, ids, title, content, {**metadata, "audience": audience})
     if confirmation is None:
         token = signing.dumps({"id": uuid4().hex, "fingerprint": fingerprint}, salt=CONFIRMATION_SALT)
-        return result({"count": len(ids), "confirmation": token})
+        return result({
+            "count": len(ids),
+            "audience": audience,
+            "title": title,
+            "content": content,
+            "display": dict(PRESENTATIONS)[metadata["presentation"]],
+            "confirmation": token,
+        })
     try:
         preview = signing.loads(confirmation, max_age=600, salt=CONFIRMATION_SALT)
     except signing.BadSignature as error:
-        raise ValidationError(tr("The preview expired. Review the recipients again.")) from error
+        raise ValidationError(tr("The preview expired. Preview the notification again.")) from error
     if preview["fingerprint"] != fingerprint:
-        raise ValidationError(tr("The notification or its recipients changed. Review the recipients again."))
+        raise ValidationError(tr("The notification or its recipients changed. Preview it again."))
     campaign, created = Notification.objects.get_or_create(
         event_key="notice:" + preview["id"],
         defaults={"channel": IN_APP_CHANNEL, "event": MANUAL_NOTICE, "title": title, "content": content, "payload": {
