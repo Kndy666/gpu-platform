@@ -1,9 +1,10 @@
 {% extends 'portal/manage_base.html' %}{% load i18n %}
 {% block manage_content %}
 {% if available %}
-<form method="post" action="{% url 'send_notice' %}#notice-preview" class="panel notice-composer" data-notice-compose>
+<form method="post" class="panel notice-composer" data-notice-compose>
   {% csrf_token %}
-  {{ form.non_field_errors }}
+  {{ form.submission }}{{ form.submission.errors }}{{ form.non_field_errors }}
+  {{ recipient_counts|json_script:"notice-recipient-counts" }}
   <div class="notice-composer-layout">
     <div class="notice-composer-message">
       {% include 'portal/field.html' with field=form.title %}
@@ -14,50 +15,23 @@
       {% include 'portal/field.html' with field=form.member %}
       {% include 'portal/field.html' with field=form.group %}
       {% include 'portal/field.html' with field=form.presentation %}
-      <div class="field{% if form.seconds.errors %} invalid{% endif %}" data-notice-duration>
-        <div class="field-label-with-help">
-          <label for="{{ form.seconds.id_for_label }}">{{ form.seconds.label }}</label>
-          <span class="field-hint">
-            <button type="button" class="field-hint-trigger" data-notice-duration-hint
-                    aria-label="{% translate 'Display duration help' %}" aria-describedby="{{ form.seconds.auto_id }}_helptext">?</button>
-            <span class="field-tooltip" id="{{ form.seconds.auto_id }}_helptext" role="tooltip">{{ form.seconds.help_text }}</span>
-          </span>
-        </div>
-        {{ form.seconds }}{{ form.seconds.errors }}
+      <div data-notice-duration>
+        {% include 'portal/notice_field.html' with field=form.seconds %}
       </div>
       <details class="notice-options"{% if form.link.value or form.expires_at.value or form.link.errors or form.expires_at.errors %} open{% endif %}>
         <summary>{% translate 'More options' %}</summary>
         <div data-notice-expiry>
-          {% include 'portal/field.html' with field=form.expires_at %}
-          <small class="muted">{{ form.expires_at.help_text }}</small>
+          {% include 'portal/notice_field.html' with field=form.expires_at %}
         </div>
         <div>
-          {% include 'portal/field.html' with field=form.link %}
-          <small class="muted">{{ form.link.help_text }}</small>
+          {% include 'portal/notice_field.html' with field=form.link %}
         </div>
       </details>
     </div>
   </div>
-  {% if preview %}
-  <section class="notice-preview" id="notice-preview" aria-labelledby="notice-preview-heading" data-notice-confirmation>
-    <input type="hidden" name="confirmation" value="{{ preview.confirmation }}">
-    <h2 id="notice-preview-heading">{% translate 'Notification preview' %}</h2>
-    <dl class="notice-preview-facts">
-      <div><dt>{% translate 'Recipients' %}</dt><dd>{{ preview.audience }}</dd></div>
-      <div><dt>{% translate 'Number of recipients' %}</dt><dd>{{ preview.count }}</dd></div>
-      <div><dt>{% translate 'Display as' %}</dt><dd>{{ preview.display }}</dd></div>
-    </dl>
-    <div class="notice-preview-message">
-      <strong>{{ preview.title }}</strong>
-      <p>{{ preview.content }}</p>
-    </div>
-  </section>
-  {% endif %}
   <div class="form-actions notice-composer-actions">
-    <button class="button{% if preview %} secondary{% endif %}" type="submit" name="action" value="preview" data-notice-preview>{% translate 'Preview notification' %}</button>
-    {% if preview %}
-    <button class="button" type="submit" name="action" value="send" data-notice-send>{% translate 'Send now' %}</button>
-    {% endif %}
+    <span class="muted" data-notice-count-summary hidden>{% translate 'Number of recipients' %} <strong data-notice-recipient-count aria-live="polite"></strong></span>
+    <button class="button" type="submit" data-notice-send>{% translate 'Send now' %}</button>
   </div>
 </form>
 {% else %}

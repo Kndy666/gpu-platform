@@ -41,10 +41,12 @@ def notice_values(recipient, **overrides):
     }
 
 
+def submission_for(admin):
+    return inbox.composer(admin).data["form_options"]["initial"]["submission"]
+
+
 def publish(admin, values):
-    preview = inbox.send_notice(admin, values).data
-    sent = inbox.send_notice(admin, values, confirmation=preview["confirmation"])
-    return sent.identity
+    return inbox.send_notice(admin, values, submission=submission_for(admin)).identity
 
 
 def test_panel_notice_delivery_and_reading_are_scoped_to_the_recipient(members):
@@ -52,11 +54,11 @@ def test_panel_notice_delivery_and_reading_are_scoped_to_the_recipient(members):
     client = Client()
     client.force_login(admin)
     send_url = reverse("send_notice")
-    assert client.get(send_url).status_code == 200
+    composer = client.get(send_url)
+    assert composer.status_code == 200
     values = notice_values(member)
-    preview = client.post(send_url, {**values, "action": "preview"}).context["preview"]
-    assert preview["count"] == 1
-    response = client.post(send_url, {**values, "action": "send", "confirmation": preview["confirmation"]})
+    submission = composer.context["form"].initial["submission"]
+    response = client.post(send_url, {**values, "submission": submission})
     assert response.status_code == 302
     assert client.get(response.url).status_code == 200
     campaign = Notification.objects.get(event=MANUAL_NOTICE, recipient__isnull=True).pk
@@ -107,26 +109,22 @@ def test_cancellation_stops_queued_delivery_and_withdrawal_redacts_the_inbox(mem
         inbox.notice_detail(other, delivered.pk)
 
 
-def test_confirmation_binds_the_active_recipient_list_and_cannot_send_twice(members):
+def test_sending_uses_current_active_recipients_and_cannot_send_twice(members):
     admin, member, other = members
     values = notice_values(member, audience="all")
-    preview = inbox.send_notice(admin, values).data
-    assert preview["count"] == 3
+    composer = inbox.composer(admin).data
+    assert composer["recipient_counts"]["all"] == 3
+    submission = composer["form_options"]["initial"]["submission"]
     other.is_active = False
     other.save(update_fields=["is_active"])
-    with pytest.raises(ValidationError):
-        inbox.send_notice(admin, values, confirmation=preview["confirmation"])
-    assert not Notification.objects.exists()
-    preview = inbox.send_notice(admin, values).data
-    assert preview["count"] == 2
-    sent = inbox.send_notice(admin, values, confirmation=preview["confirmation"])
-    repeated = inbox.send_notice(admin, values, confirmation=preview["confirmation"])
+    sent = inbox.send_notice(admin, values, submission=submission)
+    repeated = inbox.send_notice(admin, values, submission=submission)
     assert sent.identity == repeated.identity
     assert Notification.objects.filter(event=MANUAL_NOTICE, recipient__isnull=False).count() == 2
     with pytest.raises(PermissionDenied):
-        inbox.send_notice(member, values)
+        inbox.send_notice(member, values, submission=submission)
     with pytest.raises(ValidationError):
-        inbox.send_notice(admin, {**values, "link": "//example.invalid/"})
+        inbox.send_notice(admin, {**values, "link": "//example.invalid/"}, submission=submission_for(admin))
 
 
 def test_expiry_and_dismissal_control_display_without_marking_a_notice_read(members):

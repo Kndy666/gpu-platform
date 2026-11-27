@@ -1451,9 +1451,6 @@ msgstr "已送达"
 msgid "Display as"
 msgstr "显示方式"
 
-msgid "Display duration help"
-msgstr "显示时长说明"
-
 msgid "Events sent to administrators in WeChat"
 msgstr "通过微信发送的通知"
 
@@ -1489,12 +1486,6 @@ msgstr "更多选项"
 
 msgid "Read"
 msgstr "已读"
-
-msgid "Preview notification"
-msgstr "预览通知"
-
-msgid "Notification preview"
-msgstr "通知预览"
 
 msgid "Number of recipients"
 msgstr "接收人数"

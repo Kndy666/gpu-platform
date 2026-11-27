@@ -455,6 +455,7 @@ class PushSettingsForm(InputForm):
 
 
 class SendNoticeForm(InputForm):
+    submission = forms.CharField(widget=forms.HiddenInput)
     audience = forms.ChoiceField(label=tr("Recipients"))
     member = forms.TypedChoiceField(label=tr("User"), required=False, coerce=int)
     group = forms.TypedChoiceField(label=tr("User group"), required=False, coerce=int)

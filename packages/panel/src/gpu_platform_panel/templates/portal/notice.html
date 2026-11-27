@@ -1,9 +1,12 @@
 {% extends 'portal/base.html' %}{% load i18n %}
 {% block content %}
-<div class="page-heading"><div><a class="back" href="{% url 'inbox' %}">{% translate '← Back' %}</a><h1>{{ notice.title }}</h1></div></div>
-<article class="notice-detail">
-  <time class="muted">{{ notice.sent_at|date:'SHORT_DATETIME_FORMAT' }}</time>
-  {% if notice.content %}<p>{{ notice.content }}</p>{% endif %}
-  {% if notice.link %}<a href="{{ notice.link }}">{% translate 'Open related page' %}</a>{% endif %}
-</article>
+<div class="inbox-feed">
+  <a class="back" href="{% url 'inbox' %}">{% translate '← Back' %}</a>
+  <article class="notice-detail">
+    <h1>{{ notice.title }}</h1>
+    <time class="muted" datetime="{{ notice.sent_at|date:'c' }}">{{ notice.sent_at|date:'SHORT_DATETIME_FORMAT' }}</time>
+    {% if notice.content %}<p>{{ notice.content }}</p>{% endif %}
+    {% if notice.link %}<a href="{{ notice.link }}">{% translate 'Open related page' %}</a>{% endif %}
+  </article>
+</div>
 {% endblock %}

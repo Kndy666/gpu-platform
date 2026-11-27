@@ -140,24 +140,31 @@
   const composer = document.querySelector('[data-notice-compose]');
   if (composer) {
     const {audience, member, group, presentation, seconds, expires_at} = composer.elements;
-    const confirmation = composer.querySelector('[data-notice-confirmation]');
     const send = composer.querySelector('[data-notice-send]');
-    const preview = composer.querySelector('[data-notice-preview]');
-    const durationHint = composer.querySelector('[data-notice-duration-hint]');
-    durationHint.addEventListener('click', () => durationHint.focus());
+    const summary = composer.querySelector('[data-notice-count-summary]');
+    const recipientCount = composer.querySelector('[data-notice-recipient-count]');
+    const recipients = JSON.parse(document.getElementById('notice-recipient-counts').textContent);
+    composer.querySelectorAll('[data-notice-hint]').forEach(hint => {
+      hint.addEventListener('click', () => hint.focus());
+    });
     function showFields() {
-      member.closest('.field').hidden = audience.value !== 'member';
-      group.closest('.field').hidden = audience.value !== 'group';
+      member.required = audience.value === 'member';
+      group.required = audience.value === 'group';
+      member.closest('.field').hidden = !member.required;
+      group.closest('.field').hidden = !group.required;
       seconds.closest('[data-notice-duration]').hidden = presentation.value === 'inbox';
       expires_at.closest('[data-notice-expiry]').hidden = presentation.value === 'inbox';
       seconds.disabled = expires_at.disabled = presentation.value === 'inbox';
+      const count = {
+        member: member.value ? 1 : 0,
+        group: recipients.groups[group.value] ?? 0,
+        all: recipients.all
+      }[audience.value];
+      recipientCount.textContent = count ?? 0;
+      summary.hidden = count === undefined;
     }
-    composer.addEventListener('input', () => {
-      if (confirmation) confirmation.hidden = true;
-      if (send) send.hidden = true;
-      preview.classList.remove('secondary');
-      showFields();
-    });
+    composer.addEventListener('input', showFields);
+    composer.addEventListener('submit', () => { send.disabled = true; });
     showFields();
   }
 })();

@@ -60,19 +60,17 @@ def reminders(request):
 def send_notice(request):
     result = service.composer(request.user)
     form = SendNoticeForm(request.POST if request.method == "POST" else None, options=result.data["form_options"])
-    preview = None
     if form.is_bound and form.is_valid():
-        token = request.POST.get("confirmation", "") if request.POST.get("action") == "send" else None
+        values = form.payload()
+        submission = values.pop("submission")
         try:
-            saved = service.send_notice(request.user, form.payload(), confirmation=token)
+            saved = service.send_notice(request.user, values, submission=submission)
         except ValidationError as error:
             form.application_error(error)
         else:
-            if saved.complete:
-                notify(request, saved)
-                return redirect(reverse("manage_approvals") + "?tab=history&origin=manual")
-            preview = saved.data
-    return render_result(request, "portal/send_notice.html", result, form=form, preview=preview)
+            notify(request, saved)
+            return redirect(reverse("manage_approvals") + "?tab=history&origin=manual")
+    return render_result(request, "portal/send_notice.html", result, form=form)
 
 
 @staff_required

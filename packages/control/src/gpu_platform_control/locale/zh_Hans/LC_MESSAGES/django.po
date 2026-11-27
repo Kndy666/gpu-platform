@@ -1658,11 +1658,8 @@ msgstr "发送记录"
 msgid "Skipped"
 msgstr "已跳过"
 
-msgid "The notification or its recipients changed. Preview it again."
-msgstr "通知内容或接收人有变化，请重新预览。"
-
-msgid "The preview expired. Preview the notification again."
-msgstr "预览已过期，请重新预览通知。"
+msgid "Reload the page and try sending again."
+msgstr "请刷新页面后重新发送。"
 
 msgid "There are no active users in this selection."
 msgstr "这个范围内没有活跃用户。"

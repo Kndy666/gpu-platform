@@ -1,14 +1,12 @@
 """Stand-alone notices and the signed-in user's inbox."""
 
-import hashlib
-import json
+from collections import Counter
 from datetime import timezone as utc
 from uuid import uuid4
 
 from django.contrib.auth import get_user_model
 from django.core import signing
 from django.core.exceptions import ValidationError
-from django.core.serializers.json import DjangoJSONEncoder
 from django.db import transaction
 from django.db.models import Count, Q
 from django.utils import timezone
@@ -29,7 +27,7 @@ from .pages import history_page
 PENDING = ("pending", "sending")
 PRESENTATIONS = [("toast", tr("Bottom-right reminder")), ("banner", tr("Top banner")), ("inbox", tr("Inbox only"))]
 AUDIENCES = [("member", tr("One user")), ("group", tr("User group")), ("all", tr("All active users"))]
-CONFIRMATION_SALT = "platform.send-notice"
+SUBMISSION_SALT = "platform.send-notice-direct"
 
 
 def campaigns():
@@ -185,50 +183,43 @@ def _notice_values(values):
     return title, content, metadata
 
 
-def _fingerprint(actor, ids, title, content, metadata):
-    serialized = json.dumps([actor.pk, ids, title, content, metadata], cls=DjangoJSONEncoder, sort_keys=True)
-    return hashlib.sha256(serialized.encode()).hexdigest()
-
-
 @staff_only
 def composer(actor):
+    members = list(get_user_model().objects.filter(is_active=True).order_by("username")
+                   .values_list("pk", "username", "profile__group_id"))
+    submission = signing.dumps({"id": uuid4().hex, "actor": actor.pk}, salt=SUBMISSION_SALT)
     return result({
         "section": "notifications-send", "section_title": tr("Send notification"),
         "available": channel_configured(IN_APP_CHANNEL),
+        "recipient_counts": {"all": len(members), "groups": dict(Counter(member[2] for member in members))},
         "form_options": {
-            "members": list(get_user_model().objects.filter(is_active=True).order_by("username").values_list("pk", "username")),
+            "members": [(pk, username) for pk, username, _ in members],
             "groups": list(UserGroup.objects.order_by("name").values_list("pk", "name")),
             "audiences": AUDIENCES, "presentations": PRESENTATIONS,
+            "initial": {"submission": submission},
         },
     })
 
 
 @staff_only
 @transaction.atomic
-def send_notice(actor, values, *, confirmation=None):
+def send_notice(actor, values, *, submission):
     if not channel_configured(IN_APP_CHANNEL):
         raise ValidationError(tr("In-app notifications are unavailable."))
+    try:
+        nonce = signing.loads(submission, salt=SUBMISSION_SALT)
+    except signing.BadSignature as error:
+        raise ValidationError(tr("Reload the page and try sending again.")) from error
+    if nonce["actor"] != actor.pk:
+        raise ValidationError(tr("Reload the page and try sending again."))
+    event_key = "notice:" + nonce["id"]
+    previous = campaigns().filter(event_key=event_key).first()
+    if previous is not None:
+        return result(complete=True, identity=previous.pk, notices=[("success", tr("Notification queued."))])
     ids, audience = _audience(values)
     title, content, metadata = _notice_values(values)
-    fingerprint = _fingerprint(actor, ids, title, content, {**metadata, "audience": audience})
-    if confirmation is None:
-        token = signing.dumps({"id": uuid4().hex, "fingerprint": fingerprint}, salt=CONFIRMATION_SALT)
-        return result({
-            "count": len(ids),
-            "audience": audience,
-            "title": title,
-            "content": content,
-            "display": dict(PRESENTATIONS)[metadata["presentation"]],
-            "confirmation": token,
-        })
-    try:
-        preview = signing.loads(confirmation, max_age=600, salt=CONFIRMATION_SALT)
-    except signing.BadSignature as error:
-        raise ValidationError(tr("The preview expired. Preview the notification again.")) from error
-    if preview["fingerprint"] != fingerprint:
-        raise ValidationError(tr("The notification or its recipients changed. Preview it again."))
     campaign, created = Notification.objects.get_or_create(
-        event_key="notice:" + preview["id"],
+        event_key=event_key,
         defaults={"channel": IN_APP_CHANNEL, "event": MANUAL_NOTICE, "title": title, "content": content, "payload": {
             **metadata, "sender": actor.username, "audience": audience, "count": len(ids),
         }},
