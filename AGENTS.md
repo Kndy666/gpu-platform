@@ -4,6 +4,7 @@
 - Follow `docs/en/architecture.md` and `docs/en/modules.md` for the modular control, panel, node, installer, and slot architecture.
 - Write direct, concrete prose. Avoid defensive framing and contrast formulas such as “不是……而是……” or “not X, but Y”.
 - Use spacing, alignment, grouping, and visual hierarchy to communicate frontend structure. Keep secondary headings sparse and purposeful.
+- Target evergreen modern browsers (latest Chromium, Firefox, and Safari) in `packages/panel` using native web platform features (`light-dark()`, `color-mix()`, `<dialog>`, Popover API, Container Queries) without legacy browser polyfills.
 - Test observable behavior, contracts, resource accounting, authorization, state transitions, and failure handling. Use portable fixtures and injected dependencies so tests run independently of a particular deployment or this machine.
 - Organize tests around service functionality and contracts. After fixing a bug, use existing functional tests and direct functional checks to verify the fix; do not add bug-specific regression tests.
 - Do not make preservation of old features a test objective. Do not assert prose, translated strings, page copy, or textual snapshots. These testing rules take precedence over the architecture document's old/new snapshot comparison proposals.

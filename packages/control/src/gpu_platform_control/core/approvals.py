@@ -17,9 +17,9 @@ def submit_request(req):
 
 def validate_extension(req, ends_at):
     if not can_adjust_time(req, getattr(req, "workspace", None), timezone.now()):
-        raise ValidationError(tr("Extensions require an active development environment."))
+        raise ValidationError(tr("Only active dev environments can be extended. Check the task status."))
     if req.extension_count >= extension_limit(req.user):
-        raise ValidationError(tr("This environment has used all its extensions."))
+        raise ValidationError(tr("This dev environment has reached its extension limit. Save your work before the end time."))
     if not ends_at or ends_at <= req.ends_at:
         raise ValidationError(tr("Choose a later end time."))
     policy = policy_for(req.user)
@@ -40,7 +40,7 @@ def request_extension(request_id, actor, ends_at, reason):
     if not reason.strip():
         raise ValidationError(tr("Enter a reason for the extension."))
     if req.extensions.filter(status="pending").exists():
-        raise ValidationError(tr("An extension request is already pending."))
+        raise ValidationError(tr("An extension is awaiting review. Check the task for the decision."))
     entry = ExtensionRequest.objects.create(
         request=req, previous_ends_at=req.ends_at, ends_at=ends_at, reason=reason.strip()
     )

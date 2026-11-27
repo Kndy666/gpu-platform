@@ -342,6 +342,9 @@ class NodeEngine:
         return result
 
     def handle(self, command: Command) -> Reply:
+        if command.operation == Operation.DATASETS_LIST:
+            # Listing reads the dataset filesystem independently of task and slot state.
+            return self.execute_reply(command)
         bulk = {
             Operation.IMAGE_EXPORT,
             Operation.IMAGE_IMPORT,

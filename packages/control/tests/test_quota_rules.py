@@ -60,15 +60,14 @@ def test_converted_quota_floors_per_device_percentage(converted_quota, percent, 
     assert request_options(user, node.pk)["resources"][0]["limit"] == expected
 
 
-def test_policy_forms_expose_source_without_independent_converted_quota(converted_quota):
-    from gpu_platform_panel.forms import GroupForm, MemberForm
-
+def test_policy_options_expose_source_without_independent_converted_quota(converted_quota):
     user, _, _, _ = converted_quota
-    for options, constructor in [(group_options(user, user.profile.group_id), GroupForm),
-                                  (member_options(user, user.pk), MemberForm)]:
-        form = constructor(options=options, initial=options["initial"])
-        assert "resource:devices" not in form.fields
-        assert "resource:capacity" in form.fields and "allocation_limit:capacity" in form.fields
+    for options in (group_options(user, user.profile.group_id), member_options(user, user.pk)):
+        resources = {row["key"]: row for row in options["resources"]}
+        assert "devices" not in resources
+        assert resources["capacity"]["per_allocation"]
+        assert Decimal(options["initial"]["resource_limits"]["capacity"]) == 400
+        assert Decimal(options["initial"]["per_allocation_limits"]["capacity"]) == 150
     assert not ResourceQuota.objects.filter(resource_id="devices").exists()
     for save, identifier in [(save_group, {"group_id": user.profile.group_id}),
                               (save_member, {"member_id": user.pk})]:

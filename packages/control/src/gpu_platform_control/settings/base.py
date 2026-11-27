@@ -19,8 +19,6 @@ INSTALLED_APPS = [
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
-    "django.contrib.messages",
-    "django.contrib.staticfiles",
     "gpu_platform_control.core.apps.ControlConfig",
     "gpu_platform_control.core.accounts.apps.AccountsConfig",
     "gpu_platform_control.core.quotas.apps.QuotasConfig",
@@ -31,34 +29,19 @@ INSTALLED_APPS = [
     "gpu_platform_control.core.sync.apps.SyncConfig",
     "gpu_platform_control.core.audit.apps.AuditConfig",
     "gpu_platform_control.core.events.apps.EventsConfig",
-    "gpu_platform_panel.apps.PanelConfig",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "gpu_platform_control.core.accounts.middleware.UserLocaleMiddleware",
-    "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 ROOT_URLCONF = "gpu_platform_control.urls"
-TEMPLATES = [
-    {
-        "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
-        "APP_DIRS": True,
-        "OPTIONS": {
-            "context_processors": [
-                "django.template.context_processors.request",
-                "django.contrib.auth.context_processors.auth",
-                "django.contrib.messages.context_processors.messages",
-            ]
-        },
-    }
-]
+# Django Ninja renders the API documentation with this engine.
+TEMPLATES = [{"BACKEND": "django.template.backends.django.DjangoTemplates"}]
 WSGI_APPLICATION = "gpu_platform_control.wsgi.application"
 _configuration_path = os.environ.get("PLATFORM_CONFIG")
 _configuration = yaml.safe_load(Path(_configuration_path).read_text()) if _configuration_path else {}
@@ -73,13 +56,7 @@ LANGUAGES = [("en", "English"), ("zh-hans", tr("Simplified Chinese"))]
 USE_I18N = True
 TIME_ZONE = "Asia/Shanghai"
 USE_TZ = True
-STATIC_URL = "/static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
-WHITENOISE_MAX_AGE = 0
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-LOGIN_URL = "/accounts/login/"
-LOGIN_REDIRECT_URL = "/"
-LOGOUT_REDIRECT_URL = "/accounts/login/"
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = os.environ.get("PLATFORM_HTTPS", "1") == "1"
 CSRF_COOKIE_SECURE = SESSION_COOKIE_SECURE

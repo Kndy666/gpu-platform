@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import yaml
 from django.conf import settings
+from django.utils.translation import gettext_lazy as tr
 from gpu_platform_contracts.config import PlatformConfig
 
 
@@ -53,7 +54,7 @@ def save_host(name, host):
         try:
             PlatformConfig.model_validate(resolved)
         except ValueError as error:
-            raise ValidationError(str(error)) from error
+            raise ValidationError(tr("The server configuration is invalid. Check its address, architecture, and connection settings.")) from error
         descriptor, temporary = tempfile.mkstemp(prefix=".platform-", suffix=".yaml", dir=path.parent)
         try:
             with os.fdopen(descriptor, "w") as stream:

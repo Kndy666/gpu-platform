@@ -18,7 +18,7 @@ jobs:
       - run: uv sync --locked --all-packages
       - run: uv run pytest
       - run: uv run ruff check packages modules tests
-      - run: uv run mypy packages/*/src modules/*/*/src
+      - run: uv run mypy packages/contracts/src packages/control/src packages/node/src packages/installer/src modules/*/*/src
       - run: uv run lint-imports
       - run: uv run python -m gpu_platform_control.manage check
         env:
@@ -26,6 +26,24 @@ jobs:
       - run: uv run python -m gpu_platform_control.manage check_translations --compile
         env:
           DJANGO_SETTINGS_MODULE: gpu_platform_control.settings.test
+
+  panel:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/panel
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/panel/package-lock.json
+      - run: npm ci
+      - run: npm run check:i18n
+      - run: npm run typecheck
+      - run: npm run test
+      - run: npm run build
 
   installer-python:
     runs-on: ubuntu-latest

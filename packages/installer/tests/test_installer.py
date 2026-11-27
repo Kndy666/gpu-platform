@@ -134,6 +134,24 @@ def test_single_host_always_runs_login_service_with_host_network(config, loader,
     assert links["environment"]["PLATFORM_CONFIG"] == services["loop"]["environment"]["PLATFORM_CONFIG"]
 
 
+@pytest.mark.parametrize("roles", [["control"], ["control", "node"], ["node"]])
+def test_control_hosts_publish_the_panel_on_the_configured_port(config, tmp_path, roles):
+    config.cluster.panel_image = "registry.example/panel:custom"
+    config.hosts["primary"].roles = roles
+    config.hosts["primary"].parameters = {"web_port": 9012}
+    services = render_compose(config, "primary", {}, tmp_path / "cluster.yaml")["services"]
+    if "control" not in roles:
+        assert "panel" not in services and "web" not in services
+        return
+    panel = services["panel"]
+    assert panel["image"] == config.cluster.panel_image
+    assert panel["ports"] == ["9012:80"] and "ports" not in services["web"]
+    assert panel["depends_on"] == ["web"] and panel["init"] and panel["restart"] == "unless-stopped"
+    assert panel["healthcheck"]["test"][-1] == "http://127.0.0.1/"
+    allowed_hosts = services["web"]["environment"]["DJANGO_ALLOWED_HOSTS"].split(",")
+    assert {config.cluster.public_host, "localhost", "127.0.0.1", "web"} <= set(allowed_hosts)
+
+
 def node_report(node_id="primary", maintenance=True, tasks=None, age=0):
     return {"node_id": node_id, "observed_at": datetime.now(timezone.utc) - timedelta(seconds=age),
             "maintenance": maintenance, "tasks": tasks or []}

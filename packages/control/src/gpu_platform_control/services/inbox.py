@@ -204,18 +204,24 @@ def composer(actor):
 @staff_only
 @transaction.atomic
 def send_notice(actor, values, *, submission):
-    if not channel_configured(IN_APP_CHANNEL):
-        raise ValidationError(tr("In-app notifications are unavailable."))
     try:
         nonce = signing.loads(submission, salt=SUBMISSION_SALT)
     except signing.BadSignature as error:
         raise ValidationError(tr("Reload the page and try sending again.")) from error
     if nonce["actor"] != actor.pk:
         raise ValidationError(tr("Reload the page and try sending again."))
-    event_key = "notice:" + nonce["id"]
+    campaign = create_campaign(actor, values, "notice:" + nonce["id"])
+    return result(complete=True, identity=campaign.pk, notices=[("success", tr("Notification queued."))])
+
+
+@staff_only
+@transaction.atomic
+def create_campaign(actor, values, event_key):
+    if not channel_configured(IN_APP_CHANNEL):
+        raise ValidationError(tr("In-app notifications are unavailable."))
     previous = campaigns().filter(event_key=event_key).first()
     if previous is not None:
-        return result(complete=True, identity=previous.pk, notices=[("success", tr("Notification queued."))])
+        return previous
     ids, audience = _audience(values)
     title, content, metadata = _notice_values(values)
     campaign, created = Notification.objects.get_or_create(
@@ -234,7 +240,7 @@ def send_notice(actor, values, *, submission):
             for recipient_id in ids
         ])
         audit(actor, "notice_sent", campaign.pk, title=title, recipients=len(ids))
-    return result(complete=True, identity=campaign.pk, notices=[("success", tr("Notification queued."))])
+    return campaign
 
 
 def _history_row(item, counts):
@@ -262,17 +268,17 @@ def _history_row(item, counts):
     }
 
 
-@staff_only
-def sending_history(actor, *, query):
-    origin = query.get("origin")
+def history_items(origin):
     items = Notification.objects.exclude(event=MANUAL_NOTICE, recipient__isnull=False)
     if origin == "manual":
         items = items.filter(event=MANUAL_NOTICE)
     elif origin == "automatic":
         items = items.exclude(event=MANUAL_NOTICE)
-    items = items.select_related("recipient").order_by("-created_at", "-pk")
-    page = history_page(parameters(query), items)
-    ids = [item.pk for item in page if item.event == MANUAL_NOTICE]
+    return items.select_related("recipient").order_by("-created_at", "-pk")
+
+
+def history_rows(items):
+    ids = [item.pk for item in items if item.event == MANUAL_NOTICE]
     counts = {
         row["payload__campaign"]: row
         for row in Notification.objects.filter(channel=IN_APP_CHANNEL, payload__campaign__in=ids)
@@ -284,7 +290,14 @@ def sending_history(actor, *, query):
             read=Count("id", filter=Q(payload__read_at__isnull=False)),
         )
     }
-    rows = [_history_row(item, counts.get(item.pk, {})) for item in page]
+    return [_history_row(item, counts.get(item.pk, {})) for item in items]
+
+
+@staff_only
+def sending_history(actor, *, query):
+    origin = query.get("origin")
+    page = history_page(parameters(query), history_items(origin))
+    rows = history_rows(page)
     page.object_list = []
     return result({
         "section": "notifications-history", "section_title": tr("Sending history"), "origin": origin,

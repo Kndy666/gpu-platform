@@ -12,14 +12,14 @@ def tasks_for(user, *, own=False):
 def images_for(user, *, management=False):
     from django.db.models import Q
 
-    query = ImageArtifact.objects.all()
+    query = ImageArtifact.objects.filter(temporary=False)
     if management and user.is_staff:
         return query
     return query.filter(Q(owner=user) | Q(shared=True))
 
 
-def image_actions_for(user):
-    query = ImageArtifact.objects.all()
+def images_for_deletion(user):
+    query = ImageArtifact.objects.filter(temporary=False)
     return query if user.is_staff else query.filter(owner=user)
 
 

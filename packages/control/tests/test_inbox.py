@@ -4,11 +4,11 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.test import Client
-from django.urls import reverse
 from django.utils import timezone
 
 from gpu_platform_control.core.events.models import Notification, NotificationSettings
-from gpu_platform_control.core.notifications import MANUAL_NOTICE, deliver_one
+from gpu_platform_control.core.nodes.models import ComputeNode
+from gpu_platform_control.core.notifications import MANUAL_NOTICE, deliver_one, mark_node_offline
 from gpu_platform_control.core.services import audit
 from gpu_platform_control.services import inbox
 from gpu_platform_control.services.boundary import NotFound
@@ -49,38 +49,25 @@ def publish(admin, values):
     return inbox.send_notice(admin, values, submission=submission_for(admin)).identity
 
 
-def test_panel_notice_delivery_and_reading_are_scoped_to_the_recipient(members):
+def test_toast_is_shown_once_and_stays_unread_until_the_recipient_reads_it(members):
     admin, member, other = members
-    client = Client()
-    client.force_login(admin)
-    send_url = reverse("send_notice")
-    composer = client.get(send_url)
-    assert composer.status_code == 200
-    values = notice_values(member)
-    submission = composer.context["form"].initial["submission"]
-    response = client.post(send_url, {**values, "submission": submission})
-    assert response.status_code == 302
-    assert client.get(response.url).status_code == 200
-    campaign = Notification.objects.get(event=MANUAL_NOTICE, recipient__isnull=True).pk
+    campaign = publish(admin, notice_values(member))
     assert deliver_one(in_app=True)
+    client = Client()
     client.force_login(member)
-    assert client.get(reverse("inbox")).status_code == 200
-    reminder_url = reverse("inbox_reminders")
-    assert client.get(reminder_url).status_code == 405
-    first = client.post(reminder_url).json()
+    reminders = "/api/v1/inbox/reminders"
+    first = client.post(reminders, {}, content_type="application/json").json()["data"]
     [item] = first["toasts"]
     assert first["unread"] == 1 and item["seconds"] == 8
-    assert client.post(reminder_url).json()["toasts"] == []
-    assert client.post(reminder_url).json()["unread"] == 1
+    again = client.post(reminders, {}, content_type="application/json").json()["data"]
+    assert again["toasts"] == [] and again["unread"] == 1
 
-    notice_url = reverse("notice", args=[item["id"]])
+    read = f"/api/v1/inbox/{item['id']}/read"
     client.force_login(other)
-    assert client.get(notice_url).status_code == 404
-    assert client.post(notice_url).status_code == 404
+    assert client.post(read, {}, content_type="application/json").status_code == 404
     client.force_login(member)
-    assert client.post(notice_url).status_code == 302
-    assert client.get(notice_url).status_code == 200
-    assert client.post(reminder_url).json()["unread"] == 0
+    assert client.post(read, {}, content_type="application/json").status_code == 200
+    assert client.post(reminders, {}, content_type="application/json").json()["data"]["unread"] == 0
     [record] = inbox.sending_history(admin, query={"origin": "manual"}).data["rows"]
     assert (record["id"], record["delivered"], record["read"]) == (campaign, 1, 1)
 
@@ -161,3 +148,110 @@ def test_automatic_events_keep_in_app_recipients_and_send_wechat_to_administrato
     assert inbox.reminders(other).data["unread"] == 0
     with pytest.raises(PermissionDenied):
         set_notification_receiver(member, "pushplus", {"token": "a" * 32})
+
+
+def test_offline_alert_stops_appearing_as_a_toast_after_24_hours(members, monkeypatch):
+    admin, _, _ = members
+    node = ComputeNode.objects.create(name="worker")
+    mark_node_offline(node.pk)
+    audit(admin, "approve", "approval-1")
+    alert = Notification.objects.get(event="node_offline")
+    approval = Notification.objects.get(event="approve")
+    deadline = alert.created_at + timedelta(hours=24)
+    delivery_time = deadline - timedelta(minutes=5)
+    assert deliver_one(clock=lambda: delivery_time, in_app=True)
+    assert deliver_one(clock=lambda: delivery_time, in_app=True)
+    approval.refresh_from_db()
+    assert "expires_at" not in approval.payload
+
+    monkeypatch.setattr(timezone, "now", lambda: deadline)
+    reminders = inbox.reminders(admin, displayed=[alert.pk]).data
+    assert [toast["id"] for toast in reminders["toasts"]] == [approval.pk]
+    assert reminders["remove"] == [alert.pk]
+    assert reminders["unread"] == 2
+    detail = inbox.notice_detail(admin, alert.pk).data["notice"]
+    assert detail["unread"]
+
+
+def test_api_notice_lifecycle_and_recipient_isolation(members):
+    admin, member, other = members
+    client = Client()
+    client.force_login(admin)
+    url = "/api/v1/admin/notices"
+    composer = client.get(url + "/composer").json()["data"]
+    assert composer["available"] and composer["recipient_counts"]["all"] == 3
+    values = notice_values(member, presentation="banner", seconds=None)
+    headers = {"content_type": "application/json", "HTTP_IDEMPOTENCY_KEY": "maintenance"}
+    assert client.post(url, {**values, "link": "//foreign.invalid/"}, **headers).status_code == 400
+    assert not inbox.campaigns().exists()
+    sent = client.post(url, values, **headers)
+    assert sent.status_code == 201
+    campaign = sent.json()["data"]["id"]
+    assert sent.json()["data"]["recipients"] == 1
+    assert client.post(url, values, **headers)["Idempotency-Replayed"] == "true"
+    assert client.post(url, {**values, "title": "Changed"}, **headers).status_code == 409
+    assert deliver_one(in_app=True) and not deliver_one(in_app=True)
+
+    api = "/api/v1/inbox"
+    client.force_login(member)
+    listing = client.get(api, {"page_size": 1}).json()["data"]
+    item = listing["items"][0]["id"]
+    assert (listing["count"], listing["page_size"], listing["next_page"]) == (1, 1, None)
+    detail = f"{api}/{item}"
+    assert client.get(detail).json()["data"]["unread"]
+    assert (
+        client.post(api + "/reminders", {}, content_type="application/json").json()["data"]["banners"][0][
+            "id"
+        ]
+        == item
+    )
+    assert client.post(detail + "/dismiss", {}, content_type="application/json").json()["data"]["dismissed"]
+    assert (
+        client.post(api + "/reminders", {}, content_type="application/json").json()["data"]["banners"] == []
+    )
+    assert not client.post(detail + "/read", {}, content_type="application/json").json()["data"]["unread"]
+    client.force_login(other)
+    assert client.get(api).json()["data"]["count"] == 0
+    assert (
+        client.get(detail).status_code
+        == client.post(detail + "/read", {}, content_type="application/json").status_code
+        == client.post(detail + "/dismiss", {}, content_type="application/json").status_code
+        == 404
+    )
+
+    client.force_login(admin)
+    history = client.get(url + "/history", {"origin": "manual", "page_size": 1}).json()["data"]
+    assert history["items"][0]["read"] == history["items"][0]["delivered"] == history["count"] == 1
+    assert client.get(url + "/history", {"origin": "automatic"}).json()["data"]["count"] == 0
+    assert client.post(
+        f"{url}/{campaign}/stop", {"action": "withdraw"}, content_type="application/json"
+    ).json()["data"]["stopped"]
+    queued = client.post(url, values, content_type="application/json").json()["data"]["id"]
+    assert (
+        client.post(f"{url}/{queued}/stop", {"action": "cancel"}, content_type="application/json").status_code
+        == 200
+    )
+    assert not deliver_one(in_app=True)
+    client.force_login(member)
+    assert client.get(detail).json()["data"]["withdrawn"]
+    assert client.post(api + "/reminders", {"shown": [item]}, content_type="application/json").json()["data"][
+        "remove"
+    ] == [item]
+
+
+def test_api_inapp_event_selection_controls_delivery(members):
+    admin, member, _ = members
+    client = Client()
+    client.force_login(admin)
+    url = "/api/v1/admin/notifications"
+    settings = client.get(url).json()["data"]
+    assert settings["inapp_enabled"] and settings["wechat_available"]
+    assert (
+        client.patch(url, {"inapp_events": ["unregistered"]}, content_type="application/json").status_code
+        == 400
+    )
+    updated = client.patch(url, {"inapp_events": ["approve"]}, content_type="application/json")
+    assert updated.json()["data"]["inapp_events"] == ["approve"]
+    audit(member, "reject", "task")
+    audit(member, "approve", "task")
+    assert list(Notification.objects.filter(recipient=member).values_list("event", flat=True)) == ["approve"]

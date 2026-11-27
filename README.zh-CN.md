@@ -1,12 +1,12 @@
 # GPU Platform
 
-把服务器变成团队共享的开发与计算平台。选一台机器、申请资源，就能通过 SSH 或 VS Code 开始工作；账号、镜像、存储和任务调度都在同一个面板里管理。
+把服务器变成团队共享的开发环境和批处理计算平台。选一台服务器、申请算力与存储，即可通过 SSH 或 VS Code 开始工作；账号、配额、镜像、共享数据集和调度都集中在同一个网页控制台里管理。
 
-[English](README.md) · [部署指南](docs/zh/operations.md) · [模块扩展](docs/zh/modules.md) · [API](docs/zh/api.md) · [参与开发](docs/zh/development.md)
+[English](README.md) · [用户使用指南](docs/zh/user-guide.md) · [部署与运维](docs/zh/operations.md) · [配置参考](docs/zh/configuration.md) · [模块扩展](docs/zh/modules.md) · [API](docs/zh/api.md)
 
 ## 快速开始
 
-准备一台 Ubuntu 22.04 或 24.04 服务器，支持 AMD64 和 ARM64。挂载好数据盘，安装所用加速卡的驱动，然后在仓库根目录执行：
+准备一台 Ubuntu 22.04 或 24.04 服务器（支持 AMD64 和 ARM64），挂载好数据盘并安装加速卡驱动，然后在仓库根目录执行：
 
 ```bash
 cp config/platform.default.yaml cluster.yaml
@@ -15,65 +15,61 @@ sudo ./packages/installer/bootstrap.sh
 sudo platformctl install --config cluster.yaml --host main
 ```
 
-安装器会准备主机依赖，并通过 Docker Compose 启动平台。打开 `http://YOUR_HOST:8000`，使用生成的、仅 root 可读的 `.env` 中的密码登录 `admin`，随后修改密码。镜像准备和配置方法见[部署指南](docs/zh/operations.md)。
+安装器会准备主机依赖，并通过 Docker Compose 启动平台。打开 `http://YOUR_HOST:8000`，使用生成的仅 root 可读的 `.env` 中的密码登录 `admin`，随后修改密码。镜像准备、添加服务器和 HTTPS 配置见[部署与运维](docs/zh/operations.md)。
 
-日常直接使用 Compose：
+日常直接使用 Compose 查看状态和日志：
 
 ```bash
 sudo docker compose -f /var/lib/gpu-platform/deploy/main/compose.yaml ps
 sudo docker compose -f /var/lib/gpu-platform/deploy/main/compose.yaml logs --tail 100
 ```
 
-## 为什么选择 GPU Platform？
+## 核心能力
 
-### 🧩 按场景组合模块
+### 独立前端面板与模块化服务
 
-认证、通信、运行环境、存储、加速卡等能力都可以按部署需要选择。平台提供十个扩展插槽，内置模块和自定义模块使用同一套接口，方便接入自己的基础设施。
+前端面板是独立的 Vue 3 单页应用，由 Nginx 容器托管并通过 `/api/v1` 与控制服务通信。十个扩展插槽覆盖认证、通信、SSH 入口、运行环境、存储、镜像仓库、构建、加速卡、监控与通知，按服务器需求自由组合。
 
 ```mermaid
 flowchart TB
-    Config[一份集群配置] --> Compose[每台主机的 Docker Compose]
-    Compose --> Control[面板与控制中心]
-    Control --> CPU[CPU 节点]
-    Control --> NVIDIA[NVIDIA MPS 节点]
-    Control --> Ascend[昇腾 310P 节点]
+    Browser[浏览器] --> Panel[前端面板：Vue 3 + Nginx]
+    Panel --> Control[控制服务：API、账号、配额、调度]
+    Control --> CPU[纯 CPU 服务器]
+    Control --> NVIDIA[NVIDIA MPS 服务器]
+    Control --> Ascend[昇腾 310P 服务器]
     CPU --> A[运行环境 + 存储 + 镜像]
     NVIDIA --> B[运行环境 + 存储 + 镜像 + GPU]
     Ascend --> C[运行环境 + 存储 + 镜像 + NPU]
 ```
 
-| 使用场景 | 怎么组合 |
+| 使用场景 | 组合方式 |
 | --- | --- |
-| 实验室的一台服务器 | 面板和执行节点部署在一起；纯 CPU 任务可以关闭加速卡模块。 |
-| 团队共享 GPU | 按任务分配 NVIDIA 算力和显存，支持共享、整卡和多卡。 |
+| 实验室单台服务器 | 控制服务、前端面板与执行节点部署在同一台主机；纯 CPU 任务可将加速卡模块设为 `null`。 |
+| 团队共享 GPU | 按任务分配 NVIDIA 算力与显存，支持共享单卡、整卡独占和多卡申请。 |
 | ARM 服务器搭配昇腾 310P | 选择内置 Ascend 模块，按整颗 NPU 独占分配。 |
-| 学校或企业的自有环境 | 编写模块接入统一认证、存储或运行环境，通过 SSH 通信模块连接远程节点。 |
+| 接入已有基础设施 | 编写扩展模块对接统一登录、存储或运行环境，通过反向 SSH 连接远程服务器。 |
 
-具体选择与扩展示例见[模块指南](docs/zh/modules.md)。
+### 交互式开发环境与批处理任务
 
-### 🐳 使用 Docker Compose 部署
+在**账号与访问**上传一次 SSH 公钥，即可用于所有服务器上的开发环境，变更会自动同步到运行中的环境。通过 SSH 或 VS Code 登录，在个人卷（`/home/<用户名>`）保存个人配置，在工作卷（`/workspace`）保存代码与检查点，并可在环境内运行受任务配额约束的 Rootless Docker。
 
-一份集群配置描述所有主机及其模块。安装器检查模块组合、准备各台机器，并生成对应的 Compose 服务。从单机起步，团队需要更多资源时再添加执行节点。
+### 镜像复用与共享数据
 
-### 💻 开发环境开箱可用
+通过 Dockerfile 构建镜像，把配置好的开发环境保存为新镜像，或直接将运行中的开发环境转为批处理任务。团队可以共用镜像与只读共享数据集（`/datasets`），并在**数据同步**页面跨服务器复制镜像或数据集。
 
-SSH 公钥上传一次，就能用于所有节点上属于你的开发环境，修改后也会同步到运行中的环境。通过 SSH 或 VS Code 登录，使用独立持久化的个人卷和工作卷，在容器里直接运行 Docker，并共享任务获分配的资源额度。
+### 配额、调度与可观测性
 
-### 📦 配好的环境继续用
+按成员与用户组配置配额、审批策略、预约时间段、排队与到期自动停止。管理员可在控制台查看实时负载、历史记录、用量统计与审计日志；用户可通过 HTTP API 和随附的 Agent skill 自动化操作。界面支持简体中文与英文，以及浅色与深色主题。
 
-通过 Dockerfile 构建镜像，把配置好的开发环境保存下来，或者直接转为批处理任务。团队可以共用准备好的镜像和只读数据集。相同 CPU 架构的节点之间可以同步镜像，节点之间可以同步公共数据；个人卷和工作卷保留在所属节点。
+## 文档导航
 
-### 👥 多人共享，管理有序
-
-按成员和用户组设置配额，管理审批、预约、排队和开发环境到期停止。面板集中展示任务日志、硬件监控和审计记录，HTTP API 与随附的 Agent skill 支持自动化操作，界面可切换英文和简体中文。
-
-## 继续了解
-
-| 想做什么 | 从这里开始 |
+| 想做什么 | 阅读文档 |
 | --- | --- |
-| 安装、添加节点或升级 | [部署与维护](docs/zh/operations.md) |
-| 选择模块或编写扩展 | [模块指南](docs/zh/modules.md) |
-| 了解各部分如何配合 | [系统架构](docs/zh/architecture.md) |
-| 自动申请资源和运行任务 | [API 与 Agent skill](docs/zh/api.md) |
-| 查看权限与数据边界 | [安全说明](docs/zh/security.md) |
-| 在本地运行项目 | [开发指南](docs/zh/development.md) |
+| 申请开发环境、管理 SSH 密钥、复用镜像与排障 | [用户使用指南](docs/zh/user-guide.md) |
+| 安装平台、添加服务器、备份与升级 | [部署与运维](docs/zh/operations.md) |
+| 调整存储池、缓存、配额、定时同步与 HTTPS | [配置参考](docs/zh/configuration.md) |
+| 选择内置模块或开发自定义模块 | [模块指南](docs/zh/modules.md) |
+| 使用 HTTP API 或 Agent skill 自动化提交任务 | [API 与 Agent skill](docs/zh/api.md) |
+| 了解包结构、服务职责与任务流转 | [系统架构](docs/zh/architecture.md) |
+| 查看权限边界、环境隔离与备份范围 | [安全说明](docs/zh/security.md) |
+| 在本地运行后端服务与 Vue 前端面板 | [开发指南](docs/zh/development.md) |

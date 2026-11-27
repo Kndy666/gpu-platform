@@ -5,7 +5,6 @@ requires-python = ">=3.10"
 dependencies = [
   "gpu-platform-contracts==0.4.0",
   "gpu-platform-control==0.4.0",
-  "gpu-platform-panel==0.4.0",
   "gpu-platform-node==0.4.0",
   "gpu-platform-installer==0.4.0",
   "gpu-platform-auth-local==0.4.0",
@@ -29,11 +28,11 @@ package = false
 
 [tool.uv.workspace]
 members = ["packages/*", "modules/*/*"]
+exclude = ["packages/panel"]
 
 [tool.uv.sources]
 gpu-platform-contracts = { workspace = true }
 gpu-platform-control = { workspace = true }
-gpu-platform-panel = { workspace = true }
 gpu-platform-node = { workspace = true }
 gpu-platform-installer = { workspace = true }
 gpu-platform-auth-local = { workspace = true }
@@ -56,12 +55,11 @@ dev = ["pytest>=8,<10", "pytest-django>=4.9,<5", "ruff>=0.9", "mypy>=1.14", "imp
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "gpu_platform_control.settings.test"
-testpaths = ["packages", "modules", "tests/e2e"]
+testpaths = ["packages/contracts/tests", "packages/control/tests", "packages/node/tests", "packages/installer/tests", "modules", "tests/e2e"]
 addopts = "--import-mode=importlib"
 pythonpath = [
   "packages/contracts/src",
   "packages/control/src",
-  "packages/panel/src",
   "packages/node/src",
   "packages/installer/src",
   "modules/auth/local/src",
@@ -83,7 +81,7 @@ pythonpath = [
 [tool.ruff]
 target-version = "py310"
 line-length = 110
-exclude = []
+exclude = ["packages/panel"]
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F"]

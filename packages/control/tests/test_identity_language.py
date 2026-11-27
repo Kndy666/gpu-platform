@@ -30,22 +30,18 @@ def test_local_identity_binds_verified_account():
     assert get_user_model().objects.count() == 1
 
 
-def test_language_persists_and_redirect_stays_local():
-    user = get_user_model().objects.create_user('reader')
+def test_language_preference_round_trips_through_the_account_api():
+    user = get_user_model().objects.create_user("reader")
     client = Client()
-    client.force_login(user, backend='gpu_platform_control.core.accounts.backend.SlotBackend')
-    response = client.post('/accounts/language/', {'language': 'zh-hans', 'next': 'https://elsewhere.invalid/'})
+    endpoint = "/api/v1/me/language"
+    preference = {"language": "zh-hans"}
+    assert client.patch(endpoint, preference, content_type="application/json").status_code == 401
+    client.force_login(user)
+    assert client.patch(endpoint, preference, content_type="application/json").json()["data"] == preference
+    assert client.get("/api/v1/me").json()["data"]["language"] == "zh-hans"
+    assert client.patch(endpoint, {"language": ""}, content_type="application/json").status_code == 200
     user.profile.refresh_from_db()
-    assert user.profile.language == 'zh-hans'
-    assert response.status_code == 302
-    assert response.url == '/'
-    assert response.cookies['django_language'].value == 'zh-hans'
-
-
-def test_anonymous_language_choice_uses_cookie():
-    response = Client().post('/accounts/language/', {'language': 'en', 'next': '/accounts/login/'})
-    assert response.status_code == 302
-    assert response.cookies['django_language'].value == 'en'
+    assert user.profile.language == ""
 
 
 def test_external_names_are_safe_environment_identities():

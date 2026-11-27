@@ -1,0 +1,628 @@
+@import "tailwindcss";
+
+/* Claude-inspired Warm Editorial Design System (Evergreen Modern CSS) */
+:root {
+  color-scheme: light dark;
+
+  &:has(> head > meta[name="color-scheme"][content="dark"]) {
+    color-scheme: dark;
+  }
+  &:has(> head > meta[name="color-scheme"][content="light"]) {
+    color-scheme: light;
+  }
+
+  /* Surfaces (warm parchment light -> warm charcoal dark) */
+  --surface-canvas: light-dark(#f5f4ed, #1a1918);
+  --surface-sidebar: light-dark(#efece4, #201f1d);
+  --surface-card: light-dark(#faf9f5, #262523);
+  --surface-elevated: light-dark(#ffffff, #302f2c);
+  --surface-subtle: light-dark(#ebe7dc, #2c2b28);
+  --surface-code: light-dark(#efece4, #141413);
+
+  /* Borders & structural rings */
+  --border-subtle: light-dark(#e4e0d5, #363531);
+  --border-strong: light-dark(#cbc5b7, #4d4b45);
+
+  /* Ink hierarchy (warm olive/brown-tinted neutrals) */
+  --ink-primary: light-dark(#141413, #f2f0e9);
+  --ink-body: light-dark(#3d3d3a, #c8c5bc);
+  --ink-muted: light-dark(#67655f, #96938a);
+
+  /* Primary Accent (Anthropic Terracotta, WCAG AA contrast >= 4.5:1) */
+  --accent: light-dark(#b85332, #d97757);
+  --accent-hover: light-dark(#a14628, #e48a6b);
+  --accent-ink: light-dark(#ffffff, #141413);
+  --accent-soft: color-mix(in oklab, var(--accent) 13%, transparent);
+
+  /* Semantic status colors (always paired with icons + labels) */
+  --status-ok: light-dark(#296b4f, #6dc09c);
+  --status-ok-bg: color-mix(in oklab, var(--status-ok) 13%, transparent);
+  --status-warn: light-dark(#955b14, #e5a956);
+  --status-warn-bg: color-mix(in oklab, var(--status-warn) 14%, transparent);
+  --status-danger: light-dark(#b03838, #e87670);
+  --status-danger-bg: color-mix(in oklab, var(--status-danger) 13%, transparent);
+  --status-info: light-dark(#3e6790, #7fa9d4);
+  --status-info-bg: color-mix(in oklab, var(--status-info) 13%, transparent);
+
+  /* Browser chrome & scrollbars */
+  accent-color: var(--accent);
+  scrollbar-color: light-dark(#b9b3a5, #57544d) transparent;
+
+  /* Fonts (optimized for crisp CJK + Latin rendering, self-hosted for offline deployments) */
+  --font-serif: "Newsreader Variable", "Newsreader", Georgia, serif;
+  --font-sans: "Plus Jakarta Sans Variable", "PingFang SC", "Hiragino Sans GB", "HarmonyOS Sans SC", "MiSans", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-sans-zh: "PingFang SC", "Hiragino Sans GB", "HarmonyOS Sans SC", "MiSans", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", "Plus Jakarta Sans Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* Override --font-serif in Chinese mode at root token level so .font-serif utility never falls back to SimSun */
+:root:lang(zh) {
+  --font-sans: var(--font-sans-zh);
+  --font-serif: var(--font-sans-zh);
+}
+
+@theme {
+  --color-canvas: var(--surface-canvas);
+  --color-sidebar: var(--surface-sidebar);
+  --color-card: var(--surface-card);
+  --color-elevated: var(--surface-elevated);
+  --color-subtle: var(--surface-subtle);
+  --color-code: var(--surface-code);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+  --color-ink: var(--ink-primary);
+  --color-body: var(--ink-body);
+  --color-muted: var(--ink-muted);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-ok: var(--status-ok);
+  --color-ok-bg: var(--status-ok-bg);
+  --color-warn: var(--status-warn);
+  --color-warn-bg: var(--status-warn-bg);
+  --color-danger: var(--status-danger);
+  --color-danger-bg: var(--status-danger-bg);
+  --color-info: var(--status-info);
+  --color-info-bg: var(--status-info-bg);
+
+  --font-serif: var(--font-serif);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  /* Chinese enterprise typography scale (16px root, 14px base body, 13px compact metadata) */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.45;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.5;
+  --text-base: 1rem;
+  --text-base--line-height: 1.55;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.4;
+}
+
+@layer base {
+  html {
+    background-color: var(--surface-canvas);
+    color: var(--ink-body);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-synthesis-weight: none;
+  }
+
+  body {
+    margin: 0;
+    min-block-size: 100dvh;
+    background-color: var(--surface-canvas);
+    color: var(--ink-body);
+  }
+
+  h1 {
+    font-family: var(--font-serif);
+    font-weight: 500;
+    color: var(--ink-primary);
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+    font-size: clamp(1.625rem, 1.35rem + 0.9vw, 2.125rem);
+    text-wrap: balance;
+  }
+
+  html:lang(zh) h1 {
+    font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+
+  h2 {
+    font-weight: 600;
+    color: var(--ink-primary);
+    letter-spacing: -0.015em;
+    line-height: 1.35;
+    font-size: 1.1875rem;
+    text-wrap: balance;
+  }
+
+  h3 {
+    font-weight: 600;
+    color: var(--ink-primary);
+    line-height: 1.4;
+    font-size: 1rem;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  code, pre, kbd {
+    font-family: var(--font-mono);
+  }
+
+  time, .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  button, a, input, select, textarea {
+    touch-action: manipulation;
+  }
+}
+
+@layer components {
+  .skip-link {
+    position: fixed;
+    inset-block-start: 0.75rem;
+    inset-inline-start: 0.75rem;
+    z-index: 100;
+    padding: 0.5rem 0.9rem;
+    border-radius: 0.5rem;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-weight: 500;
+    text-decoration: none;
+  }
+
+  .visually-hidden:where(:not(:focus-within, :active)) {
+    position: absolute !important;
+    clip-path: inset(50%) !important;
+    overflow: hidden !important;
+    width: 1px !important;
+    height: 1px !important;
+    margin: -1px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    white-space: nowrap !important;
+  }
+
+  /* Surfaces & editorial cards */
+  .card {
+    background-color: var(--surface-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 0.85rem;
+  }
+
+  /* Buttons (min-block-size, never fixed height) */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-block-size: 2.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 0.6rem;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    line-height: 1.35;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .btn:disabled,
+  .btn[aria-disabled="true"] {
+    opacity: 0.52;
+    cursor: not-allowed;
+  }
+
+  .btn-primary {
+    background-color: var(--accent);
+    color: var(--accent-ink);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background-color: var(--accent-hover);
+  }
+
+  .btn-secondary {
+    background-color: var(--surface-elevated);
+    color: var(--ink-primary);
+    border-color: var(--border-strong);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background-color: var(--surface-subtle);
+  }
+
+  .btn-ghost {
+    background-color: transparent;
+    color: var(--ink-body);
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background-color: var(--surface-subtle);
+    color: var(--ink-primary);
+  }
+
+  .btn-danger {
+    background-color: var(--status-danger-bg);
+    color: var(--status-danger);
+    border-color: color-mix(in oklab, var(--status-danger) 30%, transparent);
+  }
+  .btn-danger:hover:not(:disabled) {
+    background-color: color-mix(in oklab, var(--status-danger) 22%, transparent);
+  }
+
+  .btn-danger-solid {
+    background-color: var(--status-danger);
+    color: #ffffff;
+  }
+  .btn-danger-solid:hover:not(:disabled) {
+    background-color: color-mix(in oklab, var(--status-danger) 85%, black);
+  }
+
+  .btn-sm {
+    min-block-size: 2.15rem;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.875rem;
+  }
+
+  /* Form controls with :user-invalid post-interaction feedback */
+  .field-input {
+    display: block;
+    inline-size: 100%;
+    min-block-size: 2.6rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.55rem;
+    border: 1px solid var(--border-strong);
+    background-color: var(--surface-elevated);
+    color: var(--ink-primary);
+    font: inherit;
+    font-size: 0.9375rem;
+    line-height: 1.45;
+    transition: border-color 140ms ease, box-shadow 140ms ease;
+  }
+
+  .field-input::placeholder {
+    color: var(--ink-muted);
+  }
+
+  .field-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 18%, transparent);
+    outline: none;
+  }
+
+  .field-input:user-invalid,
+  .field-input[aria-invalid="true"] {
+    border-color: var(--status-danger);
+    background-color: color-mix(in oklab, var(--status-danger) 5%, var(--surface-elevated));
+  }
+
+  .field-input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  /* Native <dialog> modals */
+  dialog.app-dialog {
+    padding: 0;
+    margin: auto;
+    inline-size: min(36rem, calc(100dvw - 2rem));
+    max-block-size: calc(100dvh - 2.5rem);
+    border: 1px solid var(--border-subtle);
+    border-radius: 1rem;
+    background-color: var(--surface-card);
+    color: var(--ink-body);
+    box-shadow: 0 18px 48px color-mix(in oklab, #141413 18%, transparent);
+    opacity: 0;
+    transition-property: opacity, transform, display, overlay;
+    transition-duration: 180ms;
+    transition-timing-function: ease-out;
+    transition-behavior: allow-discrete;
+  }
+
+  dialog.app-dialog.app-dialog-lg {
+    inline-size: min(50rem, calc(100dvw - 2rem));
+  }
+
+  dialog.app-dialog:modal {
+    overscroll-behavior: contain;
+  }
+
+  dialog.app-dialog[open] {
+    display: flex;
+    flex-direction: column;
+    opacity: 1;
+    @starting-style {
+      opacity: 0;
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      transform: translateY(0) scale(1);
+      @starting-style {
+        transform: translateY(6px) scale(0.98);
+      }
+    }
+  }
+
+  dialog.app-dialog::backdrop {
+    background-color: color-mix(in oklab, #141413 0%, transparent);
+    overflow: hidden;
+    overscroll-behavior: contain;
+    transition-property: background-color, display, overlay;
+    transition-duration: 180ms;
+    transition-behavior: allow-discrete;
+  }
+
+  dialog.app-dialog[open]::backdrop {
+    background-color: color-mix(in oklab, #141413 48%, transparent);
+    backdrop-filter: blur(2px);
+    @starting-style {
+      background-color: color-mix(in oklab, #141413 0%, transparent);
+    }
+  }
+
+  /* Native popover toast container (modern-web-guidance persistent-toast-notifications) */
+  .toast-stack[popover] {
+    position: fixed;
+    inset-block-start: auto;
+    inset-inline-start: auto;
+    inset-block-end: 1.25rem;
+    inset-inline-end: 1.25rem;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    overflow: visible;
+    inline-size: min(24rem, calc(100dvw - 2rem));
+    opacity: 0;
+  }
+
+  .toast-stack[popover]:popover-open {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    opacity: 1;
+    @starting-style {
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .toast-stack[popover] {
+      transition: opacity 180ms ease, display 180ms ease, overlay 180ms ease;
+      transition-behavior: allow-discrete;
+    }
+  }
+
+  /* Native popover date picker */
+  .date-popover[popover] {
+    width: 18.5rem;
+    padding: 0.85rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 0.85rem;
+    background-color: var(--surface-elevated);
+    color: var(--ink-body);
+    box-shadow: 0 14px 36px color-mix(in oklab, #141413 18%, transparent);
+  }
+
+  @supports (position-area: block-end) {
+    .date-popover[popover] {
+      inset: auto;
+      margin: 0.35rem 0;
+      position-area: block-end span-inline-end;
+      position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
+    }
+  }
+
+  /* Native <details> collapsible disclosure animation (modern-web-guidance accordion) */
+  details.node-disclosure > summary,
+  details.app-disclosure > summary {
+    list-style: none;
+    cursor: pointer;
+  }
+  details.node-disclosure > summary::-webkit-details-marker,
+  details.app-disclosure > summary::-webkit-details-marker {
+    display: none;
+  }
+  details.node-disclosure > summary .disclosure-chevron,
+  details.app-disclosure > summary .disclosure-chevron {
+    rotate: -90deg;
+    @media (prefers-reduced-motion: no-preference) {
+      transition: rotate 200ms ease;
+    }
+  }
+  details.node-disclosure[open] > summary .disclosure-chevron,
+  details.app-disclosure[open] > summary .disclosure-chevron {
+    rotate: 0deg;
+  }
+  details.node-disclosure::details-content,
+  details.app-disclosure::details-content {
+    interpolate-size: allow-keywords;
+    overflow: clip;
+    contain: layout;
+  }
+  details.node-disclosure:not([open])::details-content,
+  details.app-disclosure:not([open])::details-content {
+    block-size: 0;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    details.node-disclosure::details-content,
+    details.app-disclosure::details-content {
+      transition: block-size, content-visibility, display;
+      transition-duration: 240ms;
+      transition-timing-function: ease-in-out;
+      transition-behavior: allow-discrete;
+    }
+  }
+
+  /* Semantic directory breadcrumbs (modern-web-guidance breadcrumbs) */
+  .dataset-breadcrumb > ol {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .dataset-breadcrumb > ol > li {
+    display: inline-flex;
+    align-items: center;
+  }
+  .dataset-breadcrumb > ol > li + li::before {
+    content: "/" / "";
+    color: var(--ink-muted);
+    margin-inline-end: 0.35rem;
+    font-weight: 400;
+  }
+  .dataset-breadcrumb > ol > li > a:focus-visible {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Content-based master-detail inbox layout (modern-web-guidance content-based-styling) */
+  .inbox-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.5rem;
+    align-items: start;
+  }
+  @media (min-width: 1024px) {
+    .inbox-layout:has([data-inbox-detail]) {
+      grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    }
+    @supports not selector(:has(*)) {
+      .inbox-layout.has-detail {
+        grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+      }
+    }
+  }
+
+  /* Responsive container-query data tables */
+  .table-shell {
+    overflow-x: auto;
+    max-inline-size: 100%;
+    container-type: inline-size;
+    border: 1px solid var(--border-subtle);
+    border-radius: 0.85rem;
+    background-color: var(--surface-card);
+  }
+
+  /* Help toggletip popover (modern-web-guidance interest-triggered-tooltips) */
+  .help-tip-popover[popover] {
+    max-inline-size: min(22rem, calc(100dvw - 2rem));
+    padding: 0.65rem 0.85rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 0.65rem;
+    background-color: var(--surface-elevated);
+    color: var(--ink-body);
+    font-size: 0.875rem;
+    font-weight: 400;
+    line-height: 1.5;
+    text-align: start;
+    white-space: normal;
+    box-shadow: 0 10px 28px color-mix(in oklab, #141413 14%, transparent);
+  }
+
+  @supports (position-area: block-start) {
+    .help-tip-popover[popover] {
+      inset: auto;
+      margin: 0.45rem 0;
+      position-area: block-start;
+      position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
+    }
+  }
+
+  .data-table {
+    inline-size: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    text-align: start;
+    font-size: 0.9375rem;
+  }
+
+  .data-table thead th {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 1;
+    background-color: var(--surface-sidebar);
+    color: var(--ink-muted);
+    font-weight: 500;
+    font-size: 0.875rem;
+    padding: 0.78rem 1rem;
+    border-block-end: 1px solid var(--border-subtle);
+    white-space: nowrap;
+    text-wrap: balance;
+  }
+
+  .data-table thead th:has(> button) {
+    padding: 0;
+  }
+
+  .data-table tbody td,
+  .data-table tbody th {
+    padding: 0.85rem 1rem;
+    border-block-end: 1px solid var(--border-subtle);
+    vertical-align: middle;
+  }
+
+  .data-table tbody tr:last-child td,
+  .data-table tbody tr:last-child th {
+    border-block-end: 0;
+  }
+
+  .data-table tbody tr:hover {
+    background-color: color-mix(in oklab, var(--surface-subtle) 55%, transparent);
+  }
+
+  /* Node card container query support */
+  .node-card-wrap {
+    container: node-card / inline-size;
+  }
+
+  .code-block {
+    background-color: var(--surface-code);
+    border: 1px solid var(--border-subtle);
+    border-radius: 0.65rem;
+    padding: 0.9rem 1rem;
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    line-height: 1.65;
+    color: var(--ink-primary);
+    overflow-x: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (forced-colors: active) {
+  .card,
+  .table-shell,
+  .btn,
+  .field-input,
+  dialog.app-dialog,
+  .dataset-breadcrumb > ol > li > a {
+    border-color: CanvasText;
+  }
+  .dataset-breadcrumb > ol > li > a[aria-current="page"] {
+    text-decoration: underline;
+  }
+  :where(a, button, input, select, textarea):focus-visible {
+    outline: 2px solid Highlight;
+  }
+}

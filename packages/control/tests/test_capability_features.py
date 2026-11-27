@@ -39,6 +39,9 @@ def test_build_image_inputs_enforce_ownership_and_omit_credentials():
     mine = ImageArtifact.objects.create(node=node, owner=user, name='mine', node_image_id='mine', node_image_owner=str(user.pk), reference='registry/mine', verified=True)
     shared = ImageArtifact.objects.create(node=node, shared=True, name='shared', node_image_id='base', node_image_owner='shared', reference='registry/base', verified=True)
     ImageArtifact.objects.create(node=node, owner=other, name='other', reference='registry/other', verified=True)
+    ImageArtifact.objects.create(
+        node=node, owner=user, name='temporary', reference='registry/temporary', verified=True, temporary=True
+    )
     build = ImageBuild.objects.create(node=node, user=user, name='new', dockerfile='FROM registry/mine')
     images = BuildReconciler(None, node).authorized_images(build)
     assert {image.reference for image in images} == {mine.reference, shared.reference}

@@ -3,14 +3,13 @@
 from datetime import timedelta
 from decimal import Decimal
 from django.contrib.auth import get_user_model
-from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import get_language
 from gpu_platform_contracts.texts import LocalizedText
+from gpu_platform_control.core.access import images_for
 from gpu_platform_control.core.accounts.models import UserGroup
 from gpu_platform_control.core.nodes.models import ComputeNode, default_node_id
 from gpu_platform_control.core.requests.models import ResourceRequest
-from gpu_platform_control.core.retention.models import ImageArtifact
 from gpu_platform_control.core.policies import effective_policy, group_policy
 from gpu_platform_control.core.features import provides
 from .boundary import authenticated, staff_only, find
@@ -43,7 +42,7 @@ def request_options(actor, node_id=None, mode='interactive'):
 
     node = find(ComputeNode, pk=node_id or default_node_id())
     policy = effective_policy(actor)
-    images = ImageArtifact.objects.filter(node=node, verified=True, state='ready').filter(Q(owner=actor) | Q(shared=True)).order_by('-shared', '-created_at')
+    images = images_for(actor).filter(node=node, verified=True, state='ready').order_by('-shared', '-created_at')
     environments = ResourceRequest.objects.filter(node=node, user=actor, mode='interactive', status='running').exclude(workspace__stop_requested=True)
     now = timezone.localtime().replace(second=0, microsecond=0)
     duration = 4 if policy.unlimited else min(4, policy.interactive_hours)
@@ -107,6 +106,9 @@ def group_options(actor, group_id=None):
 @staff_only
 def member_options(actor, member_id=None):
     user = find(get_user_model(), pk=member_id) if member_id else None
+    if user and user.is_staff and not actor.is_superuser and actor.pk != user.pk:
+        from django.core.exceptions import PermissionDenied
+        raise PermissionDenied
     groups = list(UserGroup.objects.order_by('-is_default', 'name'))
     group = user.profile.group if user else (groups[0] if groups else None)
     values = group_policy(group) if group else {'unlimited': False, 'resources': {}, 'per_allocation': {}, 'concurrent_tasks': 1, 'interactive_hours': 120}

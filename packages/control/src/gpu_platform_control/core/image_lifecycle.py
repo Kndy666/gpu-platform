@@ -27,21 +27,9 @@ def in_use(image):
 
 
 @transaction.atomic
-def keep_image(pk, actor):
-    image = ImageArtifact.objects.select_for_update().get(pk=pk)
-    if image.owner_id != actor.pk and (not actor.is_staff):
-        raise ValidationError(tr("You need permission to manage this image."))
-    if image.state != "ready":
-        raise ValidationError(tr("Image deletion has started."))
-    (image.temporary, image.recycle_after) = (False, None)
-    image.save(update_fields=["temporary", "recycle_after"])
-    audit(actor, "image_kept", image.pk, name=image.name)
-
-
-@transaction.atomic
 def request_image_deletion(pk, actor):
     image = ImageArtifact.objects.select_for_update().get(pk=pk)
-    if image.owner_id != actor.pk and (not actor.is_staff):
+    if image.temporary or (image.owner_id != actor.pk and not actor.is_staff):
         raise ValidationError(tr("You need permission to manage this image."))
     if image.shared or image.owner_id is None:
         raise ValidationError(tr("Shared base images are retained."))

@@ -1,3 +1,4 @@
+from django.utils.translation import gettext_lazy as tr
 from django.shortcuts import get_object_or_404
 from gpu_platform_control.core.nodes.models import ComputeNode
 from gpu_platform_control.core.retention.models import ImageArtifact
@@ -7,7 +8,22 @@ from .synchronization import request_image_sync, request_dataset_sync, sync_jobs
 
 
 def sync_data(job):
+    labels = {
+        "queued": tr("Queued"),
+        "preparing": tr("Preparing"),
+        "running": tr("Running"),
+        "transferring": tr("Transferring"),
+        "applying": tr("Applying"),
+        "cleaning": tr("Cleaning up"),
+        "completed": tr("Completed"),
+        "failed": tr("Failed"),
+    }
     return {
+        "source_name": job.source.name,
+        "target_name": job.target.name,
+        "image_name": job.image.name if job.image_id else None,
+        "phase_label": labels[job.phase],
+        "state_label": labels[job.state],
         "id": job.pk,
         "kind": job.kind,
         "source": job.source_id,

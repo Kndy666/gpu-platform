@@ -11,19 +11,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssh-client 
     && rm -rf /var/lib/apt/lists/* \
     && useradd --uid 10001 --create-home platform \
     && install -d -o 10001 -g 10001 /var/lib/gpu-platform
-COPY packages/ packages/
+COPY packages/contracts/ packages/contracts/
+COPY packages/control/ packages/control/
+COPY packages/node/ packages/node/
+COPY packages/installer/ packages/installer/
 COPY modules/ modules/
 COPY pyproject.toml uv.lock ./
 COPY skills/ skills/
 RUN pip install --no-cache-dir uv==0.13.8 \
     && uv sync --locked --no-dev --no-editable \
-      --package gpu-platform-control --package gpu-platform-panel \
+      --package gpu-platform-control \
       --package gpu-platform-auth-local --package gpu-platform-transport-local \
       --package gpu-platform-transport-reverse-ssh --package gpu-platform-entry-local \
       --package gpu-platform-entry-controller-forward --package gpu-platform-notify-pushplus \
       --package gpu-platform-notify-inapp \
     && rm -rf /root/.cache/uv
-RUN DJANGO_DEBUG=1 python -m gpu_platform_control.manage collectstatic --noinput
 USER 10001:10001
 EXPOSE 8000
 CMD ["gunicorn", "gpu_platform_control.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "2"]

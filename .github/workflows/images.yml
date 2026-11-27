@@ -18,6 +18,9 @@ jobs:
           - component: control
             context: .
             file: docker/control/Dockerfile
+          - component: panel
+            context: .
+            file: docker/panel/Dockerfile
           - component: node
             context: .
             file: docker/node/Dockerfile

@@ -42,6 +42,7 @@ class ClusterConfig(Contract):
     default_language: Literal["en", "zh-hans"] = "en"
     ssh_ports: tuple[int, int] = (30022, 30121)
     control_image: str = "ghcr.io/kndy666/gpu-platform-control:0.4.0"
+    panel_image: str = "ghcr.io/kndy666/gpu-platform-panel:0.4.0"
     node_image: str = "ghcr.io/kndy666/gpu-platform-node:0.4.0"
     state_directory: str = "/var/lib/gpu-platform"
 

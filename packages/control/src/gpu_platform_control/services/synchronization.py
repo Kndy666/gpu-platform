@@ -38,7 +38,7 @@ def request_image_sync(user, image, target, *, bandwidth=0):
     owner = image.owner if image.owner_id and not image.shared else user
     UserProfile.objects.select_for_update().get(user=owner)
     image = ImageArtifact.objects.select_for_update().get(pk=image.pk)
-    if image.state != "ready" or not image.verified:
+    if image.temporary or image.state != "ready" or not image.verified:
         failure("image_unavailable")
     if image.node_id == target.pk:
         failure("sync_target_is_source")
@@ -115,10 +115,21 @@ def request_dataset_sync(user, source, target, paths=(), *, bandwidth=0):
 
 @authenticated
 def sync_images(user):
-    query = ImageArtifact.objects.filter(state="ready", verified=True)
+    query = ImageArtifact.objects.filter(state="ready", verified=True, temporary=False)
     if not user.is_staff:
         query = query.filter(owner=user, shared=False)
     return query.select_related("node", "owner")
+
+
+@authenticated
+def synchronization_options(actor):
+    from gpu_platform_control.core.features import enabled
+    from gpu_platform_control.core.nodes.models import ComputeNode
+
+    nodes = list(ComputeNode.objects.filter(enabled=True))
+    return {"nodes": nodes, "images": sync_images(actor),
+            "can_sync_images": any(enabled(node, "image_sync") for node in nodes),
+            "can_sync_datasets": actor.is_staff and any(enabled(node, "dataset_sync") for node in nodes)}
 
 
 @authenticated
@@ -126,7 +137,7 @@ def sync_jobs(user):
     query = SyncJob.objects.all()
     if not user.is_staff:
         query = query.filter(owner=user, kind="image")
-    return query.select_related("source", "target").order_by("-created_at")
+    return query.select_related("source", "target", "image").order_by("-created_at")
 
 
 def run_sync(job_id, transfer, cleanup=None):

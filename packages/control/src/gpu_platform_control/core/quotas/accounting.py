@@ -10,9 +10,23 @@ from gpu_platform_control.core.policies import DEFAULT_SYSTEM_STORAGE_GIB, SYSTE
 from .rules import quota_rules, resource_limit
 
 
+RESOURCE_ERRORS = {
+    "resource_amount_invalid": _("Enter a resource amount within the limits shown for this server."),
+    "resource_unavailable": _("This resource is unavailable on the selected server. Choose an available resource or another server."),
+    "resource_allocation_quota_exceeded": _("The amount per device exceeds your quota. Reduce it or ask an administrator for a higher limit."),
+    "resource_allocation_total_mismatch": _("The total differs from the sum of the device requests. Check the amount on each device."),
+    "resource_allocation_required": _("Specify how much of this resource each device needs."),
+    "volume_size_required": _("Choose a size for both the home volume and the work volume."),
+    "volume_size_invalid": _("Enter a whole number of GiB greater than zero for each volume."),
+    "home_size_mismatch": _("Use the home volume size assigned to your account. Ask an administrator if you need more space."),
+    "resource_quota_required": _("Your account has no quota for this resource. Ask an administrator to assign one."),
+    "resource_quota_exceeded": _("This request exceeds your available quota. Request less or ask an administrator to increase your quota."),
+    "node_capacity_exceeded": _("The request exceeds this server's capacity. Reduce the amount or select a larger server."),
+}
+
+
 def problem(code, resource=None):
-    raise ValidationError(_('The resource request exceeds its limits or is unavailable.'), code=code,
-                          params={'resource': resource} if resource else None)
+    raise ValidationError(RESOURCE_ERRORS[code], code=code, params={"resource": resource} if resource else None)
 
 
 def quantity(value, definition=None):

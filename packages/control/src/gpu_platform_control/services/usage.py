@@ -170,7 +170,7 @@ def usage_statistics(actor, *, query=None):
     model_options = {name for node_devices in inventory.values() for name in node_devices.values()}
     user_filter, node_filter, model_filter = (query.get(key, "") for key in ("account", "node", "model"))
     if (user_filter and user_filter not in users) or (node_filter and node_filter not in nodes):
-        raise ValidationError(tr("Select an available account and node."))
+        raise ValidationError(tr("Select an available account and server."))
     totals = counters("")
     by_user: dict[str, dict] = {}
     by_node: dict[str, dict] = {}
@@ -252,7 +252,7 @@ def usage_statistics(actor, *, query=None):
             continue
         totals["applications"] += 1
         by_user.setdefault(owner, counters(account_label(users.get(owner))))["applications"] += 1
-        by_node.setdefault(node, counters(nodes[node].name if node in nodes else tr("Unknown node")))["applications"] += 1
+        by_node.setdefault(node, counters(nodes[node].name if node in nodes else tr("Unknown server")))["applications"] += 1
 
     def active_rows(rows):
         return [row for row in rows if row["tasks"] or row["applications"]]

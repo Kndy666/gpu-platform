@@ -1,25 +1,25 @@
-# Adapt the platform with modules
+# Module guide
 
 [Home](../../README.md) · [简体中文](../zh/modules.md)
 
-Pick modules for each host in `cluster.yaml`. Ten slots cover infrastructure choices, from sign-in to workload execution. You can use the supplied implementations or package your own.
+Select modules for each host in `cluster.yaml`. Ten extension slots cover infrastructure choices from authentication to workload execution. Built-in modules and custom third-party modules implement the same contracts.
 
-## Choose a starting point
+## Built-in modules
 
-| Slot | Supplied implementations | Use it for |
+| Slot | Built-in implementations | Responsibility |
 | --- | --- | --- |
-| [Authentication](../../modules/auth/README.md) | `local` | Platform account sign-in |
-| [Transport](../../modules/transport/README.md) | `local`, `reverse-ssh` | Node commands, connections, and data transfer |
-| [Login entry](../../modules/entry/README.md) | `local`, `controller-forward` | SSH connections to environments |
-| [Runtime](../../modules/runtime/README.md) | `k3s` | Development environments and batch jobs |
-| [Storage](../../modules/storage/README.md) | `rawfile` | Persistent volumes with capacity limits |
-| [Registry](../../modules/registry/README.md) | `zot` | Private and shared images |
-| [Build](../../modules/build/README.md) | `buildkit` | Dockerfile builds |
+| [Authentication](../../modules/auth/README.md) | `local` | Account credential verification |
+| [Transport](../../modules/transport/README.md) | `local`, `reverse-ssh` | Node commands, workspace relay, and data transfer |
+| [Login entry](../../modules/entry/README.md) | `local`, `controller-forward` | External SSH endpoints for dev environments |
+| [Runtime](../../modules/runtime/README.md) | `k3s` | Dev environments and batch jobs |
+| [Storage](../../modules/storage/README.md) | `rawfile` | Capacity-limited persistent volumes |
+| [Registry](../../modules/registry/README.md) | `zot` | Shared and private image storage |
+| [Build](../../modules/build/README.md) | `buildkit` | Rootless Dockerfile builds |
 | [Accelerator](../../modules/gpu/README.md) | `nvidia-mps`, `ascend` | Shared NVIDIA GPUs or exclusive Ascend 310P chips |
-| [Metrics](../../modules/metrics/README.md) | `host` | Timestamped hardware measurements |
-| [Notifications](../../modules/notify/README.md) | `inapp`, `pushplus` | Panel notifications and WeChat alerts for administrators |
+| [Metrics](../../modules/metrics/README.md) | `host` | Timestamped CPU, memory, GPU, disk, and network readings |
+| [Notifications](../../modules/notify/README.md) | `inapp`, `pushplus` | In-panel notifications and WeChat PushPlus alerts |
 
-For a CPU-only server, disable the accelerator slot. On an ARM64 Ascend 310P server with installed drivers, select Ascend instead:
+Example host selections for a CPU-only server and an ARM64 Ascend 310P server:
 
 ```yaml
 hosts:
@@ -36,23 +36,20 @@ hosts:
         options: {}
 ```
 
-Merge these selections into your host definitions; remote hosts also need transport and login-entry settings from the [deployment guide](operations.md). Ascend images need a compatible CANN stack. The module assigns whole chips through `npu_count`; a per-device compute quota of 100% permits one chip, 200% permits two, with fractional chips rounded down.
+Remote hosts also require transport and login-entry settings from [deployment and operations](operations.md). Ascend images need a compatible CANN stack; the Ascend module allocates whole chips via `npu_count` (a 100% compute quota allows one chip, 200% allows two, fractional chips rounded down).
 
 ## NVIDIA GPU allocation
 
-When every requested card has a 100% compute allocation, the workspace uses the native NVIDIA driver on its reserved devices. Each device keeps its requested memory limit. The workspace receives its full CPU and system memory allocation.
+- **Whole-card compute (100% on every requested card)**: the container uses the native NVIDIA driver on its reserved devices with per-device memory limits and receives its full CPU and memory allocation. Nested Rootless Docker GPU containers require whole-card compute allocation.
+- **Fractional compute (< 100% on any requested card)**: the request uses an isolated GPU worker with a dedicated MPS server enforcing SM partitions and device memory limits, receiving one quarter of the task's CPU and memory budget. CUDA and NCCL calls travel over pod loopback. A failed worker recovers within its own allocation; NVSHMEM symmetric memory is unavailable in fractional mode.
 
-If any card has a fractional compute allocation, the entire request uses a private GPU worker and a dedicated MPS server. The worker enforces fixed SM partitions and device memory limits. It receives one quarter of the task's CPU and system memory. Workspace clients send CUDA and NCCL calls over pod loopback. A failed worker recovers within its own allocation. The bundled client lacks NVSHMEM symmetric memory support. GPU access from nested Docker containers currently requires a native allocation.
+Ensure `ghcr.io/kndy666/gpu-platform-cuda-worker:0.4.0` is reachable by K3s when fractional allocations are used, or point `slots.gpu.options.isolated_worker_image` to your mirror. Build it locally from [modules/gpu/nvidia-mps/src/gpu_platform_gpu_nvidia_mps/images/Dockerfile](../../modules/gpu/nvidia-mps/src/gpu_platform_gpu_nvidia_mps/images/Dockerfile).
 
-Make the matching `ghcr.io/kndy666/gpu-platform-cuda-worker:0.4.0` image available to K3s for fractional allocations. Set `slots.gpu.options.isolated_worker_image` to use a mirror or another build. The release workflow builds the worker for AMD64 and ARM64. For local builds, use the directory containing the [worker Dockerfile](../../modules/gpu/nvidia-mps/src/gpu_platform_gpu_nvidia_mps/images/Dockerfile) as the build context.
+## Write a custom module
 
-## Add your own implementation
-
-For example, an organization can implement the authentication slot to verify its existing accounts. A site with another storage backend can implement the storage slot and provide volume handoffs accepted by its runtime.
-
-1. Implement every responsibility of the chosen interface in [contracts/slots](../../packages/contracts/src/gpu_platform_contracts/slots). The [local authentication module](../../modules/auth/local/src/gpu_platform_auth_local/module.py) is a small complete example.
-2. Declare a `ModuleDescriptor` with the slot, version, supported handoff forms, resources, and events. Use `Options(Contract)` and `options_model` for validated options; publish its schema in `descriptor.parameters`.
-3. Register the implementation through a Python entry point:
+1. Implement the slot contract in [packages/contracts/src/gpu_platform_contracts/slots](../../packages/contracts/src/gpu_platform_contracts/slots). See [modules/auth/local/src/gpu_platform_auth_local/module.py](../../modules/auth/local/src/gpu_platform_auth_local/module.py) for a concise reference.
+2. Declare a `ModuleDescriptor` with slot name, version, handoff forms, resources, events, and a Pydantic `Options(Contract)` model exposed via `descriptor.parameters`.
+3. Register the module through a Python entry point:
 
 ```toml
 [project]
@@ -65,26 +62,11 @@ dependencies = ["gpu-platform-contracts==0.4.0"]
 directory = "directory_auth.module:Module"
 ```
 
-Depend on contracts and your implementation libraries. English labels and events have Simplified Chinese translations through `LocalizedText.zh_hans`. Authentication returns a verified, stable provider/subject identity; control manages the platform account and permissions.
+Provide Simplified Chinese labels via `LocalizedText.zh_hans` for user-facing resource names and events. Install the package into your derived control or node image and the host installer environment, update `cluster.control_image` or `cluster.node_image`, and reference the entry-point name in `cluster.yaml`.
 
-Install the package into the derived control or node image and the host installer environment. Set the image tag in `cluster.control_image` or `cluster.node_image`, then select the entry-point name:
+## Contract testing and host ownership
 
-```yaml
-control:
-  auth:
-    module: directory
-    options:
-      issuer: https://identity.example.edu
-```
-
-Validate the complete configuration before deployment. The installer checks required slots, versions, handoff forms, feature dependencies, and host requirements.
-
-## Keep integration predictable
-
-Use `ModuleContext` for node identity, options, and a module-specific state directory. Register resources by stable key and unit so control can include them in quotas and requests. Use stable operation identifiers and make retries idempotent.
-
-Host hooks prepare system dependencies; installation hooks exchange provider information, such as registry CA trust and accelerator runtime settings. `compose(context)` contributes service and mount configuration. Installation follows provider order and removal reverses it. Use `HostOwnership` to track created resources and undo only owned changes while preserving user data and operator modifications.
-
-The contracts package provides reusable behavioral suites for all ten slots. In your tests, enable `gpu_platform_contracts.testing.fixtures`, inherit the appropriate suite from `gpu_platform_contracts.testing`, and supply isolated implementation fixtures. [Suite definitions](../../packages/contracts/src/gpu_platform_contracts/testing/suites.py) list each fixture contract.
-
-Check resource accounting, permissions, concurrency, retries, cancellation, expiry, and failure cleanup. Run your package tests and `uv run lint-imports` after workspace integration. Further project checks are in [development](development.md).
+- Use `ModuleContext` for host identity, validated options, and module-scoped state directories.
+- Register resources with stable keys and units so quotas and request forms pick them up automatically. Make retries idempotent.
+- Track host changes with `HostOwnership` so uninstall removes module-owned setup while leaving user data and operator changes intact.
+- Inherit the matching contract test suite from `gpu_platform_contracts.testing` (listed in [packages/contracts/src/gpu_platform_contracts/testing/suites.py](../../packages/contracts/src/gpu_platform_contracts/testing/suites.py)) with isolated fixtures, then verify boundaries with `uv run lint-imports`.

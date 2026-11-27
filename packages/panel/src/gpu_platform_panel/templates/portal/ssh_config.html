@@ -1,9 +1,0 @@
-{% load i18n %}{% if task.status == 'running' and ws.connection.port %}
-<div class="section-heading"><code>~/.ssh/config</code><button type="button" class="button secondary" data-copy="ssh-config">{% translate 'Copy configuration' %}</button></div>
-<pre id="ssh-config">Host task-{{ task.pk }}
-    HostName {{ ws.connection.host }}
-    Port {{ ws.connection.port }}
-    User {{ ws.connection.username }}
-    HostKeyAlias task-{{ task.pk }}
-</pre>
-{% endif %}

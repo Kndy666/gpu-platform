@@ -1,4 +1,5 @@
 import uuid
+from django.utils.translation import gettext_lazy as tr
 from django.conf import settings
 from django.db import models
 from django.db.models import Q
@@ -10,7 +11,7 @@ class SyncJob(models.Model):
     cleanup_image = models.JSONField(default=dict, blank=True)
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
-    kind = models.CharField(max_length=10, choices=[('image', 'Image'), ('datasets', 'Public data')])
+    kind = models.CharField(max_length=10, choices=[('image', tr('Image')), ('datasets', tr('Shared datasets'))])
     source = models.ForeignKey('platform_nodes.ComputeNode', on_delete=models.PROTECT, related_name='outgoing_syncs')
     target = models.ForeignKey('platform_nodes.ComputeNode', on_delete=models.PROTECT, related_name='incoming_syncs')
     image = models.ForeignKey('platform_retention.ImageArtifact', null=True, on_delete=models.PROTECT, related_name='syncs')

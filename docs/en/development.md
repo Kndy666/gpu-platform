@@ -2,19 +2,36 @@
 
 [Home](../../README.md) · [简体中文](../zh/development.md)
 
-The workspace uses uv. Control and node containers run Python 3.12; contracts and the host installer also support Python 3.10.
+The Python workspace uses `uv` (Python 3.12 for control and node containers; Python 3.10+ for contracts and installer). The standalone web panel in `packages/panel` uses Node 22+, Vue 3, TypeScript, Vite, Tailwind CSS v4, and Reka UI.
+
+## Verification commands
+
+Backend and Python packages:
 
 ```bash
 uv sync --locked --all-packages
 uv run pytest
 uv run ruff check packages modules tests
-uv run mypy packages/*/src modules/*/*/src
+uv run mypy packages/contracts/src packages/control/src packages/node/src packages/installer/src modules/*/*/src
 uv run lint-imports
+DJANGO_SETTINGS_MODULE=gpu_platform_control.settings.test uv run python -m gpu_platform_control.manage check
+DJANGO_SETTINGS_MODULE=gpu_platform_control.settings.test uv run python -m gpu_platform_control.manage check_translations --compile
 ```
 
-## Run the panel locally
+Frontend panel (`packages/panel`):
 
-Use a separate development database and state directory:
+```bash
+cd packages/panel
+npm ci
+npm run check:i18n
+npm run typecheck
+npm run test
+npm run build
+```
+
+## Run locally
+
+Start the control API against an isolated development state directory:
 
 ```bash
 export DJANGO_DEBUG=1 PLATFORM_HTTPS=0
@@ -27,18 +44,38 @@ uv run python -m gpu_platform_control.manage bootstrap
 uv run python -m gpu_platform_control.manage runserver 127.0.0.1:8000
 ```
 
-Open `http://127.0.0.1:8000`. Running tasks also requires a configured execution node; follow [deployment](operations.md) to prepare it.
+In a second terminal, start the Vue panel dev server (proxies `/api/` and `/healthz` to `http://127.0.0.1:8000`):
 
-## Make a change
+```bash
+cd packages/panel
+npm run dev
+```
 
-Use the [architecture guide](architecture.md) to locate the responsible package and the [module guide](modules.md) for infrastructure extensions. Keep panel calls inside the public control service boundary. Load module implementations through entry points.
+Open `http://127.0.0.1:5173`. Executing real tasks also requires a configured execution node; see [deployment and operations](operations.md).
 
-Verify observable behavior, resource accounting, authorization, state transitions, and failure handling. Use isolated fixtures and injected dependencies. After a fix, use existing functional tests and direct checks. Keep assertions about behavior and structured data; prose, translations, and page snapshots are outside test objectives.
+## Regenerate OpenAPI types
 
-User-facing source text is English with Simplified Chinese translations. Agent skills, installer output, logs, and configuration comments use English. New databases create the current schema directly.
+When changing endpoints or schemas in `packages/control`, export the updated OpenAPI schema and regenerate TypeScript definitions:
 
-Tests that need Docker or accelerator hardware have local instructions:
+```bash
+DJANGO_SETTINGS_MODULE=gpu_platform_control.settings.test uv run python -c "
+import django, json
+django.setup()
+from gpu_platform_control.api import api
+print(json.dumps(api.get_openapi_schema(), ensure_ascii=False))
+" > /tmp/gpu-platform-openapi.json
+cd packages/panel && npx openapi-typescript /tmp/gpu-platform-openapi.json -o src/api/openapi.d.ts
+rm /tmp/gpu-platform-openapi.json
+```
 
-- [Image builds and registry](../../modules/build/buildkit/tests/live/README.md)
-- [Development environment](../../modules/runtime/k3s/tests/live/README.md)
-- [CUDA and NCCL](../../modules/gpu/nvidia-mps/tests/live/README.md)
+## Conventions
+
+- Keep concrete infrastructure inside `modules/<slot>/<implementation>` and load implementations via entry points.
+- Keep `packages/panel` decoupled from Django internals; communicate solely through `/api/v1`.
+- Target evergreen modern browsers (latest Chromium, Firefox, Safari) in `packages/panel` without legacy polyfills.
+- Test observable behavior, contracts, resource accounting, authorization, state transitions, and failure handling using isolated fixtures. Keep prose, translations, and text snapshots outside test assertions.
+- Author user-facing text in English with Simplified Chinese translations; keep agent skills, installer output, logs, and configuration comments in English.
+- Live hardware integration tests have local instructions:
+  - [Image builds and registry](../../modules/build/buildkit/tests/live/README.md)
+  - [Development environment](../../modules/runtime/k3s/tests/live/README.md)
+  - [CUDA and NCCL](../../modules/gpu/nvidia-mps/tests/live/README.md)

@@ -138,7 +138,7 @@ def test_image_access_and_architecture_gate(transfer_data):
     assert error.value.code == "image_architecture_mismatch"
 
 
-def test_member_api_and_page_expose_only_accessible_images_and_own_jobs(transfer_data):
+def test_synchronization_catalog_and_jobs_follow_account_permissions(transfer_data):
     from django.test import Client
     from gpu_platform_control.core.api_auth import issue_token
 
@@ -148,6 +148,10 @@ def test_member_api_and_page_expose_only_accessible_images_and_own_jobs(transfer
                                           verified=True, architecture="amd64")
     shared = ImageArtifact.objects.create(node=source, owner=other, name="shared", reference="other/shared",
                                          verified=True, shared=True, architecture="amd64")
+    temporary = ImageArtifact.objects.create(
+        node=source, owner=member, name="temporary", reference="member/temporary",
+        verified=True, temporary=True, architecture="amd64",
+    )
     other_job = request_image_sync(other, private, target)
     client = Client(HTTP_AUTHORIZATION="Bearer " + issue_token(member)["token"])
     response = client.post(f"/api/v1/images/{image.pk}/sync", data={"target": target.pk},
@@ -161,18 +165,19 @@ def test_member_api_and_page_expose_only_accessible_images_and_own_jobs(transfer
                        content_type="application/json").status_code == 403
     assert client.post(f"/api/v1/images/{shared.pk}/sync", data={"target": target.pk},
                        content_type="application/json").status_code == 403
-    client.force_login(member, backend="gpu_platform_control.core.accounts.backend.SlotBackend")
-    response = client.get("/syncs/")
-    assert response.status_code == 200
-    assert {row["id"] for row in response.context["images"]} == {image.pk}
-    assert not response.context["can_sync_datasets"]
-    assert {str(row["id"]) for row in response.context["jobs"]} == {own_job}
+    assert client.post(f"/api/v1/images/{temporary.pk}/sync", data={"target": target.pk},
+                       content_type="application/json").status_code == 400
+    assert not SyncJob.objects.filter(image=temporary).exists()
+    options = client.get("/api/v1/syncs/options").json()["data"]
+    assert {row["id"] for row in options["images"]} == {str(image.pk)}
+    assert not options["can_sync_datasets"]
     member.is_staff = True
     member.save(update_fields=["is_staff"])
-    response = client.get("/syncs/")
-    assert response.context["can_sync_datasets"]
-    assert {row["id"] for row in response.context["images"]} == {image.pk, private.pk, shared.pk}
-    assert {str(row["id"]) for row in response.context["jobs"]} == {own_job, str(other_job.pk)}
+    options = client.get("/api/v1/syncs/options").json()["data"]
+    assert options["can_sync_datasets"]
+    assert {row["id"] for row in options["images"]} == {str(image.pk), str(private.pk), str(shared.pk)}
+    jobs = client.get("/api/v1/syncs").json()["data"]["items"]
+    assert {row["id"] for row in jobs} == {own_job, str(other_job.pk)}
 
 
 def test_administrator_shared_image_sync_keeps_copy_shared(transfer_data):

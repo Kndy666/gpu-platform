@@ -19,7 +19,7 @@ from gpu_platform_control.core.retention.models import (
 )
 from gpu_platform_control.core.nodes.models import SystemObservation
 from gpu_platform_control.core.services import audit, approve, can_adjust_time, reject, request_stop
-from gpu_platform_control.core.access import tasks_for
+from gpu_platform_control.core.access import images_for, tasks_for
 from gpu_platform_control.services.queries import resource_overview, image_catalog
 
 
@@ -45,12 +45,7 @@ def dashboard(actor, *, values=None, query=None):
     from gpu_platform_control.services.queries import node_resource_groups
 
     overview = resource_overview()
-    from .resource_display import node_resources
-
     nodes = node_resource_groups(overview)
-    for node in nodes:
-        accelerator_keys = node["accelerator_resource_keys"]
-        node["display_resources"] = [row for row in node_resources(node["id"]) if row["key"] not in accelerator_keys and not row["volume_kind"] and not row["allocation_group"] and row["accounting"] != "image"]
     return result({**overview, "node_groups": nodes, "tasks": tasks}, notices=notices)
 
 
@@ -103,9 +98,7 @@ def new_request(actor, mode="interactive", *, values=None, query=None):
     initial: dict[str, Any] = {}
     node_id = query.get("node")
     if mode == "batch" and query.get("image"):
-        image = find(
-            ImageArtifact.objects.filter(Q(owner=actor) | Q(shared=True), verified=True), pk=query["image"]
-        )
+        image = find(images_for(actor), pk=query["image"], verified=True)
         initial.update(image=str(image.pk), node=image.node_id, source_kind="image")
         node_id = image.node_id
     if mode == "batch" and query.get("source"):
@@ -128,7 +121,7 @@ def new_request(actor, mode="interactive", *, values=None, query=None):
             "form_options": options,
             "mode": mode,
             "capacity": request_capacity(actor, node=node),
-            "title": tr("New development environment") if mode == "interactive" else tr("Jobs"),
+            "title": tr("New dev environment") if mode == "interactive" else tr("Batch jobs"),
         }
     )
 
@@ -143,6 +136,23 @@ def tasks(actor, *, values=None, query=None):
         query, ResourceRequest.objects.filter(user=actor, mode=mode).select_related("user", "workspace")
     )
     return result({"tasks": tasks, "mode": mode}, notices=notices)
+
+
+def task_time_options(req, actor):
+    from gpu_platform_control.core.services import policy_for
+
+    policy = policy_for(req.user)
+    pending = req.extensions.filter(status="pending").first()
+    adjustable = can_adjust_time(req, getattr(req, "workspace", None), timezone.now())
+    owner = actor is not None and req.user_id == actor.pk
+    return {
+        "can_extend": owner and adjustable and req.extension_count < policy.extension_limit and pending is None,
+        "can_shorten_time": owner and adjustable,
+        "can_adjust_time": bool(actor and actor.is_staff and adjustable),
+        "extension_limit": policy.extension_limit,
+        "extension_hours": None if policy.unlimited else policy.interactive_hours,
+        "pending_extension": pending,
+    }
 
 
 @authenticated
@@ -164,23 +174,12 @@ def task(actor, pk, *, values=None, query=None):
         actor.is_staff
         and ((parameters(query_parameters).get("from") == "management") or req.user_id != actor.pk)
     )
-    from gpu_platform_control.core.policies import extension_limit
-    from gpu_platform_control.core.services import policy_for
-
-    limit = extension_limit(req.user)
-    pending_extension = req.extensions.filter(status="pending").first()
-    can_change_time = can_adjust_time(req, ws, timezone.now())
-    can_extend = bool(
-        req.user_id == actor.pk
-        and can_change_time
-        and (req.extension_count < limit)
-        and (not pending_extension)
-    )
     from gpu_platform_control.core.features import enabled
     from .resource_display import task_resources
     from .peer_ssh import connection as peer_ssh_connection, peers
     from gpu_platform_control.slots.gateway import Gateway
 
+    time_options = task_time_options(req, actor)
     internal_ssh = peer_ssh_connection(req) if req.user_id == actor.pk else None
     return result(
         {
@@ -195,14 +194,8 @@ def task(actor, pk, *, values=None, query=None):
             "internal_ssh_peers": peers(req, Gateway()) if internal_ssh else [],
             "admin_connection": bool(actor.is_staff and req.user_id != actor.pk),
             "managed": managed,
-            "can_extend": can_extend,
-            "can_adjust_time": actor.is_staff and can_change_time,
-            "can_shorten_time": not actor.is_staff and req.user_id == actor.pk and can_change_time,
-            "extension_limit": limit,
-            "extension_hours": None
-            if policy_for(req.user).unlimited
-            else policy_for(req.user).interactive_hours,
-            "pending_extension": pending_extension,
+            **time_options,
+            "can_shorten_time": time_options["can_shorten_time"] and not actor.is_staff,
             "extensions": req.extensions.order_by("-created_at")[:5],
         },
         notices=notices,
@@ -306,7 +299,7 @@ def images(actor, *, values=None, query=None):
         submit_build(actor, values)
         return result(complete=True)
     query = parameters(query)
-    permanent_images = image_catalog(actor).filter(temporary=False).filter(
+    permanent_images = image_catalog(actor).filter(
         Q(state="ready", verified=True) | Q(owner=actor, state="deleting")
     )
     return result(
@@ -314,7 +307,6 @@ def images(actor, *, values=None, query=None):
             "form_options": build_options(actor),
             "sync_targets": ComputeNode.objects.filter(enabled=True, capabilities__features__image_sync=True),
             "images": history_page(query, permanent_images, "images_page"),
-            "temporary_images": history_page(query, image_catalog(actor, "temporary"), "temporary_page"),
             "builds": history_page(
                 query,
                 ImageBuild.objects.filter(user=actor).order_by("-created_at", "-pk"),
@@ -323,7 +315,7 @@ def images(actor, *, values=None, query=None):
             ),
             "snapshots": history_page(
                 query,
-                EnvironmentSnapshot.objects.filter(source__user=actor)
+                EnvironmentSnapshot.objects.filter(source__user=actor, target__isnull=True)
                 .select_related("source", "artifact")
                 .order_by("-created_at", "-pk"),
                 "snapshots_page",
@@ -435,23 +427,10 @@ def delete_api_token(actor, pk, *, values=None, query=None):
 
 @authenticated
 def synchronization(actor, *, values=None, query=None):
-    notices: list[tuple[str, object]] = []
-    query = parameters(query)
-    values = parameters(values) if values is not None else None
-    from .synchronization import sync_images, sync_jobs
-    from gpu_platform_control.core.nodes.models import ComputeNode
-    from gpu_platform_control.core.features import enabled
+    from .synchronization import sync_jobs, synchronization_options
 
-    nodes = list(ComputeNode.objects.filter(enabled=True))
-
-    return result(
-        {"jobs": sync_jobs(actor), "nodes": nodes, "section": "syncs",
-         "section_title": tr("Synchronization"),
-         "images": sync_images(actor),
-         "can_sync_images": any(enabled(node, "image_sync") for node in nodes),
-         "can_sync_datasets": actor.is_staff and any(enabled(node, "dataset_sync") for node in nodes)},
-        notices=notices,
-    )
+    return result({"jobs": sync_jobs(actor), "section": "syncs", "section_title": tr("Synchronization"),
+                   **synchronization_options(actor)})
 
 
 @authenticated

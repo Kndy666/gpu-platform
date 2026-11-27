@@ -46,7 +46,7 @@ class ContainerQuery(NodePageQuery):
 
 
 class ImageQuery(NodePageQuery):
-    kind: Literal["permanent", "temporary"] | None = None
+    kind: Literal["permanent"] | None = None
     available: bool = False
 
 
@@ -125,6 +125,10 @@ class KeyUpdate(Input):
 
 
 class NodeRequest(Input):
+    architecture: Literal["amd64", "arm64"] | None = None
+    address: str | None = None
+    transport: str | None = None
+    transport_options: dict[str, Any] | None = None
     name: str | None = None
     enabled: bool | None = None
     maintenance: bool | None = None
@@ -146,7 +150,7 @@ class TaskRequest(Input):
         Annotated[
             UUID,
             Field(
-                description="Own running development environment, with or without GPUs. Save its image, release it, then run the requested command."
+                description="Own running dev environment, with or without GPUs. Save its image, release it, then run the requested command."
             ),
         ]
         | None
@@ -196,7 +200,20 @@ class TaskRequest(Input):
 
 
 class ReviewRequest(Input):
-    action: Literal["approve", "reject", "stop", "extend"]
+    model_config = ConfigDict(
+        json_schema_extra={
+            "if": {"properties": {"action": {"const": "adjust_time"}}},
+            "then": {
+                "required": ["ends_at", "reason"],
+                "properties": {
+                    "ends_at": {"type": "string", "format": "date-time"},
+                    "reason": {"type": "string", "minLength": 1},
+                },
+            },
+        }
+    )
+
+    action: Literal["approve", "reject", "stop", "extend", "adjust_time"]
     reason: str | None = None
     priority: Literal[0, 100] | None = None
     ends_at: (
@@ -222,6 +239,7 @@ class ExtensionReviewRequest(Input):
 
 
 class NotificationSettingsRequest(Input):
+    inapp_events: list[str] | None = None
     enabled: bool | None = None
     receivers: dict[str, dict[str, str]] | None = None
     events: list[str] | None = None
@@ -268,6 +286,7 @@ class MemberRequest(Input):
 
 
 class GroupRequest(Input):
+    home_quota_gib: Annotated[int, Field(ge=1)] | None = None
     home_size_gib: Annotated[int, Field(ge=1)] | None = None
     extensions: ResourcePolicyExtensions | None = None
     name: str | None = None
@@ -457,6 +476,7 @@ class NodeListResponseData(Input):
 
 
 class NodeResources(DevicePresentation):
+    display_resources: list[dict[str, Any]]
     accelerator_resource_keys: list[str] = Field(default_factory=list)
     id: Annotated[int, Field(ge=1)] | None = None
     name: str | None = None
@@ -474,10 +494,13 @@ class ResourcesResponse(Input):
 
 
 class ResourcesResponseData(OpenData):
+    running_count: int
+    queued_count: int
+    accelerator_counts: list[dict[str, Any]]
     nodes: (
         Annotated[
             list[NodeResources],
-            Field(description="Dashboard resource groups; node=ID limits this list to that node."),
+            Field(description="Pass node=ID to limit resource groups to one server."),
         ]
         | None
     ) = None
@@ -710,7 +733,16 @@ class PerformanceResponse(Input):
     data: PerformanceResponseData
 
 
+class MetricsArchiveData(OpenData):
+    used_mib: float
+    max_mib: int
+    state: str
+    last_at: datetime | None
+
+
 class PerformanceResponseData(Input):
+    archive: MetricsArchiveData
+    archive_notice: str | None
     refresh_seconds: Annotated[int, Field(ge=1)] | None = None
     nodes: list[PerformanceResponseDataNodesItem] | None = None
 
@@ -839,7 +871,37 @@ class VolumeData(OpenData):
     busy: bool
 
 
+class ExtensionData(Input):
+    id: UUID
+    request_id: UUID
+    request_purpose: str
+    username: str
+    node_id: int
+    node_name: str
+    status_label: str
+    previous_ends_at: datetime
+    ends_at: datetime
+    reason: str
+    status: str
+    review_reason: str
+    reviewed_by_id: int | None
+    reviewed_at: datetime | None
+    created_at: datetime
+
+
 class TaskData(TaskGPUResources):
+    node_state: str | None = None
+    node_state_label: str | None = None
+    login_user: str | None = None
+    can_save_environment: bool | None = None
+    can_extend: bool | None = None
+    can_shorten_time: bool | None = None
+    can_adjust_time: bool | None = None
+    extension_limit: int | None = None
+    extension_hours: int | None = None
+    pending_extension: ExtensionData | None = None
+    extension_history: list[ExtensionData] | None = None
+    source_environment_purpose: str | None = None
     id: UUID
     purpose: str
     mode: Literal["interactive", "batch"]
@@ -851,8 +913,8 @@ class TaskData(TaskGPUResources):
     node_name: str
     user_id: int
     username: str
-    image_id: UUID
-    image_name: str
+    image_id: UUID | None
+    image_name: str | None
     source_environment_id: UUID | None
     extension_count: int
     starts_at: datetime | None
@@ -894,7 +956,6 @@ class ImageData(OpenData):
     architecture: Literal["amd64", "arm64"]
     shared: bool
     verified: bool
-    temporary: bool
     state: str
     state_label: str
     recycle_after: datetime | None
@@ -919,6 +980,11 @@ class BuildData(OpenData):
 
 
 class SyncData(OpenData):
+    source_name: str | None = None
+    target_name: str | None = None
+    image_name: str | None = None
+    phase_label: str | None = None
+    state_label: str | None = None
     phase: Literal['queued', 'preparing', 'transferring', 'applying', 'cleaning', 'completed', 'failed']
     id: UUID
     kind: Literal["image", "datasets"]
@@ -936,7 +1002,271 @@ class SyncData(OpenData):
     ended_at: datetime | None
 
 
+class HealthData(Input):
+    web: Literal["ok"]
+    reconciler: Literal["ok", "stale"]
+
+
+class ProfileData(UserData):
+    features: dict[str, bool]
+    pending_approval_count: int
+    language: str
+    default_language: str
+    timezone: str
+
+
+class SessionRequest(Input):
+    username: str
+    password: str
+
+
+class CsrfData(Input):
+    csrf_token: str
+
+
+class SessionData(CsrfData):
+    user: ProfileData
+
+
+class SignedOutData(Input):
+    signed_out: bool
+
+
+class RequestOptionsQuery(NodeQuery):
+    mode: Literal["interactive", "batch"] = "interactive"
+    image: UUID | None = None
+    source: UUID | None = None
+
+
+class MemberOptionsQuery(BaseModel):
+    member_id: Annotated[int, Field(ge=1)] | None = None
+
+
+class GroupOptionsQuery(BaseModel):
+    group_id: Annotated[int, Field(ge=1)] | None = None
+
+
+class NodeOptionsQuery(BaseModel):
+    node_id: Annotated[int, Field(ge=1)] | None = None
+    transport: str | None = None
+
+
+class PerformanceHistoryQuery(BaseModel):
+    nodes: list[str] = Field(default_factory=list, description="Server IDs, repeated or comma-separated")
+    days: int = 1
+    metric: str = "cpu"
+
+
+class UsageQuery(BaseModel):
+    from_date: Date | None = Field(None, alias="from")
+    to: Date | None = None
+    account: int | None = None
+    node: int | None = None
+    model: str | None = None
+
+
+class NoticeHistoryQuery(PageQuery):
+    origin: Literal["manual", "automatic"] | None = None
+
+
+class ShortenRequest(Input):
+    ends_at: datetime
+
+
+class RemindersRequest(Input):
+    shown: list[int] = Field(default_factory=list)
+
+
+class NoticeRequest(Input):
+    audience: Literal["member", "group", "all"]
+    member: int | None = None
+    group: int | None = None
+    title: str
+    content: str
+    link: str = ""
+    presentation: Literal["toast", "banner", "inbox"]
+    seconds: Annotated[int, Field(ge=3, le=60)] | None = None
+    expires_at: datetime | None = None
+
+
+class NoticeStopRequest(Input):
+    action: Literal["cancel", "withdraw"]
+
+
+class CatalogNode(OpenData):
+    id: int
+    name: str
+
+
+class DatasetPage(Page[dict[str, Any]]):
+    node: CatalogNode
+    nodes: list[CatalogNode]
+
+
+class BuildOptionsData(Input):
+    nodes: list[CatalogNode]
+    initial: dict[str, Any]
+
+
+class RequestOptionsData(BuildOptionsData):
+    node: CatalogNode
+    images: list[dict[str, Any]]
+    environments: list[dict[str, Any]]
+    source_workspaces: dict[str, Any]
+    resources: list[dict[str, Any]]
+    defaults: dict[str, Any]
+    features: dict[str, Any]
+    capacity: RequestCapacity
+
+
+class SyncOptionsData(Input):
+    nodes: list[CatalogNode]
+    images: list[dict[str, Any]]
+    can_sync_datasets: bool
+    can_sync_images: bool
+
+
+class GroupOptionsData(Input):
+    initial: dict[str, Any]
+    resources: list[dict[str, Any]]
+    group: dict[str, Any] | None
+
+
+class MemberOptionsData(Input):
+    initial: dict[str, Any]
+    resources: list[dict[str, Any]]
+    member: dict[str, Any] | None
+    groups: list[dict[str, Any]]
+    group_defaults: dict[str, Any]
+    can_grant_admin: bool
+
+
+class NodeOptionsData(Input):
+    initial: dict[str, Any]
+    modules: list[dict[str, Any]]
+    local: bool
+    editing: bool
+
+
+class InboxItem(Input):
+    id: int
+    title: str
+    content: str
+    link: str
+    sent_at: datetime | None
+    unread: bool
+    withdrawn: bool
+    seconds: float | None
+
+
+class RemindersData(Input):
+    unread: int
+    toasts: list[InboxItem]
+    banners: list[InboxItem]
+    remove: list[int]
+
+
+class DismissData(Input):
+    dismissed: bool
+
+
+class ComposerData(Input):
+    available: bool
+    recipient_counts: dict[str, Any]
+    members: list[tuple[int, str]]
+    groups: list[tuple[int, str]]
+    audiences: list[tuple[str, str]]
+    presentations: list[tuple[str, str]]
+
+
+class NoticeCreated(Input):
+    id: int
+    recipients: int
+
+
+class NoticeStopped(NoticeStopRequest):
+    stopped: bool
+
+
+class NoticeHistoryItem(Input):
+    id: int
+    title: str
+    content: str
+    manual: bool
+    state: str
+    created_at: datetime
+    sender: str | None
+    audience: str | None
+    channel: str
+    count: int
+    delivered: int
+    read: int
+    show_read: bool
+    can_cancel: bool
+    can_revoke: bool
+    changed_by: str | None
+    changed_at: datetime | None
+
+
+class NotificationSettingsData(Input):
+    enabled: bool
+    channels: list[dict[str, Any]]
+    events: list[str]
+    available_events: dict[str, str]
+    reminder_minutes: int
+    recent: list[dict[str, Any]]
+    inapp_enabled: bool
+    wechat_available: bool
+    inapp_events: list[str]
+
+
+class PerformanceHistoryData(Input):
+    history: dict[str, Any]
+    history_nodes: list[dict[str, Any]]
+    history_ranges: list[int]
+    history_metric: str
+    history_metrics: dict[str, str]
+
+
+class LiveUsageData(Input):
+    as_of: datetime
+    online: int
+    node_count: int
+    sampled: int
+    running_count: int
+    nodes: list[dict[str, Any]]
+    models: list[dict[str, Any]]
+    cpu: float | None
+    memory: float | None
+    resources: dict[str, Any] | None
+    capacity: dict[str, Any]
+
+
+class UsageHistoryData(Input):
+    section: str
+    section_title: str
+    as_of: datetime
+    first: datetime
+    total_accounts: int
+    applicants: int
+    totals: dict[str, Any]
+    people: list[dict[str, Any]]
+    by_node: list[dict[str, Any]]
+    by_model: list[dict[str, Any]]
+    filters: dict[str, Any]
+    account_options: list[dict[str, Any]]
+    node_options: list[dict[str, Any]]
+    model_options: list[dict[str, Any]]
+    trend: dict[str, Any]
+    ranking: list[dict[str, Any]]
+
+
 MODELS: dict[str, type[BaseModel]] = {
+    "SessionRequest": SessionRequest,
+    "ShortenRequest": ShortenRequest,
+    "RemindersRequest": RemindersRequest,
+    "NoticeRequest": NoticeRequest,
+    "NoticeStopRequest": NoticeStopRequest,
     "NotificationReceiverRequest": NotificationReceiverRequest,
     "TokenIssueRequest": TokenIssueRequest,
     "TokenRequest": TokenRequest,

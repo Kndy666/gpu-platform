@@ -65,7 +65,9 @@ class Module(Build):
         self.lock = threading.RLock()
         self.closed = threading.Event()
         self.container = container_name(context)
-        options = Options.model_validate(context.options)
+        options = Options.model_validate(
+            {key: value for key, value in context.options.items() if key != "architecture"}
+        )
         self.cache_budget_mb = options.cache_budget_gib * 2**30 // 1_000_000
         self.cache_max_age_hours = options.cache_max_age_hours
         self.cache_cleanup_due = 0.0

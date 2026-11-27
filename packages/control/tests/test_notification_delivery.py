@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import timedelta, timezone as datetime_timezone
 import pytest
 from django.contrib.auth import get_user_model
 from django.test import override_settings
@@ -136,6 +136,18 @@ def test_offline_transition_notifies_staff_and_affected_owners_once(notification
     assert set(jobs.values_list('recipient_id', flat=True)) == {user.pk, staff.pk}
     assert jobs.count() == 2
     assert not jobs.filter(recipient__in=[inactive, unrelated]).exists()
+
+    fresh, stale = jobs.order_by('created_at', 'pk')
+    deadline = fresh.created_at + timedelta(hours=24)
+    assert deliver_one(loader=lambda *args, **kwargs: channel, clock=lambda: deadline - timedelta(seconds=1))
+    fresh.refresh_from_db()
+    assert fresh.state == 'sent'
+    assert fresh.payload['expires_at'] == deadline.astimezone(datetime_timezone.utc).isoformat()
+    assert deliver_one(loader=lambda *args, **kwargs: channel, clock=lambda: stale.created_at + timedelta(hours=24))
+    stale.refresh_from_db()
+    assert stale.state == 'skipped'
+    assert len(channel.calls) == 1
+
     ComputeNode.objects.filter(pk=task.node_id).update(state='online')
     mark_node_offline(task.node_id)
     assert jobs.count() == 4

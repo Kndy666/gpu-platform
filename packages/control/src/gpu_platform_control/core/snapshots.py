@@ -87,4 +87,5 @@ def sync_snapshots(gateway, node):
                 ).update(image=artifact, image_reference=result.reference, status="approved")
                 if changed:
                     request_stop(snapshot.source_id, snapshot.source.user, "environment_saved")
-            audit(snapshot.source.user, "environment_saved", snapshot.source_id, image=str(artifact.pk))
+            if not artifact.temporary:
+                audit(snapshot.source.user, "environment_saved", snapshot.source_id, image=str(artifact.pk))

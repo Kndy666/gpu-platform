@@ -1,6 +1,6 @@
 from datetime import datetime, timezone as utc_clock
 
-from .boundary import authenticated, staff_only, find, parameters, result
+from .boundary import staff_only, find, parameters, result
 from django.utils.translation import gettext_lazy as tr
 from django.utils import timezone
 from django.utils.formats import date_format
@@ -9,7 +9,6 @@ from django.core.paginator import Paginator
 from django.db import transaction
 from gpu_platform_control.core.configuration import config
 from gpu_platform_control.services.audit_display import audit_presentation
-from gpu_platform_control.core.image_lifecycle import keep_image, request_image_deletion
 from gpu_platform_control.core.metrics_history import DAY, MetricsArchive
 from gpu_platform_control.core.nodes.models import ComputeNode
 from gpu_platform_control.core.retention.models import PlatformSettings, VolumeAllocation
@@ -17,7 +16,7 @@ from gpu_platform_control.core.accounts.models import UserGroup
 from gpu_platform_control.core.nodes.selection import selected_node
 from gpu_platform_control.core.services import audit
 from gpu_platform_control.core.volumes import annotate_volume_usage, request_volume_deletion, volume_busy
-from gpu_platform_control.core.access import image_actions_for, volumes_for
+from gpu_platform_control.core.access import volumes_for
 from gpu_platform_control.services.queries import (
     member_list,
     group_list,
@@ -119,7 +118,7 @@ def performance(actor, *, values=None, query=None, include_archive=True):
     last_write = datetime.fromtimestamp(stamp, utc_clock.utc) if stamp is not None else None
     return result(
         {
-            "section": "performance", "section_title": tr("Node performance"), "nodes": performance_nodes(node),
+            "section": "performance", "section_title": tr("Live load"), "nodes": performance_nodes(node),
             "performance_node": node.pk if node else None,
             "archive": {**archive_state, "last_at": last_write} if include_archive else None,
             "archive_notice": _archive_notice(archive_state["state"], last_write),
@@ -136,17 +135,18 @@ def nodes(actor, pk=None, *, values=None, query=None):
     from gpu_platform_control.slots.configuration import cluster_config
 
     default_node_id()
-    node = find(ComputeNode, pk=pk) if pk else None
+    servers = ComputeNode.objects.select_for_update() if values is not None else ComputeNode.objects.all()
+    node = find(servers, pk=pk) if pk else None
     if values is not None:
         name = str(values.get("name", ""))
         from gpu_platform_contracts.config import ModuleSelection
         from gpu_platform_control.slots.configuration import save_host
         from gpu_platform_control.slots import load
         if not node and ComputeNode.objects.filter(name=name).exists():
-            raise ValidationError({"name": tr("A node with this name already exists.")})
+            raise ValidationError({"name": tr("This server name is in use. Choose another name.")})
         current = cluster_config().hosts.get(node.name if node else name)
         if node and name != node.name:
-            raise ValidationError({"name": tr("The node name cannot be changed.")})
+            raise ValidationError({"name": tr("Keep the registered server name when editing its settings.")})
         if current and "control" in current.roles:
             host = current
         else:
@@ -156,7 +156,7 @@ def nodes(actor, pk=None, *, values=None, query=None):
             try:
                 implementation = load("transport", module, options=values.get("transport_options", {}))
             except (ValueError, LookupError) as error:
-                raise ValidationError(str(error)) from error
+                raise ValidationError({"transport": tr("Check the connection module and its settings.")}) from error
             host = current.model_copy(deep=True) if current else cluster_config().defaults.model_dump(mode="json")
             if isinstance(host, dict):
                 from gpu_platform_contracts.config import HostConfig
@@ -172,26 +172,28 @@ def nodes(actor, pk=None, *, values=None, query=None):
                     host.slots = {**deepcopy(template.slots), "transport": host.slots["transport"]}
             if node and node.architecture != host.architecture and ResourceRequest.objects.filter(
                 node=node, workspace__cleanup_complete=False).exists():
-                raise ValidationError(tr("Finish this node's tasks before changing its connection."))
-            save_host(name, host.model_dump(mode="json"))
+                raise ValidationError(tr("Stop the running tasks before changing the server connection."))
+
         node = node or ComputeNode()
         node.name, node.architecture = name, host.architecture
         node.enabled, node.maintenance = bool(values.get("enabled")), bool(values.get("maintenance"))
         node.full_clean()
         node.save()
         audit(
-            actor, "node_updated", node.pk, name=node.name, enabled=node.enabled, maintenance=node.maintenance
+            actor, "node_updated" if pk else "node_created", node.pk, name=node.name, enabled=node.enabled, maintenance=node.maintenance
         )
+        if not (current and "control" in current.roles):
+            save_host(name, host.model_dump(mode="json"))
         return result(
-            complete=True,
+            complete=True, identity=node.pk,
             notices=[
-                ("success", tr("Node settings saved. Connection status will update on the next report."))
+                ("success", tr("Server settings saved. Check the connection status when the server next reports."))
             ],
         )
     return result(
         {
             "section": "nodes",
-            "section_title": tr("Compute nodes"),
+            "section_title": tr("Servers"),
             "nodes": ComputeNode.objects.order_by("pk"),
             "form_options": node_options(actor, pk, transport=query.get("transport")),
             "editing": node,
@@ -447,7 +449,7 @@ def settings(actor, *, values=None, query=None):
             notices=[
                 (
                     "success",
-                    tr("Retention settings saved. They apply when tasks end and snapshot retention starts."),
+                    tr("Retention settings saved. They apply when tasks end and temporary images enter their retention period."),
                 )
             ],
         )
@@ -474,28 +476,6 @@ def audits(actor, *, values=None, query=None):
         for name, value in audit_presentation(row).items():
             setattr(row, name, value)
     return result({"section": "audits", "section_title": tr("Audit log"), "page": rows}, notices=notices)
-
-
-@authenticated
-def image_action(actor, pk, action, *, values=None, query=None):
-    notices: list[tuple[str, object]] = []
-    image = find(image_actions_for(actor), pk=pk)
-    if action not in {"keep", "delete"}:
-        raise PermissionDenied
-    try:
-        (keep_image if action == "keep" else request_image_deletion)(pk, actor)
-    except ValidationError as exc:
-        notices.append(("error", "；".join(exc.messages)))
-    else:
-        notices.append(
-            (
-                "success",
-                tr("Image retained.")
-                if action == "keep"
-                else tr("Image deletion requested."),
-            )
-        )
-    return result(complete=True, notices=notices, identity=image.node_id)
 
 
 @staff_only
@@ -549,9 +529,9 @@ def notification_settings_options(actor):
 
 def _archive_notice(state, last_write):
     warning = {
-        "space": tr("Sample archiving paused due to low disk space"),
-        "error": tr("Sample archive write failed"),
-        "dropped": tr("Some samples were dropped"),
+        "space": tr("Metrics history is paused. Free disk space to resume recording."),
+        "error": tr("Metrics history could not be saved. Check available disk space and write access."),
+        "dropped": tr("Some readings are missing from metrics history. Check server connectivity and available disk space."),
     }.get(state)
     if warning and last_write is not None:
         return tr("%(warning)s · Last successful write %(time)s") % {
@@ -615,7 +595,7 @@ def performance_history(actor, *, query=None, chart_only=False):
     coverage_note = None
     if first_sample is not None and first_sample - start >= step:
         local_start = timezone.localtime(datetime.fromtimestamp(first_sample, utc_clock.utc))
-        coverage_note = tr("Samples for this selection begin %(time)s.") % {
+        coverage_note = tr("Metrics history for this selection begins at %(time)s.") % {
             "time": date_format(local_start, "SHORT_DATETIME_FORMAT"),
         }
     history = {

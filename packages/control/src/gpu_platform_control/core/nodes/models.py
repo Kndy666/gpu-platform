@@ -7,13 +7,13 @@ def default_node_id():
     from gpu_platform_control.slots.configuration import cluster_config
     nodes = [(name, host) for name, host in cluster_config().hosts.items() if 'node' in host.roles]
     if not nodes:
-        raise ValidationError(tr('No compute nodes are configured.'))
+        raise ValidationError(tr("No servers are configured. Ask an administrator to add one."))
     name, host = next(((name, host) for name, host in nodes if 'control' in host.roles), nodes[0])
     return ComputeNode.objects.get_or_create(name=name, defaults={'architecture': host.architecture})[0].pk
 
 
 class ComputeNode(models.Model):
-    name = models.SlugField(max_length=63, unique=True, verbose_name=tr('Node name'))
+    name = models.SlugField(max_length=63, unique=True, verbose_name=tr("Server name"))
     architecture = models.CharField(max_length=20, choices=[('arm64', 'ARM64'), ('amd64', 'AMD64')], default='amd64')
     enabled = models.BooleanField(default=True, verbose_name=tr('Enable reporting'))
     maintenance = models.BooleanField(default=False, verbose_name=tr('Maintenance mode'))
@@ -35,7 +35,7 @@ class StoragePool(models.Model):
     capacity_gib = models.PositiveBigIntegerField(default=0, verbose_name=tr('Total capacity GiB'))
     free_gib = models.PositiveBigIntegerField(default=0, verbose_name=tr('Free GiB'))
     reserved_gib = models.PositiveBigIntegerField(default=0, verbose_name=tr('Reserved GiB'))
-    buffer_percent = models.PositiveIntegerField(default=5, verbose_name=tr('Buffer percentage'))
+    buffer_percent = models.PositiveIntegerField(default=5, verbose_name=tr("Storage reserve (%)"))
     healthy = models.BooleanField(default=False, verbose_name=tr('Healthy'))
     observed_at = models.DateTimeField(null=True, blank=True, verbose_name=tr('Updated'))
 
@@ -51,11 +51,11 @@ class StoragePool(models.Model):
 class SystemObservation(models.Model):
     node = models.ForeignKey('platform_nodes.ComputeNode', on_delete=models.PROTECT, default=default_node_id)
     name = models.CharField(max_length=80, verbose_name=tr('Name'))
-    data = models.JSONField(default=dict, verbose_name=tr('Observed data'))
+    data = models.JSONField(default=dict, verbose_name=tr("Latest readings"))
     observed_at = models.DateTimeField(auto_now=True, verbose_name=tr('Updated'))
 
     class Meta:
         db_table = 'portal_systemobservation'
-        verbose_name = tr('Resource observation')
+        verbose_name = tr("Resource readings")
         verbose_name_plural = verbose_name
         constraints = [models.UniqueConstraint(fields=['node', 'name'], name='node_observation')]

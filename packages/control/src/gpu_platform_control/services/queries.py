@@ -96,6 +96,8 @@ def tasks_for_counts(node=None):
 
 
 def node_resource_groups(overview, node=None):
+    from .resource_display import node_resources
+
     cutoff = timezone.now() - timedelta(minutes=2)
     observations = {row.node_id: row for row in SystemObservation.objects.filter(name="resources")}
     storage: dict = {}
@@ -136,11 +138,14 @@ def node_resource_groups(overview, node=None):
             if fresh
             else "offline"
         )
+        accelerator_keys = [row["key"] for row in accelerator_module(node).get("resources", [])]
         groups.append(
             {
                 "id": node.pk,
                 "name": node.name, **accelerator_texts(node),
-                "accelerator_resource_keys": [r["key"] for r in accelerator_module(node).get("resources", [])],
+                "accelerator_resource_keys": accelerator_keys,
+                "display_resources": [row for row in node_resources(node.pk) if row["key"] not in accelerator_keys
+                                      and not row["volume_kind"] and not row["allocation_group"] and row["accounting"] != "image"],
                 "state": state,
                 "state_label": {
                     "maintenance": tr("Maintenance"),
@@ -218,18 +223,13 @@ def group_list():
     return UserGroup.objects.annotate(member_count=Count("members")).order_by("-is_default", "name")
 
 
-def image_catalog(user, kind=None):
-    query = images_for(user).select_related("owner").order_by("-created_at", "-pk")
-    if kind == "permanent":
-        query = query.filter(verified=True, temporary=False)
-    elif kind == "temporary":
-        query = query.filter(owner=user, temporary=True).exclude(state="deleted")
-    return query
+def image_catalog(user):
+    return images_for(user).select_related("owner").order_by("-created_at", "-pk")
 
 
 def managed_image_list():
     return (
-        ImageArtifact.objects.select_related("owner")
+        ImageArtifact.objects.filter(temporary=False).select_related("owner")
         .exclude(state="deleted")
         .order_by("state", "recycle_after", "-created_at")
     )

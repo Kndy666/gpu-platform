@@ -23,5 +23,5 @@ def enabled(node, feature):
 def require(node, feature):
     if not enabled(node, feature):
         raise ValidationError(
-            tr("This feature is unavailable on the selected node."), code="feature_disabled"
+            tr("This server does not offer this feature. Choose a server that supports it."), code="feature_disabled"
         )

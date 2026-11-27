@@ -9,8 +9,8 @@ def selected_node(value=None):
     try:
         identifier = int(value) if value is not None and value != "" else default_node_id()
     except (ValueError, TypeError) as exc:
-        raise ValidationError(tr("Invalid node"), code="node_invalid") from exc
+        raise ValidationError(tr("Select a valid server."), code="node_invalid") from exc
     try:
         return ComputeNode.objects.get(pk=identifier)
     except ComputeNode.DoesNotExist as exc:
-        raise ValidationError(tr("The selected node is unavailable."), code="node_not_found") from exc
+        raise ValidationError(tr("This server is unavailable. Select another server or try again later."), code="node_not_found") from exc

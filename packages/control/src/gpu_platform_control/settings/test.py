@@ -17,5 +17,3 @@ PLATFORM_DATASET_ROOT = Path(_test_directory.name) / "datasets"
 PLATFORM_DATASET_ROOT.mkdir()
 
 PLATFORM_CLUSTER_CONFIG = {"hosts": {"main": {"roles": ["control", "node"]}}}
-
-MIDDLEWARE = [item for item in MIDDLEWARE if "whitenoise" not in item]  # noqa: F405

@@ -1,4 +1,4 @@
-from gpu_platform_control.services import sync_api
+from gpu_platform_control.services import panel_api, sync_api
 from gpu_platform_control.services import operations as api
 
 # The route catalog also supplies OpenAPI operations, keeping discovery in sync.
@@ -6,6 +6,27 @@ ROUTES = [
     ("", api.index, "Discover the API", None),
     ("health", api.health, "Service health", None),
     ("skill.zip", api.skill_download, "Download the Agent skill", None),
+    ("auth/csrf", api.csrf, "Get a CSRF token for browser requests", None),
+    ("auth/session", api.session, "Sign in or sign out of a browser session", "SessionRequest"),
+    ("request-options", panel_api.request_options, "Get task request options and capacity", None),
+    ("builds/options", panel_api.build_options, "Get image build options", None),
+    ("syncs/options", panel_api.sync_options, "Get synchronization options", None),
+    ("admin/members/options", panel_api.member_options, "Get member settings options", None),
+    ("admin/groups/options", panel_api.group_options, "Get group settings options", None),
+    ("admin/nodes/options", panel_api.node_options, "Get server connection options", None),
+    ("tasks/<uuid:pk>/shorten", api.shorten, "Shorten your dev environment's reservation", "ShortenRequest"),
+    ("inbox", panel_api.inbox_list, "List your inbox", None),
+    ("inbox/reminders", panel_api.inbox_reminders, "Collect current reminders", "RemindersRequest"),
+    ("inbox/<int:pk>", panel_api.inbox_detail, "Read a notification", None),
+    ("inbox/<int:pk>/read", panel_api.inbox_read, "Mark a notification as read", "EmptyRequest"),
+    ("inbox/<int:pk>/dismiss", panel_api.inbox_dismiss, "Dismiss a banner", "EmptyRequest"),
+    ("admin/notices/composer", panel_api.notice_composer, "List notice audiences and delivery options", None),
+    ("admin/notices", panel_api.notice_create, "Send an in-app notice", "NoticeRequest"),
+    ("admin/notices/history", panel_api.notice_history, "List notice deliveries", None),
+    ("admin/notices/<int:pk>/stop", panel_api.notice_stop, "Cancel or withdraw a notice", "NoticeStopRequest"),
+    ("admin/performance/history", panel_api.performance_history, "Read metrics history", None),
+    ("admin/usage/live", panel_api.usage_live, "Read live load", None),
+    ("admin/usage/history", panel_api.usage_history, "Read usage statistics", None),
     ("auth/token", api.token, "Issue or revoke a Bearer token", "TokenRequest"),
     ("auth/tokens", api.tokens, "List or create your API tokens", "TokenIssueRequest"),
     ("auth/tokens/<uuid:pk>", api.token_entry, "Reveal or revoke one of your API tokens", None),
@@ -13,12 +34,12 @@ ROUTES = [
     ("me/password", api.password, "Change your password", "PasswordRequest"),
     ("resources", api.resources, "Resource availability and default image", None),
     ("gpus", api.gpus, "Physical GPUs, compute shares and VRAM availability", None),
-    ("nodes", api.nodes, "List nodes; administrators may register SSH workers", "NodeRequest"),
-    ("nodes/<int:pk>", api.node, "Read or configure one node", "NodeRequest"),
+    ("nodes", api.nodes, "List servers or register a server", "NodeRequest"),
+    ("nodes/<int:pk>", api.node, "Read or configure a server", "NodeRequest"),
     ("timeline", api.timeline, "Daily resource allocation timeline", None),
     ("keys", api.keys, "List or add SSH public keys", "KeyRequest"),
     ("keys/<int:pk>", api.key, "Update or disable an SSH key", "KeyUpdate"),
-    ("tasks", api.tasks, "List or submit development and program requests", "TaskRequest"),
+    ("tasks", api.tasks, "List or submit dev environments and batch jobs", "TaskRequest"),
     ("tasks/<uuid:pk>", api.task, "Read a task", None),
     ("tasks/<uuid:pk>/connection", api.connection, "SSH command and config", None),
     (
@@ -29,8 +50,8 @@ ROUTES = [
     ),
     ("tasks/<uuid:pk>/logs", api.logs, "Read current container logs", None),
     ("tasks/<uuid:pk>/stop", api.stop, "Cancel or stop a task", "EmptyRequest"),
-    ("tasks/<uuid:pk>/review", api.review, "Approve, reject, stop or extend a task", "ReviewRequest"),
-    ("tasks/<uuid:pk>/save", api.save, "Save your running development environment", "EmptyRequest"),
+    ("tasks/<uuid:pk>/review", api.review, "Review a task or change its end time", "ReviewRequest"),
+    ("tasks/<uuid:pk>/save", api.save, "Save your running dev environment", "EmptyRequest"),
     (
         "tasks/<uuid:pk>/extensions",
         api.extensions,
@@ -45,15 +66,15 @@ ROUTES = [
     ),
     ("snapshots", api.snapshots, "List environment save operations", None),
     ("snapshots/<uuid:pk>", api.snapshot, "Read an environment save operation", None),
-    ("images", api.images, "List accessible images", None),
+    ("images", api.images, "List accessible permanent images", None),
     ("images/<uuid:pk>", api.image, "Read or delete an image", None),
-    ("images/<uuid:pk>/<str:action>", api.image_action, "Retain or delete an image", "EmptyRequest"),
+    ("images/<uuid:pk>/sync", sync_api.image_sync, "Synchronize an accessible image", "ImageSyncRequest"),
     ("builds", api.builds, "List or submit image builds", "BuildRequest"),
     ("builds/<uuid:pk>", api.build, "Read build status and logs", None),
     ("volumes", api.volumes, "List your data volumes", None),
     ("volumes/<uuid:pk>", api.volume, "Read or delete an idle volume", None),
-    ("datasets", api.datasets, "Browse public data", None),
-    ("datasets/download", api.download, "Download a public data file", None),
+    ("datasets", api.datasets, "Browse shared datasets", None),
+    ("datasets/download", api.download, "Download a shared dataset file", None),
     ("admin/overview", api.overview, "Management counts", None),
     (
         "admin/approvals",
@@ -64,10 +85,10 @@ ROUTES = [
     (
         "admin/notifications",
         api.notification_settings,
-        "Configure WeChat event delivery through PushPlus",
+        "Configure in-app and WeChat notifications",
         "NotificationSettingsRequest",
     ),
-    ("admin/performance", api.performance, "Live CPU, memory, GPU, disk and network metrics by node", None),
+    ("admin/performance", api.performance, "Live CPU, memory, GPU, disk and network metrics by server", None),
     ("admin/members", api.members, "List or create accounts", "MemberRequest"),
     ("admin/members/<int:pk>", api.member, "Read or edit an account", "MemberRequest"),
     ("admin/groups", api.groups, "List or create user groups", "GroupRequest"),
@@ -80,14 +101,10 @@ ROUTES = [
 
 ROUTES += [
     ("syncs", sync_api.jobs, "Synchronization progress", None),
-    ("admin/datasets/sync", sync_api.dataset_sync, "Synchronize public data", "DatasetSyncRequest"),
+    ("admin/datasets/sync", sync_api.dataset_sync, "Synchronize shared datasets", "DatasetSyncRequest"),
     ("me/language", sync_api.language, "Set the display language", "LanguageRequest"),
 ]
 
-ROUTES.insert(
-    next(index for index, row in enumerate(ROUTES) if row[0] == "images/<uuid:pk>/<str:action>"),
-    ("images/<uuid:pk>/sync", sync_api.image_sync, "Synchronize an accessible image", "ImageSyncRequest"),
-)
 ROUTES += [
     (
         "me/notifications",

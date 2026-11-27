@@ -44,7 +44,7 @@ def render_compose(config: PlatformConfig, name: str, modules: dict[str, Selecte
             "PLATFORM_DATA": state,
             "DJANGO_SETTINGS_MODULE": "gpu_platform_control.settings.base",
             "DJANGO_SECRET_KEY": "${DJANGO_SECRET_KEY:?Set DJANGO_SECRET_KEY}",
-            "DJANGO_ALLOWED_HOSTS": f"{config.cluster.public_host},localhost,127.0.0.1",
+            "DJANGO_ALLOWED_HOSTS": f"{config.cluster.public_host},localhost,127.0.0.1,web",
             "PLATFORM_HTTPS": "1" if https else "0",
             "CSRF_TRUSTED_ORIGINS": public_origin,
         },
@@ -59,10 +59,20 @@ def render_compose(config: PlatformConfig, name: str, modules: dict[str, Selecte
         services["web"] = {
             **deepcopy(control),
             "command": ["gunicorn", "gpu_platform_control.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "2"],
-            "ports": [f"{host.parameters.get('web_port', 8000)}:8000"],
             "healthcheck": {"test": ["CMD", "python", "-c",
                 "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz/', timeout=3)"],
                 "interval": "30s", "timeout": "5s", "retries": 3},
+        }
+        services["panel"] = {
+            "image": config.cluster.panel_image,
+            "restart": "unless-stopped",
+            "init": True,
+            "depends_on": ["web"],
+            "ports": [f"{port}:80"],
+            "healthcheck": {
+                "test": ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"],
+                "interval": "30s", "timeout": "5s", "retries": 3,
+            },
         }
         services["loop"] = {**deepcopy(control), "command": ["python", "-m", "gpu_platform_control.manage", "reconcile"]}
         services["links"] = {

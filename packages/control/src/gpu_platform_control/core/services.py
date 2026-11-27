@@ -97,19 +97,19 @@ def validate_request(req):
     policy = policy_for(req.user)
     node = req.node
     if not node.enabled or node.maintenance:
-        raise ValidationError(tr("The selected node has paused admission."))
+        raise ValidationError(tr("This server is closed to new requests. Select another server or try again later."))
     if node.state == "offline" or (node.last_seen and node.last_seen < timezone.now() - timedelta(minutes=2)):
-        raise ValidationError(tr("The selected node is offline. Admission resumes when it reconnects."))
+        raise ValidationError(tr("This server is offline. Choose another server or wait for it to reconnect."))
     if req.image.node_id != req.node_id or req.image.architecture != node.architecture:
-        raise ValidationError(tr("Select an image on the target node with a matching architecture."))
+        raise ValidationError(tr("Choose an image that supports the selected server's architecture."))
     if req.source_environment_id and req.source_environment.node_id != req.node_id:
         raise ValidationError(
-            tr("The source environment, image, and work volume must belong to the same node.")
+            tr("Select the server that holds the source dev environment, image, and work volume.")
         )
     if not req.user.is_active:
         raise ValidationError(tr("This account is disabled."))
     if not req.image.verified or (req.image.owner_id != req.user_id and (not req.image.shared)):
-        raise ValidationError(tr("The image is unavailable."))
+        raise ValidationError(tr("This image is unavailable. Choose another image from the catalog."))
     from .quotas.accounting import normalize_request
 
     normalize_request(req)
@@ -135,7 +135,7 @@ def validate_request(req):
                 or source.status != "running"
                 or (getattr(source, "workspace", None) and source.workspace.stop_requested)
             ):
-                raise ValidationError(tr("Select one of your running development environments."))
+                raise ValidationError(tr("Select one of your running dev environments."))
             if source.snapshots.filter(status__in=["pending", "working"]).exists():
                 raise ValidationError(tr("The environment is being saved. Submit after the save completes."))
         if (
@@ -206,7 +206,7 @@ def reserve_volume(user, size, kind, req=None, node=None):
                     pool=pool,
                     size_gib=size,
                 )
-    raise ValidationError(tr("Storage capacity is insufficient for this volume."))
+    raise ValidationError(tr("There is too little storage for this volume. Request a smaller volume or select another server."))
 
 
 def home_resize_delta(user, size, node=None):
@@ -234,7 +234,7 @@ def home_resize_delta(user, size, node=None):
             or pool.observed_at < timezone.now() - timedelta(minutes=2)
             or (delta > available)
         ):
-            raise ValidationError(tr("The home volume storage pool has insufficient capacity."))
+            raise ValidationError(tr("There is too little space for the home volume on this server. Ask an administrator to free space."))
     return (volume, delta)
 
 
@@ -323,7 +323,7 @@ def approve(request_id, actor, reason="", priority=None):
         req.status = "preparing"
     req.image_reference = req.image.reference.split("@")[0] + "@" + req.image.digest
     if not re.fullmatch("sha256:[0-9a-f]{64}", req.image.digest):
-        raise ValidationError(tr("The image requires a verified digest."))
+        raise ValidationError(tr("The image has not been verified. Select a verified image and try again."))
     if priority is not None:
         req.priority = priority
     req.save()
@@ -411,7 +411,7 @@ def _lock_adjustable_workspace(req):
     ws = Workspace.objects.select_for_update().filter(request=req).first()
     now = timezone.now()
     if not can_adjust_time(req, ws, now):
-        raise ValidationError(tr("Time adjustments require an active development environment."))
+        raise ValidationError(tr("The end time can only change while the dev environment is active. Check the task status."))
     return ws, now
 
 
@@ -427,7 +427,7 @@ def _save_end_time(req, ws, actor, ends_at, reason, *, action):
             Gateway().request(req.node, Operation.TASK_EXTEND, task_id=str(req.pk), expires_at=expiry)
         except Exception as exc:
             raise ValidationError(
-                tr("The node could not confirm the new expiry."), code="extension_unconfirmed"
+                tr("The server has not confirmed the time change. Check the task end time before trying again."), code="extension_unconfirmed"
             ) from exc
         if ws.dispatch_payload:
             ws.dispatch_payload["expires_at"] = expiry

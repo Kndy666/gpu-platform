@@ -13,7 +13,6 @@ from django.utils import timezone, translation
 from django.utils.dateparse import parse_datetime
 from django.utils.formats import date_format
 from django.utils.translation import gettext_lazy as _
-from django.urls import reverse
 from gpu_platform_contracts.slots.notify import IN_APP_CHANNEL, InboxDelivery
 from gpu_platform_contracts.texts import Message
 from gpu_platform_contracts.module import ModuleDescriptor
@@ -26,24 +25,44 @@ from gpu_platform_control.core.requests.models import ResourceRequest
 from gpu_platform_control.core.retention.models import VolumeAllocation
 
 EVENTS = {
-    "submit": _("Request submitted"),
-    "approve": _("Request approved"),
-    "reject": _("Request rejected"),
-    "extension_submitted": _("Extension requested"),
-    "extension_approved": _("Extension approved"),
-    "extension_rejected": _("Extension rejected"),
+    "submit": _("Task request submitted"),
+    "approve": _("Task request approved"),
+    "reject": _("Task request declined"),
+    "extension_submitted": _("Time extension requested"),
+    "extension_approved": _("Time extension approved"),
+    "extension_rejected": _("Time extension declined"),
     "running": _("Task started"),
     "finished": _("Task ended"),
-    "ending_soon": _("Environment expiring"),
-    "volume_deletion_notice": _("Work volume expiring"),
-    "node_offline": _("Node offline"),
+    "ending_soon": _("Dev environment ending soon"),
+    "volume_deletion_notice": _("Work volume scheduled for deletion"),
+    "node_offline": _("Server offline"),
     "image_build_succeeded": _("Image build completed"),
     "image_build_failed": _("Image build failed"),
-    "environment_saved": _("Environment saved"),
-    "long_batch": _("Long-running program"),
+    "environment_saved": _("Dev environment saved as an image"),
+    "long_batch": _("Batch job still running"),
     "sync_completed": _("Synchronization completed"),
 }
+
+EVENT_MESSAGES = {
+    "submit": _("Open the task to check its approval status and scheduled time."),
+    "approve": _("The request was approved. Open the task to check when it starts."),
+    "reject": _("The task will not start. Review the decision before submitting a new request."),
+    "extension_submitted": _("The current end time still applies. Check the task for the decision."),
+    "extension_approved": _("The dev environment can run longer. Check the new end time in the task details."),
+    "extension_rejected": _("The current end time still applies. Review the decision and save your work before the environment stops."),
+    "running": _("The task is running. Open its details to see connection information or check progress."),
+    "finished": _("The task has stopped. Open its details to check the final status and results."),
+    "ending_soon": _("The dev environment will stop at its scheduled end time. Save your work or request more time before then."),
+    "volume_deletion_notice": _("The work volume is nearing the end of its retention period. Copy any files you need before deletion."),
+    "node_offline": _("The server stopped reporting. Task status may be out of date. Check again when the server reconnects."),
+    "image_build_succeeded": _("The image is available. Select it when creating a dev environment or batch job."),
+    "image_build_failed": _("The build did not produce a usable image. Check the build log, correct the error, and submit the build again."),
+    "environment_saved": _("The saved image is available. Select it to start another dev environment or batch job."),
+    "long_batch": _("The batch job has reached the reminder time and is still using resources. Check its progress and stop it if it has finished its work."),
+    "sync_completed": _("The copy is available on the destination server. Open the destination to check the copied data."),
+}
 MANUAL_NOTICE = "manual_notice"
+NODE_OFFLINE_LIFETIME = timedelta(hours=24)
 DEFAULT_IN_APP_EVENTS = tuple(code for code in EVENTS if code not in {"submit", "extension_submitted"})
 
 
@@ -227,23 +246,26 @@ def render_event(job, event, loader):
     parameters = event.parameters
     task = None
     target = parameters.get("target")
-    if target:
+    if target and event.code not in {"volume_deletion_notice", "node_offline", "image_build_failed", "image_build_succeeded", "sync_completed"}:
         try:
             task = ResourceRequest.objects.filter(pk=target).only("purpose", "user_id").first()
         except (ValidationError, ValueError):
             pass
-    content = []
+    message = EVENT_MESSAGES.get(event.code)
+    content = [str(message)] if message else []
     presentation = {}
     if task and (job.recipient.is_staff or task.user_id == job.recipient_id):
         content.append(task.purpose)
-        presentation["link"] = reverse("task", args=[task.pk])
+        presentation["link"] = f"/tasks/{task.pk}"
     elif isinstance(parameters.get("node"), str):
         content.append(parameters["node"])
+    elif isinstance(parameters.get("name"), str):
+        content.append(parameters["name"])
     instant_field = {"ending_soon": "ends_at", "volume_deletion_notice": "retain_until"}.get(event.code)
     if instant_field and isinstance(parameters.get(instant_field), str):
         deadline = parse_datetime(parameters[instant_field])
         if deadline and timezone.is_aware(deadline):
-            content.append(str(_("Until %(time)s") % {"time": date_format(timezone.localtime(deadline), "SHORT_DATETIME_FORMAT")}))
+            content.append(str(_("Deadline: %(time)s") % {"time": date_format(timezone.localtime(deadline), "SHORT_DATETIME_FORMAT")}))
             presentation["expires_at"] = deadline.astimezone(datetime_timezone.utc).isoformat()
     if event.code in {"reject", "extension_rejected"} and isinstance(parameters.get("reason"), str):
         content.append(parameters["reason"])
@@ -276,6 +298,9 @@ def deliver_one(loader=load, clock=timezone.now, *, in_app=None):
         )
         job.save(update_fields=["state", "attempts", "next_attempt_at"])
     attempt = Notification.objects.filter(pk=job.pk, state="sending", attempts=job.attempts)
+    if job.event == "node_offline":
+        deadline = job.created_at + NODE_OFFLINE_LIFETIME
+        job.payload["expires_at"] = deadline.astimezone(datetime_timezone.utc).isoformat()
     expires_at = job.payload.get("expires_at")
     if (not job.recipient.is_active
             or (job.channel == "pushplus" and not job.recipient.is_staff)

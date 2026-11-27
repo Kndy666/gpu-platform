@@ -10,21 +10,26 @@ from .boundary import authenticated
 from .read_models import materialize
 
 
-@authenticated
-def browse(actor, *, relative="", query="", node_id=None, management=False):
-    if management and not actor.is_staff:
-        raise PermissionDenied
+def dataset_servers(node_id):
     nodes = [node for node in ComputeNode.objects.filter(enabled=True) if enabled(node, "public_datasets")]
     if node_id is None or node_id == "":
         if not nodes:
             raise ValidationError(
-                _("This feature is unavailable on the selected node."), code="feature_disabled"
+                _("This server does not offer this feature. Choose a server that supports it."), code="feature_disabled"
             )
         node = nodes[0]
     else:
         node = selected_node(node_id)
         require(node, "public_datasets")
         if not node.enabled:
-            raise ValidationError(_("The selected node has paused admission."), code="node_disabled")
+            raise ValidationError(_("This server is closed to new requests. Select another server or try again later."), code="node_disabled")
+    return node, nodes
+
+
+@authenticated
+def browse(actor, *, relative="", query="", node_id=None, management=False):
+    if management and not actor.is_staff:
+        raise PermissionDenied
+    node, nodes = dataset_servers(node_id)
     content = dataset_content(relative, query, node=node)
     return {"content": content, "node": materialize(node), "nodes": materialize(nodes)}

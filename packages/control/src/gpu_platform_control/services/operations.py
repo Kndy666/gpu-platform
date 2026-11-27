@@ -2,7 +2,6 @@
 
 from django.utils.translation import gettext_lazy as tr
 from contextlib import nullcontext
-from datetime import timedelta
 from functools import wraps
 import hashlib
 import io
@@ -11,7 +10,7 @@ import logging
 from pathlib import Path
 import zipfile
 from django.conf import settings
-from django.contrib.auth import authenticate, get_user_model
+from django.contrib.auth import authenticate, get_user_model, login, logout, update_session_auth_hash
 from django.core.exceptions import PermissionDenied, ValidationError, RequestDataTooBig
 from django.core.paginator import EmptyPage, Paginator
 from django.db import IntegrityError, transaction
@@ -19,9 +18,8 @@ from django.http import FileResponse, Http404, JsonResponse, StreamingHttpRespon
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.crypto import salted_hmac
-from django.views.decorators.csrf import csrf_exempt
+from django.middleware.csrf import get_token as csrf_token
 from gpu_platform_control.core.api_auth import (
-    bearer_user,
     issue_token,
     list_tokens,
     revoke_token,
@@ -32,7 +30,7 @@ from gpu_platform_control.core.api_auth import (
 from gpu_platform_control.core.access import (
     tasks_for,
     images_for,
-    image_actions_for,
+    images_for_deletion,
     volumes_for,
     capabilities,
 )
@@ -51,12 +49,11 @@ from gpu_platform_control.services.queries import (
 from gpu_platform_control.core.configuration import config
 from .errors import execution_error
 from .boundary import NotFound
-from gpu_platform_control.core.datasets import dataset_download, dataset_content, Download
-from gpu_platform_control.core.image_lifecycle import keep_image, request_image_deletion
+from gpu_platform_control.core.datasets import dataset_download, Download
+from gpu_platform_control.core.image_lifecycle import request_image_deletion
 from gpu_platform_control.core.audit.models import AuditLog
-from gpu_platform_control.core.retention.models import EnvironmentSnapshot, ImageArtifact, ImageBuild, PlatformSettings, VolumeAllocation
+from gpu_platform_control.core.retention.models import EnvironmentSnapshot, ImageBuild, PlatformSettings, VolumeAllocation
 from gpu_platform_control.core.requests.models import ResourceRequest
-from gpu_platform_control.core.nodes.models import SystemObservation
 from gpu_platform_control.core.accounts.models import UserGroup, GROUP_QUOTA_FIELDS
 from gpu_platform_control.core.services import (
     ACTIVE,
@@ -91,20 +88,18 @@ def endpoint(*methods, staff=False, public=(), idempotent=False, authorize=None)
 
     def decorate(func):
 
-        @csrf_exempt
         @wraps(func)
         def view(request, *args, **kwargs):
             try:
                 if request.method not in methods:
                     raise APIError("method_not_allowed", tr("This request method is unavailable."), 405)
                 if request.method not in public:
-                    user = bearer_user(request)
+                    user = getattr(request, "auth", None)
                     if user is None:
-                        raise APIError("unauthorized", tr("Provide a valid Bearer token."), 401)
-                    request.user = user
+                        raise APIError("unauthorized", tr("Sign in or provide a valid access token."), 401)
                     if staff and (not user.is_staff):
                         raise PermissionDenied
-                request.api_data = {}
+                data = {}
                 if request.body:
                     if request.content_type != "application/json":
                         raise APIError(
@@ -116,14 +111,14 @@ def endpoint(*methods, staff=False, public=(), idempotent=False, authorize=None)
                         raise APIError("invalid_json", tr("The JSON body is invalid.")) from exc
                     if not isinstance(data, dict):
                         raise APIError("invalid_json", tr("The JSON body must be an object."))
-                    request.api_data = data
+                request.api_data = getattr(request, "validated_payload", data)
                 write = request.method not in {"GET", "HEAD"} and request.method not in public
                 with transaction.atomic() if write else nullcontext():
                     if authorize:
                         authorize(request, *args, **kwargs)
                     key = request.headers.get("Idempotency-Key", "") if idempotent and write else ""
                     if key:
-                        if len(key) > 128 or not key.isascii() or any((ord(c) < 33 for c in key)):
+                        if len(key) > 128 or not all(33 <= ord(char) <= 126 for char in key):
                             raise APIError(
                                 "invalid_idempotency_key",
                                 tr("Idempotency-Key must contain 1–128 visible ASCII characters."),
@@ -133,8 +128,9 @@ def endpoint(*methods, staff=False, public=(), idempotent=False, authorize=None)
                         ).hexdigest()
                         fingerprint = salted_hmac(
                             "platform-api-idempotency",
-                            json.dumps(request.api_data, sort_keys=True, ensure_ascii=False),
+                            json.dumps(data, sort_keys=True, ensure_ascii=False),
                         ).hexdigest()
+                        get_user_model().objects.select_for_update().only("pk").get(pk=request.user.pk)
                         previous = AuditLog.objects.filter(
                             actor=request.user, action="api_idempotency", target=target
                         ).first()
@@ -224,12 +220,10 @@ def endpoint(*methods, staff=False, public=(), idempotent=False, authorize=None)
                     status=500,
                 )
 
-        (view.api_methods, view.api_staff, view.api_public, view.api_idempotent) = (
-            methods,
-            staff,
-            public,
-            idempotent,
-        )
+        setattr(view, "api_methods", methods)
+        setattr(view, "api_staff", staff)
+        setattr(view, "api_public", public)
+        setattr(view, "api_idempotent", idempotent)
         return view
 
     return decorate
@@ -258,7 +252,7 @@ def number(value, default, minimum=1, maximum=1000000):
     return result
 
 
-def page(request, query, serialize, prepare=None, extra=None):
+def page(request, query, serialize, prepare=None, extra=None, serialize_page=None):
     size = number(request.GET.get("page_size"), 20, maximum=100)
     index = number(request.GET.get("page"), 1)
     paginator = Paginator(query, size)
@@ -280,7 +274,7 @@ def page(request, query, serialize, prepare=None, extra=None):
         prepare(rows.object_list)
     return success(
         {
-            "items": [serialize(row) for row in rows],
+            "items": serialize_page(rows) if serialize_page else [serialize(row) for row in rows],
             "page": index,
             "page_size": size,
             "count": paginator.count,
@@ -366,7 +360,7 @@ def connection_data(req):
     return connection_for(req)
 
 
-def task_data(req, detail=True):
+def task_data(req, detail=True, actor=None):
     fields = [
         "id",
         "purpose",
@@ -384,13 +378,14 @@ def task_data(req, detail=True):
     data.update(task_fields(req))
     data["extensions"] = {"resources": req.resource_quantities}
     ws = getattr(req, "workspace", None)
+    image = None if req.image.temporary else req.image
     data.update(
         node_id=req.node_id,
         node_name=req.node.name,
         user_id=req.user_id,
         username=req.user.username,
-        image_id=req.image_id,
-        image_name=req.image.name,
+        image_id=image.pk if image else None,
+        image_name=image.name if image else None,
         extension_count=req.extension_count,
         source_environment_id=req.source_environment_id,
         login_name=req.login_user,
@@ -410,9 +405,31 @@ def task_data(req, detail=True):
     if detail:
         from gpu_platform_control.core.services import work_owner
 
+        from gpu_platform_control.core.features import enabled
+        from .pages import task_time_options
+
+        time_options = task_time_options(req, actor)
+        pending = time_options.pop("pending_extension")
         owner = work_owner(req)
         volume = getattr(owner, "volumeallocation", None)
         data.update(
+            **time_options,
+            node_state=req.node.state,
+            node_state_label=req.node.get_state_display(),
+            login_user=req.login_user,
+            pending_extension=extension_data(pending) if pending else None,
+            extension_history=[
+                extension_data(entry) for entry in req.extensions.order_by("-created_at", "-pk")[:10]
+            ],
+            can_save_environment=bool(
+                actor
+                and actor.pk == req.user_id
+                and req.mode == "interactive"
+                and req.status == "running"
+                and not data["stop_requested"]
+                and enabled(req.node, "save_environment")
+            ),
+            source_environment_purpose=req.source_environment.purpose if req.source_environment_id else None,
             source_environment_name=req.source_environment.purpose if req.source_environment_id else None,
             volume=volume_data(volume) if volume else None,
             log_directory="/workspace/.platform/" if req.mode == "batch" else None,
@@ -434,7 +451,6 @@ def image_data(image):
             "architecture",
             "shared",
             "verified",
-            "temporary",
             "state",
             "recycle_after",
             "cleanup_error",
@@ -464,15 +480,19 @@ def build_data(build, detail=True):
 
 
 def snapshot_data(snapshot):
+    artifact = snapshot.artifact
+    if artifact and artifact.temporary:
+        artifact = None
     return {
         **{
             name: getattr(snapshot, name)
-            for name in ["id", "source_id", "target_id", "artifact_id", "status", "error", "created_at"]
+            for name in ["id", "source_id", "target_id", "status", "error", "created_at"]
         },
         "node_id": snapshot.source.node_id,
         "node_name": snapshot.source.node.name,
         "source_name": snapshot.source.purpose,
-        "artifact_name": snapshot.artifact.name if snapshot.artifact_id else None,
+        "artifact_id": artifact.pk if artifact else None,
+        "artifact_name": artifact.name if artifact else None,
         "status_label": snapshot.get_status_display(),
         "error": execution_error(snapshot.error, snapshot.source.node),
     }
@@ -526,8 +546,11 @@ def index(request):
 @endpoint("POST", "DELETE", public=("POST",))
 def token(request):
     if request.method == "DELETE":
-        identifier = token_id(request.api_session.session_key)
-        request.api_session.delete()
+        credential = getattr(request, "api_session", None)
+        if credential is None:
+            raise APIError("unauthorized", tr("Provide a valid access token."), 401)
+        identifier = token_id(credential.session_key)
+        credential.delete()
         audit(request.user, "api_token_revoked", identifier)
         return success({"revoked": True})
     data = body(request, {"username", "password", "expires_in", "name"})
@@ -555,7 +578,7 @@ def tokens(request):
         )
         return success(result, 201)
     return page(
-        request, list_tokens(request.user, current_key=request.api_session.session_key), lambda row: row
+        request, list_tokens(request.user, current_key=getattr(getattr(request, "api_session", None), "session_key", None)), lambda row: row
     )
 
 
@@ -563,7 +586,7 @@ def tokens(request):
 def token_entry(request, pk):
     body(request, set())
     if request.method == "GET":
-        record = get_token(request.user, pk, current_key=request.api_session.session_key)
+        record = get_token(request.user, pk, current_key=getattr(getattr(request, "api_session", None), "session_key", None))
         if record is None:
             raise Http404
         return success(record)
@@ -573,23 +596,61 @@ def token_entry(request, pk):
     return success({"revoked": True})
 
 
-@endpoint("GET")
-def me(request):
-    data = user_data(request.user)
-    active = ResourceRequest.objects.filter(user=request.user, status__in=ACTIVE)
+def profile_data(user):
+    from .boundary import approval_count
+    from .navigation import features
+
+    data = user_data(user)
+    active = ResourceRequest.objects.filter(user=user, status__in=ACTIVE)
     rows = [task_fields(row) for row in active]
     data["usage"] = {key: sum(row[key] for row in rows) for key in ["gpu", "cpu", "memory_gib"]}
-    data["usage"].update(active_tasks=len(rows),
+    data["usage"].update(
+        active_tasks=len(rows),
         gpu_compute_percent=sum(row["gpu_compute_total"] for row in rows),
-        gpu_memory_gib=sum(row["gpu_memory_total_gib"] for row in rows))
-    data["permissions"] = capabilities(request.user)
-    return success(data)
+        gpu_memory_gib=sum(row["gpu_memory_total_gib"] for row in rows),
+    )
+    data["permissions"] = capabilities(user)
+    data.update(
+        features=features(user),
+        pending_approval_count=approval_count() if user.is_staff else 0,
+        language=user.profile.language or "",
+        default_language=settings.LANGUAGE_CODE,
+        timezone=settings.TIME_ZONE,
+    )
+    return data
+
+
+@endpoint("GET")
+def me(request):
+    return success(profile_data(request.user))
+
+
+@endpoint("GET", public=("GET",))
+def csrf(request):
+    return success({"csrf_token": csrf_token(request)})
+
+
+@endpoint("POST", "DELETE", public=("POST",))
+def session(request):
+    if request.method == "DELETE":
+        logout(request)
+        return success({"signed_out": True})
+    credentials = body(request, {"username", "password"})
+    user = authenticate(request, username=credentials.get("username"), password=credentials.get("password"))
+    if user is None or not user.is_active:
+        raise APIError("invalid_credentials", tr("Invalid username or password."), 401)
+    login(request, user)
+    return success({"csrf_token": csrf_token(request), "user": profile_data(user)})
 
 
 @endpoint("POST")
 def password(request):
     data = body(request, {"old_password", "new_password1", "new_password2"})
-    return success(commands.change_password(request.user, **data))
+    changed = commands.change_password(request.user, **data)
+    if getattr(request, "api_session", None) is None:
+        update_session_auth_hash(request, request.user)
+        changed["reauthentication_required"] = False
+    return success(changed)
 
 
 @endpoint("GET")
@@ -597,8 +658,12 @@ def resources(request):
     from gpu_platform_control.core.nodes.selection import selected_node
 
     node = selected_node(request.GET.get("node"))
-    from django.db.models import Q
-    default = ImageArtifact.objects.filter(node=node, verified=True, state="ready").filter(Q(owner=request.user) | Q(shared=True)).order_by("-shared", "-created_at").first()
+    default = (
+        images_for(request.user)
+        .filter(node=node, verified=True, state="ready")
+        .order_by("-shared", "-created_at")
+        .first()
+    )
     from gpu_platform_control.services.queries import request_capacity
 
     overview = resource_overview(node if request.GET.get("node") else None)
@@ -712,13 +777,14 @@ def tasks(request):
         )
     data = body(request, {"node", "purpose", "image", "source_environment", "source_kind", "mode", "gpu", "gpu_requests", "cpu", "memory_gib", "workspace_gib", "starts_at", "ends_at", "command", "working_dir", "environment", "notes", "extensions"})
     result = commands.submit_task(request.user, task_input(request.user, data))
-    return success(task_data(ResourceRequest.objects.get(pk=result["id"])), 201)
+    return success(task_data(get_task(request, result["id"]), actor=request.user), 201)
 
 
 def get_task(request, pk):
     query = tasks_for(request.user).select_related(
         "workspace",
-        "user",
+        "node",
+        "user__profile__group",
         "image",
         "source_environment",
         "volumeallocation__pool",
@@ -741,7 +807,7 @@ def authorize_save(request, pk):
 
 
 def extension_data(entry):
-    return {
+    data = {
         name: getattr(entry, name)
         for name in [
             "id",
@@ -755,6 +821,14 @@ def extension_data(entry):
             "reviewed_at",
             "created_at",
         ]
+    }
+    return {
+        **data,
+        "request_purpose": entry.request.purpose,
+        "username": entry.request.user.username,
+        "node_id": entry.request.node_id,
+        "node_name": entry.request.node.name,
+        "status_label": entry.get_status_display(),
     }
 
 
@@ -806,18 +880,29 @@ def approval_queue(request):
 @endpoint("GET", "PATCH", staff=True)
 def notification_settings(request):
     from gpu_platform_control.core.events.models import NotificationSettings, Notification
-    from gpu_platform_control.core.notifications import event_labels
+    from gpu_platform_control.core.notifications import IN_APP_CHANNEL, event_labels, channel_configured, automatic_events
     from .notifications import notification_channels, set_notification_receiver
 
     obj = NotificationSettings.load()
     if request.method == "PATCH":
+        obj = NotificationSettings.objects.select_for_update().get(pk=obj.pk)
         data = {name: getattr(obj, name) for name in ["enabled", "events", "reminder_minutes"]}
-        updates = body(request, {"enabled", "events", "reminder_minutes", "receivers"})
+        updates = body(request, {"enabled", "events", "inapp_events", "reminder_minutes", "receivers"})
+        updates = {key: value for key, value in updates.items() if value is not None}
+        inapp = updates.pop("inapp_events", None)
         receivers = updates.pop("receivers", {})
         for channel, values in receivers.items():
             set_notification_receiver(request.user, channel, values, defaults=True)
+        if receivers:
+            obj.refresh_from_db(fields=["receivers"])
         data.update(updates)
-        if set(data["events"]) - set(event_labels()) or not 1 <= data["reminder_minutes"] <= 1440:
+        available = event_labels()
+        if any(not isinstance(events, list) or set(events) - available.keys()
+               for events in (data["events"], inapp) if events is not None):
+            raise ValidationError(tr("Select valid notification events."))
+        if inapp is not None and channel_configured(IN_APP_CHANNEL):
+            obj.receivers[IN_APP_CHANNEL] = {"events": inapp}
+        if not 1 <= data["reminder_minutes"] <= 1440:
             raise ValidationError(tr("Enter 1–1440 minutes."))
         for key, value in data.items():
             setattr(obj, key, value)
@@ -827,6 +912,9 @@ def notification_settings(request):
     return success(
         {
             "enabled": obj.enabled,
+            "inapp_enabled": channel_configured(IN_APP_CHANNEL),
+            "wechat_available": channel_configured("pushplus"),
+            "inapp_events": list(automatic_events(IN_APP_CHANNEL, obj)),
             "channels": notification_channels(request.user, defaults=True),
             "events": obj.events,
             "available_events": event_labels(),
@@ -842,7 +930,7 @@ def notification_settings(request):
 
 @endpoint("GET")
 def task(request, pk):
-    return success(task_data(get_task(request, pk)))
+    return success(task_data(get_task(request, pk), actor=request.user))
 
 
 @endpoint("GET")
@@ -898,7 +986,7 @@ def stop(request, pk):
     req.refresh_from_db()
     if hasattr(req, "workspace"):
         req.workspace.refresh_from_db()
-    return success(task_data(req), 202)
+    return success(task_data(req, actor=request.user), 202)
 
 
 @endpoint("POST", staff=True, idempotent=True, authorize=authorize_task)
@@ -909,13 +997,30 @@ def review(request, pk):
         approve(pk, request.user, data["reason"], int(data["priority"] or 0))
     elif data["action"] == "reject":
         reject(pk, request.user, data["reason"])
+    elif data["action"] == "adjust_time":
+        from gpu_platform_control.core.approvals import adjust_time
+
+        adjust_time(pk, request.user, data["ends_at"], data["reason"])
     elif data["action"] == "stop":
         request_stop(pk, request.user, data["reason"])
     else:
         if not data["ends_at"]:
             raise APIError("missing_ends_at", tr("An extension requires ends_at."))
         extend(pk, request.user, data["ends_at"], data["reason"])
-    return success(task_data(get_task(request, pk)))
+    return success(task_data(get_task(request, pk), actor=request.user))
+
+
+def authorize_owner(request, pk):
+    get_object_or_404(ResourceRequest, pk=pk, user=request.user)
+
+
+@endpoint("POST", idempotent=True, authorize=authorize_owner)
+def shorten(request, pk):
+    from gpu_platform_control.core.approvals import adjust_time
+
+    data = body(request, {"ends_at"})
+    adjust_time(pk, request.user, commands.timestamp(data["ends_at"]), by_owner=True)
+    return success(task_data(get_task(request, pk), actor=request.user))
 
 
 @endpoint("POST", idempotent=True, authorize=authorize_save)
@@ -950,10 +1055,10 @@ def snapshot(request, pk):
     return success(snapshot_data(owned(request, EnvironmentSnapshot, pk, "source__user")))
 
 
-def authorize_image(request, pk, action=None):
+def authorize_image(request, pk):
     query = (
-        image_actions_for(request.user)
-        if request.method != "GET"
+        images_for_deletion(request.user)
+        if request.method == "DELETE"
         else images_for(request.user, management=True)
     )
     request.api_object = get_object_or_404(query.select_related("owner"), pk=pk)
@@ -961,10 +1066,9 @@ def authorize_image(request, pk, action=None):
 
 @endpoint("GET")
 def images(request):
-    kind = request.GET.get("kind")
-    if kind not in {None, "permanent", "temporary"}:
-        raise APIError("invalid_kind", tr("kind must be permanent or temporary."))
-    query = node_filter(request, image_catalog(request.user, kind))
+    query = node_filter(request, image_catalog(request.user))
+    if request.GET.get("kind") == "permanent":
+        query = query.filter(verified=True)
     if request.GET.get("available") == "true":
         query = query.filter(verified=True, state="ready")
     return page(request, query, image_data)
@@ -976,17 +1080,6 @@ def image(request, pk):
     if request.method == "DELETE":
         obj = request_image_deletion(obj.pk, request.user)
         return success(image_data(obj), 200 if obj.state == "deleted" else 202)
-    return success(image_data(obj))
-
-
-@endpoint("POST", idempotent=True, authorize=authorize_image)
-def image_action(request, pk, action):
-    obj = request.api_object
-    body(request, set())
-    if action not in {"keep", "recycle"}:
-        raise Http404
-    (keep_image if action == "keep" else request_image_deletion)(obj.pk, request.user)
-    obj.refresh_from_db()
     return success(image_data(obj))
 
 
@@ -1051,23 +1144,63 @@ def download_response(content):
 
 @endpoint("GET")
 def datasets(request):
-    from gpu_platform_control.core.nodes.selection import selected_node
+    from .datasets import browse
 
-    entries = dataset_content(
-        request.GET.get("path", ""), request.GET.get("q", ""), node=selected_node(request.GET.get("node"))
+    listing = browse(
+        request.user,
+        node_id=request.GET.get("node"),
+        relative=request.GET.get("path", ""),
+        query=request.GET.get("q", ""),
     )
-    if isinstance(entries, Download):
-        return download_response(entries)
-    return page(request, entries, lambda item: item)
+    if isinstance(listing["content"], Download):
+        return download_response(listing["content"])
+
+    def identity(node):
+        return {"id": node["id"], "name": node["name"]}
+
+    return page(
+        request,
+        listing["content"],
+        lambda item: item,
+        extra={"node": identity(listing["node"]), "nodes": [identity(n) for n in listing["nodes"]]},
+    )
 
 
 @endpoint("GET")
 def download(request):
-    from gpu_platform_control.core.nodes.selection import selected_node
+    from .datasets import dataset_servers
 
-    return download_response(
-        dataset_download(request.GET.get("path", ""), selected_node(request.GET.get("node")))
-    )
+    node, _ = dataset_servers(request.GET.get("node"))
+    return download_response(dataset_download(request.GET["path"], node))
+
+
+def configure_node(request, node=None):
+    from .administration import node_options, nodes as configure_host
+    from gpu_platform_control.core.nodes.models import ComputeNode
+
+    host_fields = {"architecture", "address", "transport", "transport_options"}
+    data = {
+        key: value
+        for key, value in body(request, {"name", "enabled", "maintenance"} | host_fields).items()
+        if value is not None
+    }
+    pk = node.pk if node else None
+    if data.keys() & host_fields:
+        initial = node_options(request.user, pk, transport=data.get("transport"))["initial"]
+        options = {
+            key.removeprefix("transport:"): value
+            for key, value in initial.items()
+            if key.startswith("transport:")
+        }
+        values = {
+            **initial,
+            **data,
+            "transport_options": {**options, **(data.get("transport_options") or {})},
+        }
+        pk = configure_host(request.user, pk, values=values).identity
+    else:
+        pk = commands.save_node(request.user, data, node_id=pk)["id"]
+    return ComputeNode.objects.get(pk=pk)
 
 
 @endpoint("GET", "POST", idempotent=True)
@@ -1082,11 +1215,7 @@ def nodes(request):
         )
     if not request.user.is_staff:
         raise PermissionDenied
-    data = body(request, {"name", "enabled", "maintenance"})
-    data.setdefault("enabled", True)
-    result = commands.save_node(request.user, data)
-    node = ComputeNode.objects.get(pk=result["id"])
-    audit(request.user, "node_created", node.pk, name=node.name)
+    node = configure_node(request)
     return success(node_data(node, True), 201)
 
 
@@ -1095,25 +1224,24 @@ def node(request, pk):
     from .projections import node_data
     from gpu_platform_control.core.nodes.models import ComputeNode
 
-    obj = get_object_or_404(ComputeNode, pk=pk)
+    nodes = ComputeNode.objects.select_for_update() if request.method == "PATCH" else ComputeNode.objects.all()
+    obj = get_object_or_404(nodes, pk=pk)
     if request.method == "PATCH":
         if not request.user.is_staff:
             raise PermissionDenied
-        data = {name: getattr(obj, name) for name in ("name", "enabled", "maintenance")}
-        data.update(body(request, {"name", "enabled", "maintenance"}))
-        commands.save_node(request.user, data, node_id=obj.pk)
-        obj.refresh_from_db()
-        audit(request.user, "node_updated", obj.pk, name=obj.name)
+        obj = configure_node(request, obj)
     return success(node_data(obj, request.user.is_staff))
 
 
 @endpoint("GET", staff=True)
 def performance(request):
+    from .administration import performance as load_performance
     from gpu_platform_control.core.nodes.selection import selected_node
-    from gpu_platform_control.core.performance import performance_nodes
 
-    node = selected_node(request.GET["node"]) if request.GET.get("node") else None
-    return success({"nodes": performance_nodes(node), "refresh_seconds": 5})
+    if request.GET.get("node"):
+        selected_node(request.GET["node"])
+    data = load_performance(request.user, query=request.GET.dict()).data
+    return success({key: data[key] for key in ("nodes", "archive", "archive_notice")} | {"refresh_seconds": 5})
 
 
 @endpoint("GET", staff=True)
@@ -1124,7 +1252,7 @@ def overview(request):
             "active": ResourceRequest.objects.filter(status__in=ACTIVE).count(),
             "members": get_user_model().objects.count(),
             "volumes": VolumeAllocation.objects.exclude(state="deleted").count(),
-            "images": ImageArtifact.objects.exclude(state="deleted").count(),
+            "images": managed_image_list().count(),
         }
     )
 
@@ -1146,17 +1274,25 @@ def member(request, pk):
         raise PermissionDenied
     if request.method == "PATCH":
         allowed = {"username", "first_name", "email", "group", "password", "is_active", "is_staff", "home_quota_gib", "unlimited", "extension_limit", "approval_mode", "extensions", *GROUP_QUOTA_FIELDS, *RESOURCE_FIELDS, *ALLOCATION_FIELDS}
-        commands.save_member(request.user, quota_input(body(request, allowed)), member_id=obj.pk)
+        updates = quota_input(body(request, allowed))
+        commands.save_member(request.user, updates, member_id=obj.pk)
         obj.refresh_from_db()
+        if obj.pk == request.user.pk and updates.get("password") and getattr(request, "api_session", None) is None:
+            update_session_auth_hash(request, obj)
     return success(user_data(obj))
+
+
+GROUP_INPUT_FIELDS = {
+    "name", "unlimited", "extension_limit", "approval_mode", "make_default", "extensions",
+    "home_quota_gib", "home_size_gib", *GROUP_QUOTA_FIELDS, *RESOURCE_FIELDS, *ALLOCATION_FIELDS,
+}
 
 
 @endpoint("GET", "POST", staff=True, idempotent=True)
 def groups(request):
     if request.method == "GET":
         return page(request, group_list(), lambda obj: group_data(obj, members=True))
-    allowed = {"name", "unlimited", "extension_limit", "approval_mode", "make_default", "extensions", *GROUP_QUOTA_FIELDS, *RESOURCE_FIELDS, *ALLOCATION_FIELDS}
-    result = commands.save_group(request.user, quota_input(body(request, allowed)))
+    result = commands.save_group(request.user, quota_input(body(request, GROUP_INPUT_FIELDS)))
     return success(group_data(UserGroup.objects.get(pk=result["id"]), members=True), 201)
 
 
@@ -1166,8 +1302,7 @@ def group(request, pk):
     if request.method == "DELETE":
         return success(commands.delete_group(request.user, obj.pk, body(request, {"destination"}).get("destination")))
     if request.method == "PATCH":
-        allowed = {"name", "unlimited", "extension_limit", "approval_mode", "make_default", "extensions", *GROUP_QUOTA_FIELDS, *RESOURCE_FIELDS, *ALLOCATION_FIELDS}
-        commands.save_group(request.user, quota_input(body(request, allowed)), group_id=obj.pk)
+        commands.save_group(request.user, quota_input(body(request, GROUP_INPUT_FIELDS)), group_id=obj.pk)
         obj.refresh_from_db()
     return success(group_data(obj, members=True))
 
@@ -1280,9 +1415,10 @@ def skill_download(request):
 
 @endpoint("GET", public=("GET",))
 def health(request):
-    obs = SystemObservation.objects.filter(name="reconciler").order_by("-observed_at").first()
-    fresh = bool(obs and obs.observed_at >= timezone.now() - timedelta(seconds=60))
-    return success({"web": "ok", "reconciler": "ok" if fresh else "stale"}, 200 if fresh else 503)
+    from .pages import health as service_health
+
+    data = service_health(request.user).data
+    return success(data, 200 if data["reconciler"] == "ok" else 503)
 
 
 @endpoint(

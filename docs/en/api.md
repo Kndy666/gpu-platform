@@ -1,27 +1,30 @@
-# Automate your work
+# API and Agent skill
 
 [Home](../../README.md) · [简体中文](../zh/api.md)
 
-Use the same accounts, quotas, and approval rules from scripts or an agent. The API lives at `/api/v1`; your deployment's `/api/v1/docs` and `/api/v1/openapi.json` describe its operations and enabled module fields.
+The HTTP API at `/api/v1` enforces the same accounts, quotas, permissions, and approval rules as the web panel. Open `/api/v1/docs` or fetch `/api/v1/openapi.json` on your deployment for the live schema and enabled module fields.
 
-## Connect
+## Authentication
 
-Create a token on the panel's API access page. Set `GPU_PLATFORM_URL` and `GPU_PLATFORM_TOKEN`, then check your account:
+- **Scripts and AI agents**: create a Bearer token under **Account & access → API & Agent skill** and send `Authorization: Bearer <token>`.
+- **Web panel**: uses HttpOnly Django session cookies (`GET /api/v1/auth/csrf`, `POST /api/v1/auth/session`, `DELETE /api/v1/auth/session`) with `X-CSRFToken` on write requests.
+
+Check your account and permissions with a Bearer token:
 
 ```bash
 curl -H "Authorization: Bearer $GPU_PLATFORM_TOKEN" \
   "$GPU_PLATFORM_URL/api/v1/me"
 ```
 
-Read `/me.permissions` for available actions and `/nodes` for execution hosts. `/resources`, `/gpus`, and `/images?available=true` accept `?node=ID` to help choose a task's resources and image.
+Read `/me.permissions`, `/me.effective_limits`, and `/nodes` to discover available servers. `/resources`, `/gpus`, and `/images?available=true` accept `?node=ID`.
 
 ## Submit a task
 
-For example, send this batch request to `POST /api/v1/tasks`, replacing the node and image IDs with values from your deployment:
+Example batch job request (`POST /api/v1/tasks`):
 
 ```json
 {
-  "purpose": "Process a dataset",
+  "purpose": "Train baseline model",
   "mode": "batch",
   "node": 1,
   "image": "IMAGE_UUID",
@@ -33,27 +36,39 @@ For example, send this batch request to `POST /api/v1/tasks`, replacing the node
 }
 ```
 
-Interactive environments use `mode: interactive` and timezone-aware `starts_at` and `ends_at`. Batch jobs use an image or `source_environment` and finish when their command exits. Read the returned task state, then query its connection or logs as it progresses through approval, preparation, and execution.
+- **Dev environments** use `mode: "interactive"` with timezone-aware `starts_at` and `ends_at`.
+- **Batch jobs** use `mode: "batch"`, a `command`, and either `image` or a running `source_environment`.
+- **GPU allocations** specify `compute_percent` and `memory_gib` per device in `gpu_requests` (either field accepts `"max"`), or pass slot-native quantities under `extensions.resources` and `extensions.allocations` (for example `npu_count` on Ascend servers). Avoid sending both `gpu_requests` and `extensions.allocations.gpu` in the same request.
 
-| Need | Paths below `/api/v1` |
+## Endpoints overview
+
+All paths are under `/api/v1`:
+
+| Area | Paths |
 | --- | --- |
-| Manage account, tokens, or public keys | `/me`, `/auth/tokens`, `/keys` |
-| Inspect capacity and reservations | `/nodes`, `/resources`, `/gpus`, `/timeline` |
-| Request, connect, or read logs | `/tasks`, `/tasks/{id}/connection`, `/tasks/{id}/logs` |
-| Stop, save, or extend an environment | `/tasks/{id}/stop`, `/tasks/{id}/save`, `/tasks/{id}/extensions` |
-| Build, find, or copy images | `/builds`, `/images`, `/images/{id}/sync`, `/syncs` |
-| Work with storage and public data | `/volumes`, `/datasets`, `/datasets/download` |
-| Review requests and manage the team | `/admin/approvals`, `/admin/members`, `/admin/groups`, `/admin/containers` |
+| Account, tokens, and SSH keys | `/me`, `/me/language`, `/me/password`, `/me/notifications`, `/auth/tokens`, `/keys` |
+| Servers, capacity, and schedule | `/nodes`, `/resources`, `/gpus`, `/timeline`, `/request-options` |
+| Tasks, connections, and logs | `/tasks`, `/tasks/{id}`, `/tasks/{id}/connection`, `/tasks/{id}/logs` |
+| Lifecycle actions | `/tasks/{id}/stop`, `/tasks/{id}/save`, `/tasks/{id}/extensions`, `/tasks/{id}/shorten` |
+| Images, builds, and sync | `/images`, `/images/{id}`, `/builds`, `/snapshots`, `/images/{id}/sync`, `/syncs` |
+| Storage and shared datasets | `/volumes`, `/datasets`, `/datasets/download` |
+| Notifications inbox | `/inbox`, `/inbox/{id}`, `/inbox/{id}/read`, `/inbox/reminders` |
+| Administration | `/admin/approvals`, `/tasks/{id}/review`, `/extensions/{id}/review`, `/admin/containers`, `/admin/performance`, `/admin/performance/history`, `/admin/usage/live`, `/admin/usage/history`, `/admin/storage`, `/admin/images`, `/admin/members`, `/admin/groups`, `/admin/notices`, `/admin/notifications`, `/admin/settings`, `/admin/audits` |
 
-GPU request entries contain `compute_percent` and `memory_gib` per device. Custom module quantities use `extensions.resources`, and repeated allocations use `extensions.allocations`. Discover resource keys, units, and limits from the node's resource catalog. Ascend requests use `npu_count` in the resource extensions. Image synchronization needs the same CPU architecture; members copy their own private images, and administrators can copy shared images. Private copies count toward their owner's quota.
+`GET /images` lists accessible permanent images. Use `available=true` to limit the results to verified images that are ready for tasks.
 
-Successful JSON responses contain `data`. Errors contain `error.code`, `error.message`, and optional field details. Use codes for automation. `Accept-Language: zh-hans` selects Chinese messages. Paginated lists include `items`, `count`, `page`, `page_size`, and `next_page`.
+Owners and staff can request deletion of an idle private permanent image with a bodyless `DELETE /images/{id}`. The response wraps the same image record as `GET /images/{id}` in `data`. It returns `202 Accepted` with `data.state = "deleting"` while cleanup is pending, or `200 OK` with `data.state = "deleted"` if cleanup is already complete.
 
-For operations that declare `Idempotency-Key` support, retry a failed connection with the same key and body. OpenAPI documents methods, pagination, filters, and required fields.
+## Response format and idempotency
 
-## Use the agent skill
+- Success responses wrap payloads in `{"data": ...}`. Paginated lists include `items`, `count`, `page`, `page_size`, and `next_page`.
+- Error responses wrap failures in `{"error": {"code": "...", "message": "...", "fields": {...}}}`. Branch automation on `error.code`.
+- Send `Accept-Language: zh-hans` to receive Simplified Chinese messages.
+- Endpoints declaring `Idempotency-Key` support return the recorded result when retried with the same key and request body after a network timeout.
 
-Download `/api/v1/skill.zip` or use [skills/gpu-platform](../../skills/gpu-platform). Its English instructions and Python standard-library client cover resource requests, environment connections, and authorized administration:
+## Agent skill
+
+Download `/api/v1/skill.zip` or use [skills/gpu-platform](../../skills/gpu-platform). Its Python standard-library client handles Bearer auth, idempotency keys, and waiting for task readiness:
 
 ```bash
 python3 skills/gpu-platform/scripts/client.py request GET /api/v1/me
@@ -61,4 +76,4 @@ python3 skills/gpu-platform/scripts/client.py request POST /api/v1/tasks --json 
 python3 skills/gpu-platform/scripts/client.py wait TASK_UUID --timeout 300
 ```
 
-The client keeps the idempotency key when a request fails. The [operation reference](../../skills/gpu-platform/references/api.md) covers task, image, storage, and administration workflows.
+See [skills/gpu-platform/references/api.md](../../skills/gpu-platform/references/api.md) for the complete operation reference.

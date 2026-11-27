@@ -9,7 +9,7 @@ msgid " cores"
 msgstr " 核"
 
 msgid " public data"
-msgstr " 公用目录"
+msgstr " 共享数据集"
 
 msgid " · Run"
 msgstr " · 运行"
@@ -30,7 +30,7 @@ msgid "90 days"
 msgstr "90 天"
 
 msgid "A deployment has one local node."
-msgstr "只能有一个本机执行节点。"
+msgstr "只能有一个本机执行服务器。"
 
 msgid "API token"
 msgstr "API 令牌"
@@ -67,9 +67,6 @@ msgstr "需要管理员权限。"
 
 msgid "Allocated"
 msgstr "已分配"
-
-msgid "An extension request is already pending."
-msgstr "已有一份延期申请正在审批。"
 
 msgid "An extension requires ends_at."
 msgstr "延期需要 ends_at。"
@@ -114,10 +111,7 @@ msgid "Awaiting review"
 msgstr "待审核"
 
 msgid "Batch tasks run until the command exits. Omit ends_at."
-msgstr "运行程序由命令结束时间决定，请省略 ends_at。"
-
-msgid "Buffer percentage"
-msgstr "缓冲比例"
+msgstr "批处理任务在命令退出时结束，请省略 ends_at。"
 
 msgid "Build context Git URL (optional, HTTPS)"
 msgstr "构建上下文 Git URL（可选，HTTPS）"
@@ -174,7 +168,7 @@ msgid "Completed"
 msgstr "完成"
 
 msgid "Compute nodes"
-msgstr "计算节点"
+msgstr "服务器"
 
 msgid "Concurrent tasks"
 msgstr "并发任务数"
@@ -190,9 +184,6 @@ msgstr "连接方式"
 
 msgid "Containers"
 msgstr "容器"
-
-msgid "Content digest"
-msgstr "内容指纹"
 
 msgid "Create API token"
 msgstr "生成 API 令牌"
@@ -326,23 +317,11 @@ msgstr "请填写成员额度。"
 msgid "Environment expired"
 msgstr "交互任务到期"
 
-msgid "Environment expiring"
-msgstr "环境即将到期"
-
 msgid "Environment images"
 msgstr "环境镜像"
 
 msgid "Environment save"
 msgstr "环境保存"
-
-msgid "Environment saved"
-msgstr "环境已保存"
-
-msgid "Environment snapshots"
-msgstr "运行快照"
-
-msgid "Environment started"
-msgstr "容器已启动"
 
 msgid "Environment variables"
 msgstr "环境变量"
@@ -364,9 +343,6 @@ msgstr "扩容个人卷"
 
 msgid "Extend environment"
 msgstr "延长交互任务"
-
-msgid "Extend environment time"
-msgstr "延长环境时段"
 
 msgid "Extend until"
 msgstr "延期至"
@@ -395,9 +371,6 @@ msgstr "延期审批已完成。"
 msgid "Extensions per environment"
 msgstr "每个环境可延期次数"
 
-msgid "Extensions require an active development environment."
-msgstr "仅可为尚未结束的开发环境申请延期。"
-
 msgid "Extensions used"
 msgstr "已延期次数"
 
@@ -406,9 +379,6 @@ msgstr "失败"
 
 msgid "Fingerprint"
 msgstr "指纹"
-
-msgid "Finish this node's tasks and release their resources before changing its connection."
-msgstr "请先结束并释放该节点的任务，再修改连接配置。"
 
 msgid "For example: laptop, agent"
 msgstr "例如：笔记本、Agent"
@@ -512,17 +482,8 @@ msgstr "镜像额度 GiB"
 msgid "Image deleted"
 msgstr "镜像已删除"
 
-msgid "Image deletion has started."
-msgstr "镜像已经开始删除。"
-
-msgid "Image deletion requested."
-msgstr "已提交镜像删除。"
-
 msgid "Image reference"
 msgstr "镜像地址"
-
-msgid "Image retained."
-msgstr "镜像已长期保留。"
 
 msgid "Images"
 msgstr "镜像"
@@ -542,9 +503,6 @@ msgstr "环境变量格式不正确。"
 msgid "Invalid execution mode."
 msgstr "无效运行模式。"
 
-msgid "Invalid node"
-msgstr "无效节点"
-
 msgid "Invalid public key. RSA keys require at least 3072 bits."
 msgstr "无效公钥；RSA 至少 3072 bit。"
 
@@ -558,13 +516,10 @@ msgid "Invalid username or password."
 msgstr "用户名或密码错误。"
 
 msgid "Jobs"
-msgstr "运行程序"
+msgstr "批处理任务"
 
 msgid "Keep at least one user group."
 msgstr "至少保留一个用户组。"
-
-msgid "Keep image"
-msgstr "保留镜像"
 
 msgid "Keep or increase the home volume capacity."
 msgstr "个人卷支持扩容，请保留当前容量或增加容量。"
@@ -579,10 +534,7 @@ msgid "Local"
 msgstr "本机"
 
 msgid "Long-running program"
-msgstr "程序长时间运行"
-
-msgid "Long-running task reminder"
-msgstr "长时间运行提醒"
+msgstr "批处理任务运行时间较长"
 
 msgid "Long-term members"
 msgstr "长期用户"
@@ -642,22 +594,13 @@ msgid "No running development environments"
 msgstr "暂无运行中的开发环境"
 
 msgid "Node name"
-msgstr "节点名称"
-
-msgid "Node offline"
-msgstr "节点离线"
-
-msgid "Node performance"
-msgstr "节点性能"
+msgstr "服务器名称"
 
 msgid "Node service account"
-msgstr "从机服务账户"
-
-msgid "Node settings saved. Connection status will update on the next report."
-msgstr "节点设置已保存，后台将同步连接状态。"
+msgstr "服务器服务账户"
 
 msgid "Nodes"
-msgstr "节点"
+msgstr "服务器"
 
 msgid "Normal"
 msgstr "普通"
@@ -686,14 +629,11 @@ msgstr "通知时间"
 msgid "Object name"
 msgstr "对象名称"
 
-msgid "Observed data"
-msgstr "观测数据"
-
 msgid "Offline"
 msgstr "离线"
 
 msgid "Online"
-msgstr "在线"
+msgstr "正常"
 
 msgid "Only pending requests can be rejected."
 msgstr "只能拒绝待审核申请。"
@@ -735,7 +675,7 @@ msgid "Provide a valid Bearer token."
 msgstr "请提供有效的 Bearer 访问令牌。"
 
 msgid "Public datasets"
-msgstr "公用目录"
+msgstr "共享数据集"
 
 msgid "Public key"
 msgstr "公钥"
@@ -815,9 +755,6 @@ msgstr "已预留 GiB"
 msgid "Resize work volume"
 msgstr "调整工作卷容量"
 
-msgid "Resource observation"
-msgstr "资源观测"
-
 msgid "Resource request"
 msgstr "资源申请"
 
@@ -861,16 +798,13 @@ msgid "SSH keys"
 msgstr "SSH 公钥"
 
 msgid "SSH node"
-msgstr "SSH 从机"
+msgstr "SSH 服务器"
 
 msgid "SSH port"
 msgstr "SSH 端口"
 
 msgid "SSH ports range from 1 to 65535."
 msgstr "SSH 端口范围为 1–65535。"
-
-msgid "Save environment"
-msgstr "保存环境"
 
 msgid "Save failed"
 msgstr "保存失败"
@@ -908,20 +842,14 @@ msgstr "请选择用户组。"
 msgid "Select a valid review action."
 msgstr "请选择有效的审批操作。"
 
-msgid "Select an image on the target node with a matching architecture."
-msgstr "请选择目标节点上架构匹配的镜像。"
-
 msgid "Select an image."
 msgstr "请选择镜像。"
 
 msgid "Select approve or reject, and provide a reason for rejection."
 msgstr "请选择通过或拒绝，拒绝时填写原因。"
 
-msgid "Select one of your running development environments."
-msgstr "请选择自己运行中的开发环境。"
-
 msgid "Select the node's SSH identity."
-msgstr "请选择节点专属密钥。"
+msgstr "请选择服务器专属密钥。"
 
 msgid "Select valid start and end times."
 msgstr "请选择有效的开始和结束时间。"
@@ -959,9 +887,6 @@ msgstr "简体中文"
 msgid "Size (bytes)"
 msgstr "大小（字节）"
 
-msgid "Source development environment"
-msgstr "源开发环境"
-
 msgid "Source environment"
 msgstr "源环境"
 
@@ -995,9 +920,6 @@ msgstr "正在停止"
 msgid "Storage"
 msgstr "存储"
 
-msgid "Storage capacity is insufficient for this volume."
-msgstr "没有单块磁盘具备足够的可分配容量（含空闲缓冲）。"
-
 msgid "Storage pool"
 msgstr "存储池"
 
@@ -1014,7 +936,7 @@ msgid "Succeeded"
 msgstr "成功"
 
 msgid "Synchronization completed"
-msgstr "同步完成"
+msgstr "同步已完成"
 
 msgid "System event"
 msgstr "系统事件"
@@ -1064,23 +986,11 @@ msgstr "这个环境正在保存，请稍后再提交。"
 msgid "The home volume is being deleted. Wait for deletion to finish."
 msgstr "个人卷正在删除，请等待完成。"
 
-msgid "The home volume storage pool has insufficient capacity."
-msgstr "个人卷所在磁盘可分配容量不足。"
-
 msgid "The image is in use and cannot be deleted."
 msgstr "镜像仍在使用，无法删除。"
 
-msgid "The image is unavailable."
-msgstr "镜像不可用。"
-
-msgid "The image requires a verified digest."
-msgstr "镜像尚无已验证 digest。"
-
 msgid "The local node identity and connection are configured by the installer."
-msgstr "主机节点的标识和连接方式固定。"
-
-msgid "The node could not confirm the new expiry."
-msgstr "节点尚未确认新的到期时间。"
+msgstr "本机服务器的标识和连接设置由安装程序配置。"
 
 msgid "The operation failed. Check its status before retrying."
 msgstr "操作暂时无法完成，请稍后查询状态。"
@@ -1104,18 +1014,6 @@ msgstr "请求与现有记录冲突。"
 msgid "The requested item is unavailable."
 msgstr "对象不存在或不可访问。"
 
-msgid "The selected node has paused admission."
-msgstr "所选节点已暂停接单。"
-
-msgid "The selected node is offline. Admission resumes when it reconnects."
-msgstr "所选节点离线，暂不能提交或批准新任务。"
-
-msgid "The selected node is unavailable for image builds."
-msgstr "所选节点暂不能构建镜像。"
-
-msgid "The source environment, image, and work volume must belong to the same node."
-msgstr "源开发环境、镜像与工作卷必须位于同一节点。"
-
 msgid "The source work volume is unavailable."
 msgstr "源环境的工作卷已回收或正在删除。"
 
@@ -1134,9 +1032,6 @@ msgstr "同一 Idempotency-Key 已用于不同参数。"
 
 msgid "This account is disabled."
 msgstr "账号已停用。"
-
-msgid "This environment has used all its extensions."
-msgstr "这个环境的延期次数已用完。"
 
 #, python-brace-format
 msgid "This environment variable is reserved: {value_0}"
@@ -1319,10 +1214,7 @@ msgid "Work volume expiry reminder"
 msgstr "工作卷到期提醒"
 
 msgid "Work volume quota is exhausted. Recycle retained volumes or ask an administrator to adjust the quota."
-msgstr "工作卷总额度不足，请联系管理员调整额度或回收保留卷。"
-
-msgid "Work volume recycled"
-msgstr "工作卷已回收"
+msgstr "工作卷额度已用完。请删除不用的工作卷，或联系管理员增加额度。"
 
 msgid "Work volume retention (days)"
 msgstr "工作卷保留（天）"
@@ -1351,9 +1243,6 @@ msgstr "environment 需为名称到单行字符串值的对象。"
 #, python-brace-format
 msgid "expires_in must be an integer from 0 to {value_0} seconds; 0 means no expiry."
 msgstr "expires_in 须为 0–{value_0} 的整数秒数，0 表示永久。"
-
-msgid "kind must be permanent or temporary."
-msgstr "kind 需为 permanent 或 temporary。"
 
 msgid "mode must be interactive or batch."
 msgstr "mode 需为 interactive 或 batch。"
@@ -1398,50 +1287,14 @@ msgstr "此操作不支持该 HTTP 方法。"
 msgid "Save"
 msgstr "保存"
 
-msgid "No compute nodes are configured."
-msgstr "尚未配置计算节点。"
-
-msgid "Select a node defined in the cluster configuration."
-msgstr "请选择集群配置中定义的节点。"
-
-msgid "This feature is unavailable on the selected node."
-msgstr "所选节点不提供此功能。"
-
 msgid "GPU {value_0} compute must be between 1% and 100%."
 msgstr "第 {value_0} 张 GPU 的算力必须在 1% 到 100% 之间。"
 
 msgid "Use 1–32 lowercase letters, digits, underscores, or hyphens, beginning with a letter or underscore. System account names are reserved."
 msgstr "使用 1–32 位小写字母、数字、下划线或连字符，以字母或下划线开头。系统账号名不可用。"
 
-msgid "The selected node is unavailable."
-msgstr "所选节点不可用。"
-
-msgid "Image quota is exhausted."
-msgstr "镜像配额已用尽。"
-
-msgid "The image architecture does not match the destination node."
-msgstr "镜像架构与目标节点不匹配。"
-
-msgid "Select a different destination node."
-msgstr "请选择另一个目标节点。"
-
-msgid "Use relative dataset paths within the public directory."
-msgstr "请使用公共目录内的相对路径。"
-
-msgid "Synchronization failed."
-msgstr "同步失败。"
-
-msgid "The copied image exceeds its reserved size."
-msgstr "复制的镜像超出了预留大小。"
-
-msgid "Waiting for the node to confirm the copied image."
-msgstr "等待节点确认复制的镜像。"
-
 msgid "Task canceled."
 msgstr "任务已取消。"
-
-msgid "The builder did not return an image."
-msgstr "构建器未返回镜像。"
 
 msgid "The operation failed. Review the execution logs for details."
 msgstr "操作失败，请查看执行日志了解详情。"
@@ -1456,7 +1309,7 @@ msgid "The resource request exceeds its limits or is unavailable."
 msgstr "请求的资源超出配额或暂不可用。"
 
 msgid "Volume capacity must be positive."
-msgstr "目录卷容量必须为正数。"
+msgstr "卷容量必须大于零。"
 
 msgid "The current password is incorrect."
 msgstr "当前密码不正确。"
@@ -1466,9 +1319,6 @@ msgstr "两次输入的新密码不一致。"
 
 msgid "Enter an HTTPS Git repository URL without embedded credentials."
 msgstr "请输入 HTTPS Git 仓库地址，请勿在地址中包含账号或密码。"
-
-msgid "The selected image is unavailable."
-msgstr "所选镜像不可用。"
 
 msgid "Bandwidth must be zero or greater."
 msgstr "带宽必须大于或等于零。"
@@ -1488,14 +1338,8 @@ msgstr "请输入有效日期。"
 msgid "The start date must be on or before the end date."
 msgstr "起始日期须早于或等于结束日期。"
 
-msgid "Select an available account and node."
-msgstr "请选择可用的账号和节点。"
-
 msgid "Unknown account"
 msgstr "未知账号"
-
-msgid "Unknown node"
-msgstr "未知节点"
 
 msgid "Unknown accelerator"
 msgstr "未知卡型"
@@ -1530,34 +1374,12 @@ msgstr "网络接收速率"
 msgid "Network transmit rate"
 msgstr "网络发送速率"
 
-msgid "Sample archiving paused due to low disk space"
-msgstr "磁盘空间不足，采样归档已暂停"
-
-msgid "Sample archive write failed"
-msgstr "采样归档写入失败"
-
-msgid "Some samples were dropped"
-msgstr "部分样本未归档"
-
 #, python-format
 msgid "%(warning)s · Last successful write %(time)s"
 msgstr "%(warning)s · 最近成功写入 %(time)s"
 
-#, python-format
-msgid "Samples for this selection begin %(time)s."
-msgstr "所选节点和指标从 %(time)s 起有采样。"
-
 msgid "%(model)s (all devices)"
 msgstr "%(model)s（全部设备）"
-
-msgid "Workspace SSH connection opened"
-msgstr "容器间 SSH 已连接"
-
-msgid "Workspace SSH connection rejected"
-msgstr "容器间 SSH 连接被拒绝"
-
-msgid "Adjust environment time"
-msgstr "调整环境时间"
 
 msgid "Choose a different end time after the start time and the current time."
 msgstr "新的结束时间须晚于开始时间和当前时间，并与原结束时间不同。"
@@ -1576,9 +1398,6 @@ msgstr "原结束时间"
 
 msgid "Superseded by a time adjustment"
 msgstr "因时间调整已失效"
-
-msgid "Time adjustments require an active development environment."
-msgstr "仅可调整尚未结束的开发环境的时间。"
 
 msgid "Choose an end time earlier than the current end time."
 msgstr "请选择早于原结束时间的新结束时间。"
@@ -1684,3 +1503,372 @@ msgstr "撤回通知"
 
 msgid "Withdrawn"
 msgstr "已撤回"
+
+msgid "An extension is awaiting review. Check the task for the decision."
+msgstr "已有延期申请待审批。请在任务详情中查看审批结果。"
+
+msgid "Applying"
+msgstr "正在应用"
+
+msgid "Batch job"
+msgstr "批处理任务"
+
+msgid "Batch job duration reminder"
+msgstr "批处理任务运行时长提醒"
+
+msgid "Batch job still running"
+msgstr "批处理任务仍在运行"
+
+msgid "Batch jobs"
+msgstr "批处理任务"
+
+msgid "Change dev environment end time"
+msgstr "调整开发环境结束时间"
+
+msgid "Check the connection module and its settings."
+msgstr "请检查连接模块及其设置。"
+
+msgid "Choose a destination server different from the source."
+msgstr "请选择其他服务器作为目标服务器。"
+
+msgid "Choose a size for both the home volume and the work volume."
+msgstr "请设置个人卷和工作卷的容量。"
+
+msgid "Choose an image that supports the selected server's architecture."
+msgstr "请选择与服务器架构匹配的镜像。"
+
+msgid "Deadline: %(time)s"
+msgstr "截止时间：%(time)s"
+
+msgid "Destination server"
+msgstr "目标服务器"
+
+msgid "Dev environment"
+msgstr "开发环境"
+
+msgid "Dev environment ending soon"
+msgstr "开发环境即将结束"
+
+msgid "Dev environment saved as an image"
+msgstr "开发环境已保存为镜像"
+
+msgid "Enter a path relative to the shared datasets folder."
+msgstr "请输入相对于共享数据集根目录的路径。"
+
+msgid "Enter a resource amount within the limits shown for this server."
+msgstr "请输入此服务器允许范围内的资源数量。"
+
+msgid "Enter a whole number of GiB greater than zero for each volume."
+msgstr "每个卷的容量须为大于零的整数，单位为 GiB。"
+
+msgid "Extend dev environment"
+msgstr "延长开发环境使用时间"
+
+msgid "Image"
+msgstr "镜像"
+
+msgid "Image version identifier"
+msgstr "镜像版本标识"
+
+msgid "Keep the registered server name when editing its settings."
+msgstr "修改设置时请使用服务器注册时的名称。"
+
+msgid "Latest readings"
+msgstr "最新读数"
+
+msgid "Live load"
+msgstr "实时负载"
+
+msgid "Metrics history could not be saved. Check available disk space and write access."
+msgstr "历史记录保存失败。请检查可用磁盘空间和写入权限。"
+
+msgid "Metrics history for this selection begins at %(time)s."
+msgstr "所选指标的历史记录始于 %(time)s。"
+
+msgid "Metrics history is paused. Free disk space to resume recording."
+msgstr "磁盘空间不足，历史记录已暂停。请释放磁盘空间以继续记录。"
+
+msgid "New dev environment"
+msgstr "新建开发环境"
+
+msgid "No servers are configured. Ask an administrator to add one."
+msgstr "尚未配置服务器，请联系管理员添加。"
+
+msgid "Only active dev environments can be extended. Check the task status."
+msgstr "仅可为使用中的开发环境延期。请查看任务状态。"
+
+msgid "Open the task to check its approval status and scheduled time."
+msgstr "请打开任务查看审批状态和计划开始时间。"
+
+msgid "Preparing"
+msgstr "准备中"
+
+msgid "Resource readings"
+msgstr "资源读数"
+
+msgid "Retention settings saved. They apply when tasks end and temporary images enter their retention period."
+msgstr "保留设置已保存。任务结束或临时镜像开始保留时，将采用新设置。"
+
+msgid "SSH connection denied"
+msgstr "SSH 连接被拒绝"
+
+msgid "SSH connection opened"
+msgstr "SSH 已连接"
+
+msgid "Save dev environment as an image"
+msgstr "将开发环境保存为镜像"
+
+msgid "Select a registered server or enter connection settings for a new one."
+msgstr "请选择已注册的服务器，或填写新服务器的连接设置。"
+
+msgid "Select a valid server."
+msgstr "请选择有效的服务器。"
+
+msgid "Select an available account and server."
+msgstr "请选择可用的账号和服务器。"
+
+msgid "Select one of your running dev environments."
+msgstr "请选择自己运行中的开发环境。"
+
+msgid "Select the server that holds the source dev environment, image, and work volume."
+msgstr "请选择源开发环境、镜像和工作卷所在的服务器。"
+
+msgid "Server"
+msgstr "服务器"
+
+msgid "Server added"
+msgstr "已添加服务器"
+
+msgid "Server name"
+msgstr "服务器名称"
+
+msgid "Server offline"
+msgstr "服务器已离线"
+
+msgid "Server settings saved. Check the connection status when the server next reports."
+msgstr "服务器设置已保存。服务器下次上报状态后，可查看连接结果。"
+
+msgid "Server settings updated"
+msgstr "已更新服务器设置"
+
+msgid "Servers"
+msgstr "服务器"
+
+msgid "Shared datasets"
+msgstr "共享数据集"
+
+msgid "Sign in or provide a valid access token."
+msgstr "请登录或提供有效的访问令牌。"
+
+msgid "Some readings are missing from metrics history. Check server connectivity and available disk space."
+msgstr "历史记录中缺少部分读数。请检查服务器连接和磁盘空间。"
+
+msgid "Source dev environment"
+msgstr "源开发环境"
+
+msgid "Source server"
+msgstr "源服务器"
+
+msgid "Specify how much of this resource each device needs."
+msgstr "请填写每台设备需要的资源数量。"
+
+msgid "Stop the running tasks before changing the server connection."
+msgstr "请先停止运行中的任务，再修改服务器连接。"
+
+msgid "Storage reserve (%)"
+msgstr "预留存储空间（%）"
+
+msgid "Synchronization requested"
+msgstr "已申请同步"
+
+msgid "Task request approved"
+msgstr "任务申请已通过"
+
+msgid "Task request declined"
+msgstr "任务申请未通过"
+
+msgid "Task request submitted"
+msgstr "任务申请已提交"
+
+msgid "Temporary image"
+msgstr "临时镜像"
+
+msgid "The amount per device exceeds your quota. Reduce it or ask an administrator for a higher limit."
+msgstr "每台设备的申请量超过额度。请减少申请量，或联系管理员提高上限。"
+
+msgid "The batch job has reached the reminder time and is still using resources. Check its progress and stop it if it has finished its work."
+msgstr "批处理任务已达到提醒时长，仍在使用资源。请检查进度，若所需工作已完成，可停止任务。"
+
+msgid "The build did not produce a usable image. Check the build log, correct the error, and submit the build again."
+msgstr "本次构建未生成可用镜像。请查看构建日志，修正错误后重新构建。"
+
+msgid "The build finished without an image. Check the build log before retrying."
+msgstr "构建结束，但未生成镜像。请查看构建日志后重试。"
+
+msgid "The copy failed. Check the source and destination servers, then retry synchronization."
+msgstr "复制失败。请检查源服务器和目标服务器后重新同步。"
+
+msgid "The copy is available on the destination server. Open the destination to check the copied data."
+msgstr "副本已在目标服务器上可用。请打开目标服务器查看复制的内容。"
+
+msgid "The copy needs more space than requested. Check the image size and available space before retrying."
+msgstr "镜像副本超过预留空间。请检查镜像大小和可用空间后重试。"
+
+msgid "The current end time still applies. Check the task for the decision."
+msgstr "开发环境仍按当前时间结束。请在任务详情中查看审批结果。"
+
+msgid "The current end time still applies. Review the decision and save your work before the environment stops."
+msgstr "开发环境仍按当前时间结束。请查看审批意见，并在结束前保存工作。"
+
+msgid "The destination server is checking the copy. Check synchronization progress again shortly."
+msgstr "目标服务器正在确认镜像副本。请稍后查看同步进度。"
+
+msgid "The dev environment can run longer. Check the new end time in the task details."
+msgstr "开发环境的使用时间已延长。请在任务详情中查看新的结束时间。"
+
+msgid "The dev environment will stop at its scheduled end time. Save your work or request more time before then."
+msgstr "开发环境将在预定时间停止。请提前保存工作，或申请延期。"
+
+msgid "The end time can only change while the dev environment is active. Check the task status."
+msgstr "仅可调整使用中开发环境的结束时间。请查看任务状态。"
+
+msgid "The image has not been verified. Select a verified image and try again."
+msgstr "该镜像尚未通过验证。请选择已验证的镜像后重试。"
+
+msgid "The image is available. Select it when creating a dev environment or batch job."
+msgstr "镜像已可用。创建开发环境或批处理任务时可以选择该镜像。"
+
+msgid "The request exceeds this server's capacity. Reduce the amount or select a larger server."
+msgstr "申请量超过此服务器的容量。请减少申请量，或选择容量更大的服务器。"
+
+msgid "The request was approved. Open the task to check when it starts."
+msgstr "申请已通过。请打开任务查看开始时间。"
+
+msgid "The saved image is available. Select it to start another dev environment or batch job."
+msgstr "镜像已保存。创建新的开发环境或批处理任务时可以选择该镜像。"
+
+msgid "The security check failed. Refresh the page and try again."
+msgstr "安全校验失败。请刷新页面后重试。"
+
+msgid "The server configuration is invalid. Check its address, architecture, and connection settings."
+msgstr "服务器配置无效。请检查服务器地址、架构和连接设置。"
+
+msgid "The server has not confirmed the time change. Check the task end time before trying again."
+msgstr "服务器尚未确认时间变更。请先查看任务结束时间，再决定是否重试。"
+
+msgid "The server stopped reporting. Task status may be out of date. Check again when the server reconnects."
+msgstr "服务器已断开连接，任务状态可能尚未更新。请在服务器恢复连接后再次查看。"
+
+msgid "The task has stopped. Open its details to check the final status and results."
+msgstr "任务已停止。请打开任务详情查看最终状态和运行结果。"
+
+msgid "The task is running. Open its details to see connection information or check progress."
+msgstr "任务已启动。请打开任务详情查看连接信息或运行进度。"
+
+msgid "The task will not start. Review the decision before submitting a new request."
+msgstr "任务不会启动。请查看审批意见，修改后重新提交。"
+
+msgid "The total differs from the sum of the device requests. Check the amount on each device."
+msgstr "申请总量与各设备申请量之和不符。请核对每台设备的申请量。"
+
+msgid "The work volume is nearing the end of its retention period. Copy any files you need before deletion."
+msgstr "工作卷即将超过保留期限。请在删除前备份需要的文件。"
+
+msgid "There is too little image space left. Delete unused images or ask an administrator to increase the quota."
+msgstr "镜像额度不足。请删除不用的镜像，或联系管理员提高额度。"
+
+msgid "There is too little space for the home volume on this server. Ask an administrator to free space."
+msgstr "此服务器没有足够空间分配个人卷。请联系管理员释放空间。"
+
+msgid "There is too little storage for this volume. Request a smaller volume or select another server."
+msgstr "存储空间不足。请减小卷容量，或选择其他服务器。"
+
+msgid "This dev environment has reached its extension limit. Save your work before the end time."
+msgstr "此开发环境的延期次数已用完。请在结束前保存工作。"
+
+msgid "This image cannot run on the destination server. Choose a server with a matching architecture."
+msgstr "此镜像无法在目标服务器上运行。请选择架构匹配的服务器。"
+
+msgid "This image is unavailable. Choose another image from the catalog."
+msgstr "此镜像不可用。请从列表中选择其他镜像。"
+
+msgid "This request exceeds your available quota. Request less or ask an administrator to increase your quota."
+msgstr "本次申请超过可用额度。请减少申请量，或联系管理员提高额度。"
+
+msgid "This resource is unavailable on the selected server. Choose an available resource or another server."
+msgstr "所选服务器不提供此资源。请选择可用资源或其他服务器。"
+
+msgid "This server cannot build images right now. Select an available build server."
+msgstr "此服务器当前无法构建镜像。请选择可用于构建的服务器。"
+
+msgid "This server does not offer this feature. Choose a server that supports it."
+msgstr "此服务器不提供这项功能。请选择支持该功能的服务器。"
+
+msgid "This server is closed to new requests. Select another server or try again later."
+msgstr "此服务器暂停接受新申请。请选择其他服务器，或稍后重试。"
+
+msgid "This server is offline. Choose another server or wait for it to reconnect."
+msgstr "此服务器已离线。请选择其他服务器，或等待恢复连接。"
+
+msgid "This server is unavailable. Select another server or try again later."
+msgstr "服务器暂不可用。请选择其他服务器，或稍后重试。"
+
+msgid "This server name is in use. Choose another name."
+msgstr "服务器名称已被使用，请选择其他名称。"
+
+msgid "Time extension approved"
+msgstr "延期申请已通过"
+
+msgid "Time extension declined"
+msgstr "延期申请未通过"
+
+msgid "Time extension requested"
+msgstr "延期申请已提交"
+
+msgid "Transferring"
+msgstr "传输中"
+
+msgid "Unknown server"
+msgstr "未知服务器"
+
+msgid "Use the home volume size assigned to your account. Ask an administrator if you need more space."
+msgstr "请使用账号分配的个人卷容量。如需更多空间，请联系管理员。"
+
+msgid "Wait for the server's tasks to release their resources before changing the connection."
+msgstr "请等待服务器上的任务释放资源，再修改连接。"
+
+msgid "Work volume deleted"
+msgstr "工作卷已删除"
+
+msgid "Work volume scheduled for deletion"
+msgstr "工作卷即将删除"
+
+msgid "Your account has no quota for this resource. Ask an administrator to assign one."
+msgstr "账号尚未分配此项资源额度，请联系管理员分配。"
+
+msgid "Enter a key name."
+msgstr "请输入密钥名称。"
+
+msgid "Enter a value within the allowed range."
+msgstr "请输入允许范围内的值。"
+
+msgid "GPU allocations"
+msgstr "GPU 分配详情"
+
+msgid "GPU memory"
+msgstr "显存"
+
+msgid "Select a connection module."
+msgstr "请选择连接模块。"
+
+msgid "Select a group for these members."
+msgstr "请为这些成员选择用户组。"
+
+msgid "Select valid notification events."
+msgstr "请选择有效的通知事件。"
+
+msgid "Settings saved."
+msgstr "设置已保存。"
+
+msgid "Synchronization"
+msgstr "同步"

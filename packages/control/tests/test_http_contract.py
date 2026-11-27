@@ -107,7 +107,7 @@ def test_image_sync_route_reserves_one_copy_for_repeated_operation(authenticated
     assert listing.json()["data"]["count"] == 1
 
 
-@pytest.mark.parametrize("query", [{"page_size": 101}, {"node": 0}, {"kind": "unknown"}])
+@pytest.mark.parametrize("query", [{"page_size": 101}, {"node": 0}, {"kind": "unknown"}, {"kind": "temporary"}])
 def test_query_filters_validate_before_listing(authenticated, query):
     client, _ = authenticated
     response = client.get("/api/v1/images", query)
@@ -115,12 +115,16 @@ def test_query_filters_validate_before_listing(authenticated, query):
     assert response.json()["error"]["code"] == "validation_error"
 
 
-def test_query_pagination_is_applied(authenticated):
+@pytest.mark.parametrize("filters", [{}, {"available": True}, {"kind": "permanent"}])
+def test_query_pagination_is_applied_to_permanent_images(authenticated, filters):
     client, user = authenticated
     node = ComputeNode.objects.create(name="catalog-node")
     for index in range(3):
         ImageArtifact.objects.create(node=node, owner=user, name=f"image-{index}", reference=f"registry/{index}", verified=True)
-    response = client.get("/api/v1/images", {"page": 2, "page_size": 2, "available": True})
+    ImageArtifact.objects.create(
+        node=node, owner=user, name="temporary", reference="registry/temporary", verified=True, temporary=True
+    )
+    response = client.get("/api/v1/images", {"page": 2, "page_size": 2, **filters})
     assert response.status_code == 200
     assert response.json()["data"]["page"] == 2
     assert response.json()["data"]["count"] == 3
@@ -165,6 +169,9 @@ def test_capacity_uses_the_requested_node(authenticated):
         assert response.status_code == 200
         available = response.json()["data"]["request_capacity"]["resources"]
         assert {row["key"]: float(row["total"]) for row in available} == {"licenses": total}
+        data = response.json()["data"]
+        assert data["nodes"][0]["display_resources"][0]["key"] == "licenses"
+        assert data["running_count"] == data["queued_count"] == 0 and data["accelerator_counts"] == []
 
 
 def test_live_metrics_include_standard_and_module_readings(authenticated):

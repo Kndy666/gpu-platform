@@ -16,7 +16,7 @@ class BuildReconciler:
         self.gateway, self.node = gateway, node
 
     def authorized_images(self, build):
-        images = ImageArtifact.objects.filter(node=self.node, verified=True, state="ready")
+        images = ImageArtifact.objects.filter(node=self.node, verified=True, state="ready", temporary=False)
         if build.bootstrap:
             images = images.filter(shared=True)
         elif not build.user.is_staff:

@@ -1,37 +1,39 @@
-# Access and data boundaries
+# Security and data boundaries
 
 [Home](../../README.md) · [简体中文](../zh/security.md)
 
-Platform accounts connect resource ownership, quotas, public keys, and access tokens. Authentication modules verify identity; control checks permissions for each operation.
+Platform accounts anchor resource ownership, quotas, SSH keys, and API tokens. Authentication modules verify identity while control evaluates permissions on every API call.
 
-## Accounts and SSH
+## Authentication and access control
 
-Members manage their own tasks, private images, keys, and tokens. Administrator roles grant management access separately from resource quotas. Shared images have configured read access; private image copies remain owned and count toward the owner's quota.
+- **Browser sessions**: the Vue panel authenticates against `/api/v1/auth/session` using HttpOnly Django session cookies and CSRF tokens (`X-CSRFToken`) over a single same-origin Nginx entrypoint.
+- **API tokens**: scripts and AI agents send `Authorization: Bearer <token>`. An invalid `Authorization` header is rejected with `401` even if a browser session cookie is present. Changing a password invalidates existing API tokens while keeping the user's current browser session signed in.
+- **Roles and quotas**: members manage their own tasks, private images, SSH keys, and tokens. Administrator privileges are independent of compute quotas.
+- **SSH keys**: upload public keys once under **Account & access → SSH keys**. Enabled keys propagate to running dev environments across all servers. Administrators connect to user environments using their own enabled SSH key and the target environment's login identity.
 
-Upload public keys once in the panel. They apply to the account's environments across nodes, and updates reach running environments. Administrators connect using their own enabled key and the target environment's user identity. Key changes affect new SSH connections after propagation.
+## Network boundaries
 
-Environment login routes open for running tasks and close when tasks end. Node transport uses a Unix socket locally or SSH with verified host keys and node-specific credentials. Access to the node socket grants machine-execution authority.
-
-| Entry point | Default |
+| Endpoint | Default exposure |
 | --- | --- |
-| Panel and API | TCP 8000, with an HTTPS reverse proxy for public deployment |
-| Environment SSH | TCP 30022–30121, configured by `cluster.ssh_ports` |
-| Node commands | Host Unix socket |
-| Image registry | Node-local TCP 5000 with TLS and scoped credentials |
-| K3s API | Host loopback TCP 6443 |
+| Web panel and `/api/v1` | TCP `8000` on `panel` (Nginx); place an HTTPS reverse proxy in front for public access |
+| Control API (`web`) | Internal Docker Compose network TCP `8000` |
+| Dev environment SSH | TCP `30022–30121` (`cluster.ssh_ports`), open only while tasks run |
+| Node commands | Host Unix socket locally, or reverse SSH with verified `known_hosts` and per-node keys |
+| Image registry (Zot) | Node-local TCP `5000` with TLS and scoped credentials |
+| K3s API | Host loopback TCP `6443` |
 
-Configure HTTPS origin and cookie settings through the [deployment guide](operations.md). Keep `.env`, `DJANGO_SECRET_KEY`, node credentials, and module secrets in their protected state directories.
+Keep `.env`, `DJANGO_SECRET_KEY`, node SSH keys, and notification tokens inside protected root-only directories.
 
-## Environments and builds
+## Workload and build isolation
 
-The runtime enforces CPU and memory limits, provides quota-aware resource views, and supplies AppArmor and seccomp profiles. Rootless Docker runs within the task's resources and stores its data on the work volume. Public datasets mount read-only, and workload service-account tokens are disabled.
+- The K3s runtime enforces CPU, memory, and ephemeral storage limits, exposes quota-aware resource views via LXCFS, disables Kubernetes service-account tokens inside workloads, and applies AppArmor and seccomp profiles.
+- Rootless Docker runs within the task's resource limits and stores its data in `/workspace/.docker`.
+- Shared datasets mount read-only at `/datasets`.
+- Accelerator modules enforce their isolation model (NVIDIA MPS partitions or exclusive Ascend chips) and persist allocation ledgers for restart recovery. The `node` container runs privileged with host network and PID namespaces to manage local infrastructure.
+- Rootless BuildKit runs image builds with CPU/memory limits, queueing, cancellation, timeouts, and short-lived scoped registry credentials removed on completion.
 
-Accelerator modules enforce their allocation model: NVIDIA MPS shares compute and memory; Ascend assigns whole chips exclusively. Allocation records persist for recovery. The node service is privileged and uses host network and process namespaces to manage this infrastructure.
+## Files, audits, and backups
 
-Image repositories enforce ownership and validate imported archives, digests, sizes, and architecture. Builds use Rootless BuildKit with CPU and memory limits, a queue, cancellation, and timeouts. Private base-image access uses temporary repository-scoped credentials and verified TLS, including internal mirrors. Job credentials are removed when work ends.
-
-## Files and recovery
-
-Directory browsing and synchronization stay within configured roots and reject traversal and unsafe links. Dataset synchronization verifies checksums before committing selected subtrees; target copies follow the source, including removals. Home and work volumes stay on their own node.
-
-Audit events store codes and parameters and display in the viewer's language. Notifications follow the recipient's language. Back up the database, encryption secret, node keys, registry metadata, data volumes, and allocation state together. Module uninstall tracks owned changes and retains user data and pre-existing resources.
+- Dataset browsing and synchronization stay within configured roots and reject path traversal and unsafe symlinks. Dataset sync verifies checksums before committing changes.
+- Audit logs record structured action codes and parameters, rendered in the viewer's language.
+- Back up the SQLite/SQL database, `.env`, node keys, `metrics-history/`, registry metadata, allocation ledgers, and data volumes together. Uninstall removes only module-owned host setup and preserves user data.

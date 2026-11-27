@@ -34,7 +34,7 @@ def timestamp(value):
 def submit_task(actor, values):
     node = find(ComputeNode, pk=values.get('node') or default_node_id())
     source = find(ResourceRequest, pk=values['source_environment']) if values.get('source_environment') else None
-    image = source.image if source else find(ImageArtifact, pk=values['image'])
+    image = source.image if source else find(ImageArtifact, pk=values['image'], temporary=False)
     if source:
         from gpu_platform_control.core.features import require
         require(source.node, 'save_environment')
@@ -176,7 +176,7 @@ def submit_build(actor, values):
 
     node = find(ComputeNode, pk=values.get('node') or default_node_id())
     if not node.enabled or node.maintenance or node.state != 'online' or not provides(node, 'build') or not provides(node, 'registry'):
-        raise ValidationError(_('The selected node is unavailable for image builds.'))
+        raise ValidationError(_("This server cannot build images right now. Select an available build server."))
     context = values.get('context_git') or ''
     if context:
         try:
@@ -204,9 +204,9 @@ def save_node(actor, values, node_id=None):
     name = values.get('name', node.name)
     host = cluster_config().hosts.get(name)
     if host is None or 'node' not in host.roles:
-        raise ValidationError(_('Select a node defined in the cluster configuration.'))
+        raise ValidationError(_("Select a registered server or enter connection settings for a new one."))
     if node.pk and name != node.name and ResourceRequest.objects.filter(node=node, workspace__cleanup_complete=False).exists():
-        raise ValidationError(_('Finish this node\'s tasks and release their resources before changing its connection.'))
+        raise ValidationError(_("Wait for the server's tasks to release their resources before changing the connection."))
     node.name, node.architecture = name, host.architecture
     for key in ('enabled', 'maintenance'):
         if key in values:

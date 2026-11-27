@@ -3,6 +3,7 @@ cluster:
   default_language: en
   ssh_ports: [30022, 30121]
   control_image: ghcr.io/kndy666/gpu-platform-control:0.4.0
+  panel_image: ghcr.io/kndy666/gpu-platform-panel:0.4.0
   node_image: ghcr.io/kndy666/gpu-platform-node:0.4.0
   state_directory: /var/lib/gpu-platform
 defaults:

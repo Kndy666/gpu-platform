@@ -59,9 +59,11 @@ def performance_nodes(node=None, *, now=None):
                 "sampled_at": sampled,
                 "status_label": tr("Disabled")
                 if not node.enabled
+                else tr("Maintenance")
+                if node.maintenance
                 else tr("Offline")
                 if node.state == "offline"
-                else tr("Live")
+                else tr("Online")
                 if fresh
                 else tr("Metrics stale")
                 if sampled

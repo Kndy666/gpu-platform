@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "gpu-platform-control"
 version = "0.4.0"
 requires-python = ">=3.12"
-dependencies = ["gpu-platform-contracts", "Django>=5.2,<5.3", "django-ninja>=1.8,<2", "PyYAML>=6", "gunicorn>=23", "whitenoise>=6", "requests>=2.32", "cryptography>=46", "bcrypt>=5", "psycopg[binary]>=3.2,<4"]
+dependencies = ["gpu-platform-contracts", "Django>=5.2,<5.3", "django-ninja>=1.8,<2", "PyYAML>=6", "gunicorn>=23", "requests>=2.32", "cryptography>=46", "bcrypt>=5", "psycopg[binary]>=3.2,<4"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/gpu_platform_control"]

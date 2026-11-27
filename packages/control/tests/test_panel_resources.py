@@ -2,7 +2,6 @@ from decimal import Decimal
 
 import pytest
 from django.contrib.auth import get_user_model
-from django.contrib.messages import get_messages
 from django.core.paginator import Paginator
 from django.test import Client
 
@@ -47,15 +46,18 @@ def test_admin_read_models_keep_current_quotas_and_task_allocations():
     assert task["command"] == "python train.py --name 'two words'"
 
 
-def test_ssh_key_submission_keeps_success_feedback_through_redirect():
+def test_ssh_key_registration_returns_the_enabled_account_key():
     user = get_user_model().objects.create_user("key-owner")
     client = Client()
     client.force_login(user)
     from gpu_platform_control.core.accounts.models import SSHKey
     public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH3ys6jMEUPuJSpGJMBYoQq2XLNudnK1jhOLYa7LxolE fixture"
-    response = client.post("/keys/", {"name": "fixture", "public_key": public_key}, follow=True)
-    assert response.status_code == 200 and SSHKey.objects.filter(user=user, enabled=True).count() == 1
-    assert any(message.level_tag == "success" for message in get_messages(response.wsgi_request))
+    response = client.post("/api/v1/keys", {"name": "fixture", "public_key": public_key},
+                           content_type="application/json")
+    assert response.status_code == 201
+    key = SSHKey.objects.get(user=user, enabled=True)
+    assert response.json()["data"]["id"] == key.pk
+    assert client.get("/api/v1/keys").json()["data"]["items"][0]["fingerprint"] == key.fingerprint
 
 
 def test_node_registration_persists_connection_in_cluster_configuration(tmp_path, settings, monkeypatch):
@@ -121,34 +123,31 @@ def test_request_defaults_follow_module_modes_and_batch_allocation_defaults():
 
 
 
-def test_combined_notification_form_retains_secret_and_allows_disabling_without_receiver(settings):
+def test_notification_settings_validate_and_retain_the_delivery_secret(settings):
     from copy import deepcopy
+    from django.core.exceptions import ValidationError
     from gpu_platform_control.core.events.models import NotificationSettings
+
     settings.PLATFORM_CLUSTER_CONFIG = deepcopy(settings.PLATFORM_CLUSTER_CONFIG)
     settings.PLATFORM_CLUSTER_CONFIG["control"] = {"notify": [{"module": "pushplus"}]}
     user = get_user_model().objects.create_user("notify-admin", is_staff=True)
-    client = Client()
-    client.force_login(user)
-    url = "/management/approvals/?tab=push"
-    assert client.post(url, {"action": "push", "reminder_minutes": 30}).status_code == 302
-    response = client.post(url, {"action": "push", "events": ["ending_soon"], "reminder_minutes": 30})
-    assert response.status_code == 200 and not NotificationSettings.load().enabled
-    response = client.post(url, {"action": "push", "events": ["ending_soon"], "reminder_minutes": 30,
-                                 "receiver:pushplus:token": "invalid"})
-    assert response.status_code == 200 and not NotificationSettings.load().enabled
+    push = {"action": "push", "events": ["ending_soon"], "reminder_minutes": 30}
+    administration.approvals(user, values={**push, "events": []})
+    with pytest.raises(ValidationError):
+        administration.approvals(user, values=push)
+    with pytest.raises(ValidationError):
+        administration.approvals(user, values={**push, "recipients": {"pushplus": {"token": "invalid"}}})
+    assert not NotificationSettings.load().enabled
+
     token = "0123456789abcdef" * 2
-    response = client.post(url, {"action": "push", "events": ["ending_soon"], "reminder_minutes": 30,
-                                 "receiver:pushplus:token": token})
-    assert response.status_code == 302
+    administration.approvals(user, values={**push, "recipients": {"pushplus": {"token": token}}})
     configuration = NotificationSettings.load()
     ciphertext = configuration.receivers["pushplus"]["token"]
     assert configuration.enabled and token not in ciphertext
-    response = client.post(url, {"action": "push", "events": ["ending_soon"], "reminder_minutes": 45,
-                                 "receiver:pushplus:token": ""})
-    assert response.status_code == 302
-    configuration = NotificationSettings.load()
+    administration.approvals(user, values={**push, "reminder_minutes": 45})
+    configuration.refresh_from_db()
     assert configuration.receivers["pushplus"]["token"] == ciphertext and configuration.reminder_minutes == 45
-    assert client.post(url, {"action": "push", "reminder_minutes": 45}).status_code == 302
+    administration.approvals(user, values={**push, "events": []})
     configuration.refresh_from_db()
     assert not configuration.enabled and configuration.events == []
     assert configuration.receivers["pushplus"]["token"] == ciphertext
@@ -208,13 +207,22 @@ def test_physical_capacity_cannot_be_used_as_a_member_policy(kind):
         normalized_policy({"resource_limits": {"capacity": 100}}, {})
 
 
-def test_group_home_default_is_inherited_and_members_can_override_it():
+@pytest.mark.parametrize(("create_field", "update_field"), [
+    ("home_quota_gib", "home_size_gib"), ("home_size_gib", "home_quota_gib"),
+])
+def test_group_home_default_is_inherited_and_members_can_override_it(create_field, update_field):
     from gpu_platform_control.core.accounts.models import UserGroup
-    from gpu_platform_control.services.commands import save_member, save_group
+    from gpu_platform_control.services.commands import save_member
     from gpu_platform_control.services.catalog import member_options
     actor = get_user_model().objects.create_user("group-owner", is_staff=True, is_superuser=True)
-    UserGroup.objects.update(is_default=False)
-    group = UserGroup.objects.create(name="research", is_default=True, home_size_gib=120)
+    client = Client()
+    client.force_login(actor)
+    url = "/api/v1/admin/groups"
+    created = client.post(url, {"name": "research", "make_default": True, create_field: 120},
+                          content_type="application/json")
+    assert created.status_code == 201
+    group = UserGroup.objects.get(pk=created.json()["data"]["id"])
+    assert group.home_size_gib == 120
     automatic = get_user_model().objects.create_user("automatic-owner")
     assert automatic.profile.home_size_gib == 120
     options = member_options(actor)
@@ -227,7 +235,8 @@ def test_group_home_default_is_inherited_and_members_can_override_it():
     save_member(actor, {"group": group.pk, "home_size_gib": 160}, user.pk)
     user.profile.refresh_from_db()
     assert user.profile.home_size_gib == 160
-    save_group(actor, {"home_size_gib": 200}, group.pk)
+    updated = client.patch(f"{url}/{group.pk}", {update_field: 200}, content_type="application/json")
+    assert updated.status_code == 200 and updated.json()["data"]["home_size_gib"] == 200
     group.refresh_from_db()
     user.profile.refresh_from_db()
     automatic.profile.refresh_from_db()
