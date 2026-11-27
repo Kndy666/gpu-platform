@@ -5,7 +5,7 @@ from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST, require_GET
 import gpu_platform_control.services.pages as service
-from .adapter import service_arguments, errors_as_http, render_result, notify, edit, receivers, parameters
+from .adapter import service_arguments, errors_as_http, render_result, notify, edit, parameters
 from django.core.exceptions import ValidationError
 from ..forms import EndTimeForm, ExtensionForm, ImageBuildForm, RequestForm, ReviewForm, SSHKeyForm, TokenIssueForm
 
@@ -85,26 +85,6 @@ def api_access(request):
     response = render_result(
         request, "portal/api_access.html", result, form=form, api_url=request.build_absolute_uri("/api/v1")
     )
-    response["Cache-Control"] = "no-store"
-    return response
-
-
-@login_required
-@errors_as_http
-def notification_preferences(request):
-    result = service.notification_preferences(request.user)
-    forms = receivers(request, result.data["channels"])
-    for receiver in forms:
-        form = receiver["form"]
-        if form.is_bound and form.is_valid():
-            try:
-                saved = service.notification_preferences(request.user, values=form.payload())
-            except ValidationError as error:
-                form.application_error(error)
-            else:
-                notify(request, saved)
-                return redirect("notification_preferences")
-    response = render_result(request, "portal/notification_preferences.html", result, forms=forms)
     response["Cache-Control"] = "no-store"
     return response
 

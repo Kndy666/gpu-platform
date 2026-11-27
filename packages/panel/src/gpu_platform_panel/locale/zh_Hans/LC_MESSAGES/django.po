@@ -1432,3 +1432,81 @@ msgstr "缩短时间"
 
 msgid "Shortening will close your pending extension request."
 msgstr "缩短时间后，当前待审批的延期申请将失效。"
+
+msgid "All notifications"
+msgstr "全部通知"
+
+msgid "Approvals"
+msgstr "审批"
+
+msgid "Automatic"
+msgstr "系统自动发送"
+
+msgid "Close"
+msgstr "关闭"
+
+msgid "Delivered"
+msgstr "已送达"
+
+msgid "Display as"
+msgstr "显示方式"
+
+msgid "Events sent to administrators in WeChat"
+msgstr "通过微信发送的通知"
+
+msgid "Filter notifications"
+msgstr "筛选通知"
+
+msgid "Leave blank for a 5-second reminder or a banner that stays until closed."
+msgstr "留空时，右下角提醒显示 5 秒，顶部横幅持续显示到用户关闭。"
+
+msgid "Message"
+msgstr "正文"
+
+msgid "No notifications sent yet"
+msgstr "暂无发送记录"
+
+msgid "No notifications yet"
+msgstr "暂无通知"
+
+msgid "Notification"
+msgstr "通知"
+
+msgid "Open notification"
+msgstr "查看通知"
+
+msgid "Open related page"
+msgstr "打开相关页面"
+
+msgid "Panel link"
+msgstr "面板内链接"
+
+msgid "Read"
+msgstr "已读"
+
+msgid "Review recipients"
+msgstr "确认接收人"
+
+msgid "Seconds before fading"
+msgstr "显示时长（秒）"
+
+msgid "Send WeChat notifications to administrators"
+msgstr "给管理员发送微信通知"
+
+msgid "Send now"
+msgstr "立即发送"
+
+msgid "Sent by administrators"
+msgstr "管理员发送"
+
+msgid "Stop showing after"
+msgstr "提示有效期"
+
+msgid "Title"
+msgstr "标题"
+
+msgid "Unread"
+msgstr "未读"
+
+msgid "Withdraw"
+msgstr "撤回"

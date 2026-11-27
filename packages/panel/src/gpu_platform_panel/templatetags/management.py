@@ -37,12 +37,19 @@ def management_navigation(context):
             ],
         ),
         (
-            _("Approvals and notifications"),
+            _("Approvals"),
             "i-check",
             [
                 ("approvals-pending", _("Pending approval"), approval_url + "?tab=pending"),
-                ("approvals-push", _("Notification settings"), approval_url + "?tab=push"),
-                ("approvals-history", _("Notification history"), approval_url + "?tab=history"),
+            ],
+        ),
+        (
+            _("Notifications"),
+            "i-bell",
+            [
+                ("notifications-send", _("Send notification"), reverse("send_notice")),
+                ("notifications-automatic", _("Automatic notifications"), approval_url + "?tab=push"),
+                ("notifications-history", _("Sending history"), approval_url + "?tab=history"),
             ],
         ),
         (
@@ -67,7 +74,7 @@ def management_navigation(context):
                 "icon": icon,
                 "items": items,
                 "active": any(item["active"] for item in items),
-                "count": pending_count if label == _("Approvals and notifications") else 0,
+                "count": pending_count if entries[0][0] == "approvals-pending" else 0,
             }
         )
     return {"navigation": navigation, "current_title": context["section_title"]}

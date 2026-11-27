@@ -1,0 +1,34 @@
+{% extends 'portal/manage_base.html' %}{% load i18n %}
+{% block manage_content %}
+{% if available %}
+<form method="post" class="panel notice-composer" data-notice-compose>
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+  <div class="manage-form-fields">
+    {% include 'portal/field.html' with field=form.audience %}
+    {% include 'portal/field.html' with field=form.member %}
+    {% include 'portal/field.html' with field=form.group %}
+  </div>
+  {% include 'portal/field.html' with field=form.title %}
+  {% include 'portal/field.html' with field=form.content %}
+  {% include 'portal/field.html' with field=form.link %}
+  <div class="manage-form-fields">
+    {% include 'portal/field.html' with field=form.presentation %}
+    <div>{% include 'portal/field.html' with field=form.seconds %}<small class="muted">{{ form.seconds.help_text }}</small></div>
+    {% include 'portal/field.html' with field=form.expires_at %}
+  </div>
+  <div class="form-actions">
+    {% if preview %}
+    <div data-notice-confirmation>
+      <input type="hidden" name="confirmation" value="{{ preview.confirmation }}">
+      <p>{% translate 'Recipients' %} <strong>{{ preview.count }}</strong></p>
+      <button class="button" type="submit" name="action" value="send">{% translate 'Send now' %}</button>
+    </div>
+    {% endif %}
+    <button class="button secondary" type="submit" name="action" value="preview">{% translate 'Review recipients' %}</button>
+  </div>
+</form>
+{% else %}
+<div class="panel empty">{% translate 'In-app notifications are unavailable.' %}</div>
+{% endif %}
+{% endblock %}

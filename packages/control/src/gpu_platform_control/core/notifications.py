@@ -2,7 +2,7 @@
 
 import base64
 import hashlib
-from datetime import timedelta
+from datetime import timedelta, timezone as datetime_timezone
 from cryptography.fernet import Fernet
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -10,7 +10,11 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone, translation
+from django.utils.dateparse import parse_datetime
+from django.utils.formats import date_format
 from django.utils.translation import gettext_lazy as _
+from django.urls import reverse
+from gpu_platform_contracts.slots.notify import IN_APP_CHANNEL, InboxDelivery
 from gpu_platform_contracts.texts import Message
 from gpu_platform_contracts.module import ModuleDescriptor
 from gpu_platform_control.slots import load
@@ -39,6 +43,26 @@ EVENTS = {
     "long_batch": _("Long-running program"),
     "sync_completed": _("Synchronization completed"),
 }
+MANUAL_NOTICE = "manual_notice"
+DEFAULT_IN_APP_EVENTS = tuple(code for code in EVENTS if code not in {"submit", "extension_submitted"})
+
+
+def channel_configured(channel):
+    return any(selection.module == channel for selection in cluster_config().control.notify)
+
+
+def automatic_events(channel, settings):
+    if channel == IN_APP_CHANNEL:
+        return (settings.receivers.get(channel, {}).get("events", DEFAULT_IN_APP_EVENTS)
+                if settings else DEFAULT_IN_APP_EVENTS)
+    return settings.events if settings and settings.enabled else ()
+
+
+def reminder_settings(event):
+    settings = NotificationSettings.objects.filter(pk=1).first()
+    if any(event in automatic_events(selection.module, settings) for selection in cluster_config().control.notify):
+        return settings.reminder_minutes if settings else 30
+    return None
 
 
 def event_labels(loader=load):
@@ -72,8 +96,9 @@ def enqueue_event(row, *, recipients=None):
     selections = cluster_config().control.notify
     if not selections:
         return
-    configuration = NotificationSettings.objects.filter(pk=1, enabled=True).first()
-    if not configuration or row.action not in configuration.events:
+    configuration = NotificationSettings.objects.filter(pk=1).first()
+    selections = [selection for selection in selections if row.action in automatic_events(selection.module, configuration)]
+    if not selections:
         return
     if recipients is not None:
         pass
@@ -92,8 +117,13 @@ def enqueue_event(row, *, recipients=None):
             resource = None
         recipient = resource.user if resource else row.actor
         recipients = [recipient] if recipient else []
-    for recipient in recipients:
-        for selected in selections:
+    recipients = [recipient for recipient in recipients if recipient.is_active]
+    for selected in selections:
+        targets = recipients
+        if selected.module == "pushplus":
+            # The shared WeChat destination receives one copy for the administrators.
+            targets = get_user_model().objects.filter(is_active=True, is_staff=True).order_by("pk")[:1]
+        for recipient in targets:
             Notification.objects.get_or_create(
                 event_key=f"audit:{row.pk}:{selected.module}:{recipient.pk}",
                 defaults={
@@ -118,15 +148,15 @@ def mark_node_offline(node_id):
 
 
 def collect_expiry_reminders():
-    configuration = NotificationSettings.objects.filter(pk=1, enabled=True).first()
-    if not configuration or "ending_soon" not in configuration.events:
+    minutes = reminder_settings("ending_soon")
+    if minutes is None:
         return
     now = timezone.now()
     requests = ResourceRequest.objects.filter(
         mode="interactive",
         status="running",
         ends_at__gt=now,
-        ends_at__lte=now + timedelta(minutes=configuration.reminder_minutes),
+        ends_at__lte=now + timedelta(minutes=minutes),
         workspace__stop_requested=False,
     )
     from gpu_platform_control.core.audit.models import AuditLog
@@ -145,13 +175,13 @@ def collect_retention_reminders(clock=timezone.now):
     from .services import audit
     from .volumes import volume_busy
 
-    configuration = NotificationSettings.objects.filter(pk=1, enabled=True).first()
-    if not configuration or "volume_deletion_notice" not in configuration.events:
+    minutes = reminder_settings("volume_deletion_notice")
+    if minutes is None:
         return
     now = clock()
     volumes = VolumeAllocation.objects.select_for_update().filter(
         kind="work", state="bound", retain_until__gt=now,
-        retain_until__lte=now + timedelta(minutes=configuration.reminder_minutes),
+        retain_until__lte=now + timedelta(minutes=minutes),
     )
     for volume in volumes:
         deadline = volume.retain_until.isoformat()
@@ -169,8 +199,7 @@ def collect_long_batch_reminders(clock=timezone.now):
     from .services import audit
     from .configuration import config
 
-    configuration = NotificationSettings.objects.filter(pk=1, enabled=True).first()
-    if not configuration or "long_batch" not in configuration.events:
+    if reminder_settings("long_batch") is None:
         return
     threshold = timedelta(hours=config()["platform"]["batch_reminder_hours"])
     requests = ResourceRequest.objects.select_for_update().filter(
@@ -191,19 +220,53 @@ def collect_reminders():
     collect_long_batch_reminders()
 
 
-def deliver_one(loader=load, clock=timezone.now):
+def render_event(job, event, loader):
+    if event.code == MANUAL_NOTICE:
+        return job.title, job.content, {}
+    title = str(event_labels(loader).get(event.code, _("Platform notification")))
+    parameters = event.parameters
+    task = None
+    target = parameters.get("target")
+    if target:
+        try:
+            task = ResourceRequest.objects.filter(pk=target).only("purpose", "user_id").first()
+        except (ValidationError, ValueError):
+            pass
+    content = []
+    presentation = {}
+    if task and (job.recipient.is_staff or task.user_id == job.recipient_id):
+        content.append(task.purpose)
+        presentation["link"] = reverse("task", args=[task.pk])
+    elif isinstance(parameters.get("node"), str):
+        content.append(parameters["node"])
+    instant_field = {"ending_soon": "ends_at", "volume_deletion_notice": "retain_until"}.get(event.code)
+    if instant_field and isinstance(parameters.get(instant_field), str):
+        deadline = parse_datetime(parameters[instant_field])
+        if deadline and timezone.is_aware(deadline):
+            content.append(str(_("Until %(time)s") % {"time": date_format(timezone.localtime(deadline), "SHORT_DATETIME_FORMAT")}))
+            presentation["expires_at"] = deadline.astimezone(datetime_timezone.utc).isoformat()
+    if event.code in {"reject", "extension_rejected"} and isinstance(parameters.get("reason"), str):
+        content.append(parameters["reason"])
+    return title, "\n".join(content), presentation
+
+
+def deliver_one(loader=load, clock=timezone.now, *, in_app=None):
     now = clock()
     with transaction.atomic():
-        job = (
+        queue = (
             Notification.objects.select_for_update()
             .filter(
                 Q(state="pending") | Q(state="sending", next_attempt_at__lte=now),
                 next_attempt_at__lte=now,
-                recipient__is_active=True,
+                recipient__isnull=False,
             )
             .order_by("created_at", "pk")
-            .first()
         )
+        if in_app is True:
+            queue = queue.filter(channel=IN_APP_CHANNEL)
+        elif in_app is False:
+            queue = queue.exclude(channel=IN_APP_CHANNEL)
+        job = queue.first()
         if job is None:
             return False
         (job.state, job.attempts, job.next_attempt_at) = (
@@ -212,32 +275,40 @@ def deliver_one(loader=load, clock=timezone.now):
             now + timedelta(minutes=5),
         )
         job.save(update_fields=["state", "attempts", "next_attempt_at"])
+    attempt = Notification.objects.filter(pk=job.pk, state="sending", attempts=job.attempts)
+    expires_at = job.payload.get("expires_at")
+    if (not job.recipient.is_active
+            or (job.channel == "pushplus" and not job.recipient.is_staff)
+            or (expires_at and parse_datetime(expires_at) <= now)):
+        attempt.update(state="skipped")
+        return True
     try:
         selected = next((item for item in cluster_config().control.notify if item.module == job.channel))
         module = loader("notify", selected.module, options=selected.options)
         configuration = NotificationSettings.load()
-        recipient = {
-            **configuration.receivers.get(job.channel, {}),
-            **job.recipient.profile.notification_receivers.get(job.channel, {}),
-        }
+        recipient = dict(configuration.receivers.get(job.channel, {})) if job.channel != IN_APP_CHANNEL else {}
+        if job.channel not in {IN_APP_CHANNEL, "pushplus"}:
+            recipient.update(job.recipient.profile.notification_receivers.get(job.channel, {}))
         for key, specification in module.recipient_fields().items():
             if specification.get("secret") and recipient.get(key):
                 recipient[key] = cipher().decrypt(recipient[key].encode()).decode()
         language = job.recipient.profile.language or cluster_config().cluster.default_language
-        event = Message.model_validate(job.payload)
+        event = Message(code=job.payload["code"], parameters=job.payload["parameters"])
         with translation.override(language):
-            title = str(event_labels(loader).get(event.code, event.code))
-            content = "\n".join((f"{key}: {value}" for (key, value) in event.parameters.items()))
+            title, content, presentation = render_event(job, event, loader)
             event = event.model_copy(
                 update={"parameters": {**event.parameters, "title": title, "content": content}}
             )
-        module.send(recipient, event, language)
+        delivery = module.send(recipient, event, language)
+        if isinstance(delivery, InboxDelivery):
+            title, content = delivery.title, delivery.content
     except Exception as exc:
-        Notification.objects.filter(pk=job.pk).update(
+        attempt.update(
             state="pending" if job.attempts < 3 else "failed",
             error=type(exc).__name__,
             next_attempt_at=now + timedelta(seconds=60 * 2**job.attempts),
         )
     else:
-        Notification.objects.filter(pk=job.pk).update(state="sent", sent_at=clock(), error="")
+        attempt.update(state="sent", sent_at=clock(), error="", title=title[:100],
+                       content=content, payload={**job.payload, **presentation})
     return True

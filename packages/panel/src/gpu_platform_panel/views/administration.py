@@ -5,6 +5,7 @@ from django.shortcuts import redirect
 from django.urls import reverse
 from django.views.decorators.http import require_POST, require_GET
 import gpu_platform_control.services.administration as service
+from gpu_platform_control.services.inbox import sending_history
 from gpu_platform_control.services.usage import current_usage, usage_statistics
 from .adapter import service_arguments, errors_as_http, render_result, notify, edit, receivers, parameters
 from django.core.exceptions import ValidationError
@@ -27,6 +28,8 @@ staff_required = user_passes_test(lambda user: user.is_active and user.is_staff)
 def approvals(request):
     action = request.POST.get("action")
     query = parameters(request.GET)
+    if request.method == "GET" and query.get("tab") == "history":
+        return render_result(request, "portal/notice_history.html", sending_history(request.user, query=query))
     if request.method == "POST" and (action == "push" or request.POST.get("channel")):
         query["tab"] = "push"
     result = service.approvals(request.user, query=query)

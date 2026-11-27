@@ -1582,3 +1582,108 @@ msgstr "仅可调整尚未结束的开发环境的时间。"
 
 msgid "Choose an end time earlier than the current end time."
 msgstr "请选择早于原结束时间的新结束时间。"
+
+msgid "Administrators"
+msgstr "管理员"
+
+msgid "All active users"
+msgstr "全体活跃用户"
+
+msgid "Automatic notifications"
+msgstr "自动通知"
+
+msgid "Bottom-right reminder"
+msgstr "右下角提醒"
+
+msgid "Cancel remaining delivery"
+msgstr "取消尚未发送的通知"
+
+msgid "Choose a time in the future."
+msgstr "请选择未来的时间。"
+
+msgid "Choose how to show the notification."
+msgstr "请选择通知的显示方式。"
+
+msgid "Choose who will receive the notification."
+msgstr "请选择接收人。"
+
+msgid "Enter a duration between 3 and 60 seconds."
+msgstr "请输入 3 到 60 秒。"
+
+msgid "Enter a path within this panel, starting with /."
+msgstr "请输入以 / 开头的面板内链接。"
+
+msgid "Enter a title and message within the length limits."
+msgstr "请填写标题和正文，并检查字数是否超出限制。"
+
+msgid "Events shown in the panel"
+msgstr "面板里显示的通知"
+
+msgid "In-app"
+msgstr "站内"
+
+msgid "In-app notifications are unavailable."
+msgstr "站内通知暂未启用。"
+
+msgid "Inbox only"
+msgstr "仅在通知中心显示"
+
+msgid "Notification queued."
+msgstr "通知已安排发送。"
+
+msgid "Notification withdrawn"
+msgstr "通知已撤回"
+
+msgid "Notification withdrawn."
+msgstr "通知已撤回。"
+
+msgid "One user"
+msgstr "单个用户"
+
+msgid "Platform notification"
+msgstr "平台通知"
+
+msgid "Recipients"
+msgstr "接收人"
+
+msgid "Remaining delivery canceled."
+msgstr "已取消尚未发送的通知。"
+
+msgid "Send notification"
+msgstr "发通知"
+
+msgid "Sending history"
+msgstr "发送记录"
+
+msgid "Skipped"
+msgstr "已跳过"
+
+msgid "The notification or its recipients changed. Review the recipients again."
+msgstr "通知内容或接收人有变化，请重新确认接收人。"
+
+msgid "The preview expired. Review the recipients again."
+msgstr "预览已过期，请重新确认接收人。"
+
+msgid "There are no active users in this selection."
+msgstr "这个范围内没有活跃用户。"
+
+msgid "This notification can no longer be changed."
+msgstr "这条通知的状态已变更，请查看发送记录。"
+
+msgid "Top banner"
+msgstr "顶部横幅"
+
+msgid "Until %(time)s"
+msgstr "截止时间 %(time)s"
+
+msgid "User group"
+msgstr "用户组"
+
+msgid "WeChat"
+msgstr "微信"
+
+msgid "Withdraw notification"
+msgstr "撤回通知"
+
+msgid "Withdrawn"
+msgstr "已撤回"

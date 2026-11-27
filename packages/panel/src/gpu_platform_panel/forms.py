@@ -436,17 +436,47 @@ class RecycleSettingsForm(InputForm):
 
 
 class PushSettingsForm(InputForm):
-    enabled = forms.BooleanField(label=tr("Enable notifications"), required=False)
+    enabled = forms.BooleanField(label=tr("Send WeChat notifications to administrators"), required=False)
     reminder_minutes = forms.IntegerField(
         label=tr("Reminder before expiry (minutes)"), min_value=1, max_value=1440
     )
     events = forms.MultipleChoiceField(
-        label=tr("Notification events"), required=False, widget=forms.CheckboxSelectMultiple
+        label=tr("Events sent to administrators in WeChat"), required=False, widget=forms.CheckboxSelectMultiple
     )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["events"].choices = self.options.get("events", [])
+        if self.options.get("inapp_enabled"):
+            self.fields["inapp_events"] = forms.MultipleChoiceField(
+                label=tr("Events shown in the panel"), required=False, widget=forms.CheckboxSelectMultiple,
+                choices=self.options.get("events", []),
+            )
+
+
+class SendNoticeForm(InputForm):
+    audience = forms.ChoiceField(label=tr("Recipients"))
+    member = forms.TypedChoiceField(label=tr("User"), required=False, coerce=int)
+    group = forms.TypedChoiceField(label=tr("User group"), required=False, coerce=int)
+    title = forms.CharField(label=tr("Title"), max_length=100)
+    content = forms.CharField(label=tr("Message"), max_length=4000, widget=forms.Textarea(attrs={"rows": 5}))
+    link = forms.CharField(label=tr("Panel link"), required=False, max_length=500)
+    presentation = forms.ChoiceField(label=tr("Display as"), initial="toast")
+    seconds = forms.IntegerField(
+        label=tr("Seconds before fading"), required=False, min_value=3, max_value=60,
+        help_text=tr("Leave blank for a 5-second reminder or a banner that stays until closed."),
+    )
+    expires_at = forms.DateTimeField(
+        label=tr("Stop showing after"), required=False,
+        widget=forms.DateTimeInput(format="%Y-%m-%dT%H:%M", attrs={"type": "datetime-local"}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for key, option in (("audience", "audiences"), ("presentation", "presentations")):
+            self.fields[key].choices = self.options[option]
+        for key, option in (("member", "members"), ("group", "groups")):
+            self.fields[key].choices = [("", "—"), *self.options[option]]
 
 
 class ReceiverForm(InputForm):

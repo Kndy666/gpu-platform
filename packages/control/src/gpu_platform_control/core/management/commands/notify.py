@@ -24,7 +24,11 @@ class Command(BaseCommand):
                 try:
                     if counter % 30 == 0:
                         collect_reminders()
-                    deliver_one()
+                    for _ in range(25):
+                        if stopping or not deliver_one(in_app=True):
+                            break
+                    if not stopping:
+                        deliver_one(in_app=False)
                 except Exception as exc:
                     self.stderr.write("Notification retry: " + type(exc).__name__)
                 counter += 1

@@ -1,5 +1,6 @@
 from django.utils.translation import gettext_lazy as tr, get_language
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
+from gpu_platform_contracts.slots.notify import IN_APP_CHANNEL
 from django.db import transaction
 from gpu_platform_control.core.accounts.models import UserProfile
 from gpu_platform_control.core.events.models import NotificationSettings
@@ -11,6 +12,8 @@ from gpu_platform_control.slots.configuration import cluster_config
 def notification_channels(user, *, defaults=False):
     result = []
     for selection in cluster_config().control.notify:
+        if selection.module == IN_APP_CHANNEL or (selection.module == "pushplus" and not defaults):
+            continue
         module = load("notify", selection.module, options=selection.options)
         values = (
             NotificationSettings.load().receivers if defaults else user.profile.notification_receivers
@@ -36,16 +39,16 @@ def notification_channels(user, *, defaults=False):
 
 @transaction.atomic
 def set_notification_receiver(user, channel, values, *, defaults=False):
+    if channel == "pushplus" and not defaults:
+        raise PermissionDenied
     selection = next((item for item in cluster_config().control.notify if item.module == channel), None)
-    if selection is None:
+    if selection is None or channel == IN_APP_CHANNEL:
         raise ValidationError(tr("Notification channel is unavailable."), code="channel_unavailable")
     module = load("notify", selection.module, options=selection.options)
     fields = module.recipient_fields()
     if set(values) - set(fields):
         raise ValidationError(tr("Unknown receiver field."), code="receiver_field_unknown")
     if defaults:
-        from django.core.exceptions import PermissionDenied
-
         if not user.is_staff:
             raise PermissionDenied
         profile = NotificationSettings.objects.select_for_update().get(pk=NotificationSettings.load().pk)

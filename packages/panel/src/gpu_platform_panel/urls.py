@@ -2,6 +2,7 @@ from django.urls import path
 from django.views.i18n import JavaScriptCatalog
 from .views import pages as views
 from .views import administration as manage
+from .views import inbox as notifications
 from .views.datasets import browse_datasets
 
 urlpatterns = [
@@ -9,13 +10,18 @@ urlpatterns = [
     path("keys/", views.keys, name="keys"),
     path("jsi18n/", JavaScriptCatalog.as_view(packages=["gpu_platform_panel"]), name="javascript-catalog"),
     path("syncs/", views.synchronization, name="syncs"),
-    path("account/notifications/", views.notification_preferences, name="notification_preferences"),
+    path("account/notifications/", notifications.inbox, name="inbox"),
+    path("account/notifications/reminders/", notifications.reminders, name="inbox_reminders"),
+    path("account/notifications/<int:pk>/", notifications.notice, name="notice"),
+    path("account/notifications/<int:pk>/dismiss/", notifications.dismiss_banner, name="dismiss_banner"),
     path("syncs/datasets/", views.sync_datasets, name="sync_datasets"),
     path("images/<uuid:pk>/sync/", views.sync_image, name="sync_image"),
     path("api/", views.api_access, name="api_access"),
     path("api/tokens/<uuid:pk>/delete/", views.delete_api_token, name="delete_api_token"),
     path("management/containers/", manage.containers, name="manage_containers"),
     path("management/approvals/", manage.approvals, name="manage_approvals"),
+    path("management/notifications/send/", notifications.send_notice, name="send_notice"),
+    path("management/notifications/<int:pk>/stop/", notifications.stop_notice, name="stop_notice"),
     path("management/nodes/", manage.nodes, name="manage_nodes"),
     path("management/performance/", manage.performance, name="manage_performance"),
     path("management/performance/data/", manage.performance_data, name="manage_performance_data"),

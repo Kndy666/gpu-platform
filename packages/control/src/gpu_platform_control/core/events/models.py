@@ -26,7 +26,11 @@ class Notification(models.Model):
     event = models.CharField(max_length=40)
     title = models.CharField(max_length=100)
     content = models.TextField()
-    state = models.CharField(max_length=12, default='pending', choices=[('pending', tr('Waiting for delivery')), ('sending', tr('Sending')), ('sent', tr('Delivered to channel')), ('failed', tr('Delivery failed'))])
+    state = models.CharField(max_length=12, default='pending', choices=[
+        ('pending', tr('Waiting for delivery')), ('sending', tr('Sending')),
+        ('sent', tr('Delivered to channel')), ('failed', tr('Delivery failed')),
+        ('canceled', tr('Canceled')), ('revoked', tr('Withdrawn')), ('skipped', tr('Skipped')),
+    ])
     attempts = models.PositiveIntegerField(default=0)
     next_attempt_at = models.DateTimeField(default=timezone.now)
     sent_at = models.DateTimeField(null=True, blank=True)

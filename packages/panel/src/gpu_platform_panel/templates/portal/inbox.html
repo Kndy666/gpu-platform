@@ -1,0 +1,22 @@
+{% extends 'portal/base.html' %}{% load i18n %}
+{% block content %}
+<div class="page-heading"><h1>{% translate 'Notifications' %}</h1></div>
+{% if items %}
+<ul class="panel inbox-list">
+  {% for item in items %}
+  <li>
+    <form method="post" action="{% url 'notice' item.id %}">
+      {% csrf_token %}
+      <button type="submit" class="inbox-item{% if item.unread %} unread{% endif %}">
+        <span>{{ item.title }}</span>
+        <span class="muted">{{ item.sent_at|date:'SHORT_DATETIME_FORMAT' }}{% if item.unread %} · {% translate 'Unread' %}{% endif %}</span>
+      </button>
+    </form>
+  </li>
+  {% endfor %}
+</ul>
+{% include 'portal/history_pagination.html' %}
+{% else %}
+<div class="panel empty">{% translate 'No notifications yet' %}</div>
+{% endif %}
+{% endblock %}

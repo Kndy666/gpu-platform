@@ -20,7 +20,8 @@ dependencies = [
   "gpu-platform-gpu-nvidia-mps==0.4.0",
   "gpu-platform-gpu-ascend==0.4.0",
   "gpu-platform-metrics-host==0.4.0",
-  "gpu-platform-notify-pushplus==0.4.0"
+  "gpu-platform-notify-pushplus==0.4.0",
+  "gpu-platform-notify-inapp==0.4.0",
 ]
 
 [tool.uv]
@@ -48,6 +49,7 @@ gpu-platform-gpu-nvidia-mps = { workspace = true }
 gpu-platform-gpu-ascend = { workspace = true }
 gpu-platform-metrics-host = { workspace = true }
 gpu-platform-notify-pushplus = { workspace = true }
+gpu-platform-notify-inapp = { workspace = true }
 
 [dependency-groups]
 dev = ["pytest>=8,<10", "pytest-django>=4.9,<5", "ruff>=0.9", "mypy>=1.14", "import-linter>=2.1", "build>=1.2", "types-PyYAML", "types-requests"]
@@ -74,7 +76,8 @@ pythonpath = [
   "modules/gpu/nvidia-mps/src",
   "modules/gpu/ascend/src",
   "modules/metrics/host/src",
-  "modules/notify/pushplus/src"
+  "modules/notify/pushplus/src",
+  "modules/notify/inapp/src",
 ]
 
 [tool.ruff]

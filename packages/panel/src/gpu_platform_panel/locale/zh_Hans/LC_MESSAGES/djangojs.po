@@ -96,3 +96,6 @@ msgstr "GPU %(number)s：%(compute)s%%  %(memory)s GiB"
 
 msgid "Select a node to compare performance."
 msgstr "请选择要对比的节点。"
+
+msgid "Could not copy to the clipboard."
+msgstr "复制失败。"

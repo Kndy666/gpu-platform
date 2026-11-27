@@ -21,6 +21,7 @@ RUN pip install --no-cache-dir uv==0.13.8 \
       --package gpu-platform-auth-local --package gpu-platform-transport-local \
       --package gpu-platform-transport-reverse-ssh --package gpu-platform-entry-local \
       --package gpu-platform-entry-controller-forward --package gpu-platform-notify-pushplus \
+      --package gpu-platform-notify-inapp \
     && rm -rf /root/.cache/uv
 RUN DJANGO_DEBUG=1 python -m gpu_platform_control.manage collectstatic --noinput
 USER 10001:10001

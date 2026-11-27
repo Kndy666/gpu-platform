@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gpu-platform-notify-inapp"
+version = "0.4.0"
+requires-python = ">=3.10"
+dependencies = ["gpu-platform-contracts==0.4.0"]
+
+[project.entry-points."gpu_platform.slots.notify"]
+inapp = "gpu_platform_notify_inapp.module:Module"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -493,13 +493,3 @@ def sync_datasets(actor, *, values=None, query=None):
 
         notices.append(("error", message(getattr(exc, "code", "") or "sync_failed", target)))
     return result(complete=True, notices=notices)
-
-
-@authenticated
-def notification_preferences(actor, *, values=None, query=None):
-    from .notifications import notification_channels, set_notification_receiver
-
-    if values is not None:
-        set_notification_receiver(actor, values.get("channel"), values.get("recipient", {}))
-        return result(complete=True)
-    return result({"channels": notification_channels(actor)})

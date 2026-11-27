@@ -17,7 +17,7 @@ Pick modules for each host in `cluster.yaml`. Ten slots cover infrastructure cho
 | [Build](../../modules/build/README.md) | `buildkit` | Dockerfile builds |
 | [Accelerator](../../modules/gpu/README.md) | `nvidia-mps`, `ascend` | Shared NVIDIA GPUs or exclusive Ascend 310P chips |
 | [Metrics](../../modules/metrics/README.md) | `host` | Timestamped hardware measurements |
-| [Notifications](../../modules/notify/README.md) | `pushplus` | User event delivery; disabled by default |
+| [Notifications](../../modules/notify/README.md) | `inapp`, `pushplus` | Panel notifications and WeChat alerts for administrators |
 
 For a CPU-only server, disable the accelerator slot. On an ARM64 Ascend 310P server with installed drivers, select Ascend instead:
 

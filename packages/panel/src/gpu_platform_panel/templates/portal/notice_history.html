@@ -1,0 +1,50 @@
+{% extends 'portal/manage_base.html' %}{% load i18n %}
+{% block manage_actions %}
+<a class="button" href="{% url 'send_notice' %}">{% translate 'Send notification' %}</a>
+{% endblock %}
+{% block manage_content %}
+<nav class="notice-history-filters" aria-label="{% translate 'Filter notifications' %}">
+  <a href="?tab=history"{% if not origin %} aria-current="page"{% endif %}>{% translate 'All notifications' %}</a>
+  <a href="?tab=history&amp;origin=manual"{% if origin == 'manual' %} aria-current="page"{% endif %}>{% translate 'Sent by administrators' %}</a>
+  <a href="?tab=history&amp;origin=automatic"{% if origin == 'automatic' %} aria-current="page"{% endif %}>{% translate 'Automatic' %}</a>
+</nav>
+{% if rows %}
+<div class="table-wrap"><table>
+  <thead><tr>
+    <th scope="col">{% translate 'Notification' %}</th>
+    <th scope="col">{% translate 'Recipients' %}</th>
+    <th scope="col">{% translate 'State' %}</th>
+    <th scope="col">{% translate 'Actions' %}</th>
+  </tr></thead>
+  <tbody>
+  {% for row in rows %}
+  <tr>
+    <td>
+      {% if row.content %}<details><summary>{{ row.title }}</summary><p class="notice-history-body">{{ row.content }}</p></details>
+      {% else %}{{ row.title|default:_("Notification") }}{% endif %}
+      <span class="table-sub">{{ row.created_at|date:'SHORT_DATETIME_FORMAT' }}{% if row.sender %} · {{ row.sender }}{% endif %}</span>
+    </td>
+    <td>{{ row.audience }}<span class="table-sub">{{ row.channel }}</span></td>
+    <td>
+      {{ row.state }}
+      <span class="table-sub">{% translate 'Delivered' %} {{ row.delivered }}/{{ row.count }}{% if row.show_read %} · {% translate 'Read' %} {{ row.read }}{% endif %}</span>
+      {% if row.changed_by %}<span class="table-sub">{{ row.changed_by }} · {{ row.changed_at|date:'SHORT_DATETIME_FORMAT' }}</span>{% endif %}
+    </td>
+    <td>
+      {% if row.can_cancel or row.can_revoke %}
+      <form class="actions" method="post" action="{% url 'stop_notice' row.id %}">
+        {% csrf_token %}
+        {% if row.can_cancel %}<button type="submit" class="button secondary" name="action" value="cancel">{% translate 'Cancel remaining delivery' %}</button>{% endif %}
+        {% if row.can_revoke %}<button type="submit" class="button secondary" name="action" value="withdraw">{% translate 'Withdraw' %}</button>{% endif %}
+      </form>
+      {% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% include 'portal/history_pagination.html' %}
+{% else %}
+<div class="panel empty">{% translate 'No notifications sent yet' %}</div>
+{% endif %}
+{% endblock %}

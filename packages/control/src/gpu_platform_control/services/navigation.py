@@ -2,6 +2,7 @@
 
 from gpu_platform_control.core.features import enabled
 from gpu_platform_control.core.nodes.models import ComputeNode
+from gpu_platform_contracts.slots.notify import IN_APP_CHANNEL
 from gpu_platform_control.slots.configuration import cluster_config
 from .boundary import authenticated
 
@@ -15,5 +16,5 @@ def features(actor):
             enabled(node, "image_sync") or (actor.is_staff and enabled(node, "dataset_sync"))
             for node in nodes
         ),
-        "notifications": bool(cluster_config().control.notify),
+        "notifications": any(selection.module == IN_APP_CHANNEL for selection in cluster_config().control.notify),
     }

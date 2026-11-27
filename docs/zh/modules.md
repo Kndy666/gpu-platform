@@ -17,7 +17,7 @@
 | [镜像构建](../../modules/build/README.md) | `buildkit` | Dockerfile 构建 |
 | [加速卡](../../modules/gpu/README.md) | `nvidia-mps`、`ascend` | NVIDIA GPU 共享或昇腾 310P 独占分配 |
 | [性能监控](../../modules/metrics/README.md) | `host` | 带采样时间的硬件读数 |
-| [消息通知](../../modules/notify/README.md) | `pushplus` | 向用户发送事件，默认关闭 |
+| [消息通知](../../modules/notify/README.md) | `inapp`、`pushplus` | 面板站内通知和管理员微信提醒 |
 
 纯 CPU 服务器可以关闭加速卡插槽。已安装驱动的 ARM64 昇腾 310P 服务器可以选择 Ascend：
 

@@ -20,6 +20,7 @@ members = [
     "gpu-platform-installer",
     "gpu-platform-metrics-host",
     "gpu-platform-node",
+    "gpu-platform-notify-inapp",
     "gpu-platform-notify-pushplus",
     "gpu-platform-panel",
     "gpu-platform-registry-zot",
@@ -549,6 +550,7 @@ dependencies = [
     { name = "gpu-platform-installer" },
     { name = "gpu-platform-metrics-host" },
     { name = "gpu-platform-node" },
+    { name = "gpu-platform-notify-inapp" },
     { name = "gpu-platform-notify-pushplus" },
     { name = "gpu-platform-panel" },
     { name = "gpu-platform-registry-zot" },
@@ -583,6 +585,7 @@ requires-dist = [
     { name = "gpu-platform-installer", editable = "packages/installer" },
     { name = "gpu-platform-metrics-host", editable = "modules/metrics/host" },
     { name = "gpu-platform-node", editable = "packages/node" },
+    { name = "gpu-platform-notify-inapp", editable = "modules/notify/inapp" },
     { name = "gpu-platform-notify-pushplus", editable = "modules/notify/pushplus" },
     { name = "gpu-platform-panel", editable = "packages/panel" },
     { name = "gpu-platform-registry-zot", editable = "modules/registry/zot" },
@@ -758,6 +761,17 @@ requires-dist = [
     { name = "gpu-platform-contracts", editable = "packages/contracts" },
     { name = "pyyaml", specifier = ">=6" },
 ]
+
+[[package]]
+name = "gpu-platform-notify-inapp"
+version = "0.4.0"
+source = { editable = "modules/notify/inapp" }
+dependencies = [
+    { name = "gpu-platform-contracts" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "gpu-platform-contracts", editable = "packages/contracts" }]
 
 [[package]]
 name = "gpu-platform-notify-pushplus"

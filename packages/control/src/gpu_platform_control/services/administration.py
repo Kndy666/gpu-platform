@@ -34,13 +34,13 @@ from gpu_platform_control.core.ssh_access import administrator_access
 @transaction.atomic
 def approvals(actor, *, values=None, query=None):
     from gpu_platform_control.core.requests.models import ExtensionRequest, ResourceRequest
-    from gpu_platform_control.core.events.models import Notification, NotificationSettings
-    from gpu_platform_control.core.notifications import event_labels
+    from gpu_platform_control.core.events.models import NotificationSettings
+    from gpu_platform_control.core.notifications import IN_APP_CHANNEL, channel_configured, event_labels
     from .notifications import notification_channels, set_notification_receiver
 
     settings = NotificationSettings.load()
     tab = parameters(query).get("tab", "pending")
-    if tab not in {"pending", "push", "history"}:
+    if tab not in {"pending", "push"}:
         tab = "pending"
     if values is not None:
         action = values.get("action")
@@ -48,13 +48,18 @@ def approvals(actor, *, values=None, query=None):
             set_notification_receiver(actor, values["channel"], values.get("recipient", {}), defaults=True)
         elif action == "push":
             events = values.get("events", [])
-            if not isinstance(events, list) or set(events) - set(event_labels()):
+            inapp_events = values.get("inapp_events")
+            available_events = event_labels()
+            if any(not isinstance(selection, list) or set(selection) - set(available_events)
+                   for selection in (events, inapp_events) if selection is not None):
                 raise ValidationError({"events": tr("Select valid notification events.")})
             minutes = int(values.get("reminder_minutes", 30))
             if not 1 <= minutes <= 1440:
                 raise ValidationError({"reminder_minutes": tr("Enter 1–1440 minutes.")})
             settings.enabled = bool(values.get("enabled", False))
             settings.events, settings.reminder_minutes = events, minutes
+            if inapp_events is not None and channel_configured(IN_APP_CHANNEL):
+                settings.receivers[IN_APP_CHANNEL] = {"events": inapp_events}
             if settings.enabled:
                 for channel in notification_channels(actor, defaults=True):
                     for name, specification in channel["fields"].items():
@@ -65,7 +70,8 @@ def approvals(actor, *, values=None, query=None):
             settings.save()
             for channel, recipient in values.get("recipients", {}).items():
                 set_notification_receiver(actor, channel, recipient, defaults=True)
-            audit(actor, "push_settings_updated", "platform", enabled=settings.enabled, events=events)
+            audit(actor, "push_settings_updated", "platform", enabled=settings.enabled, events=events,
+                  inapp_events=inapp_events)
         elif action == "extension":
             from gpu_platform_control.core.approvals import review_extension
 
@@ -81,12 +87,11 @@ def approvals(actor, *, values=None, query=None):
         return result(complete=True, notices=[("success", tr("Settings saved."))])
     title = {
         "pending": tr("Pending approval"),
-        "push": tr("Notification settings"),
-        "history": tr("Notification history"),
+        "push": tr("Automatic notifications"),
     }[tab]
     return result(
         {
-            "section": "approvals",
+            "section": "notifications-automatic" if tab == "push" else "approvals",
             "section_title": title,
             "approval_tab": tab,
             "pending": ResourceRequest.objects.filter(status="submitted").select_related("user", "node"),
@@ -95,7 +100,6 @@ def approvals(actor, *, values=None, query=None):
             ),
             "form_options": notification_settings_options(actor),
             "channels": notification_channels(actor, defaults=True),
-            "notifications": Notification.objects.order_by("-created_at")[:10],
         }
     )
 
@@ -527,14 +531,18 @@ def node_options(actor, node_id=None, transport=None):
 @staff_only
 def notification_settings_options(actor):
     from gpu_platform_control.core.events.models import NotificationSettings
-    from gpu_platform_control.core.notifications import event_labels
+    from gpu_platform_control.core.notifications import IN_APP_CHANNEL, automatic_events, channel_configured, event_labels
     from .read_models import materialize
 
     settings = NotificationSettings.load()
+    initial = {key: getattr(settings, key) for key in ("enabled", "events", "reminder_minutes")}
+    initial["inapp_events"] = list(automatic_events(IN_APP_CHANNEL, settings))
     return materialize(
         {
             "events": list(event_labels().items()),
-            "initial": {key: getattr(settings, key) for key in ("enabled", "events", "reminder_minutes")},
+            "initial": initial,
+            "inapp_enabled": channel_configured(IN_APP_CHANNEL),
+            "wechat_available": channel_configured("pushplus"),
         }
     )
 

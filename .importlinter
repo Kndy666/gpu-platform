@@ -16,6 +16,7 @@ root_packages =
     gpu_platform_runtime_k3s
     gpu_platform_metrics_host
     gpu_platform_notify_pushplus
+    gpu_platform_notify_inapp
     gpu_platform_gpu_nvidia_mps
     gpu_platform_gpu_ascend
 include_external_packages = True
@@ -41,6 +42,7 @@ forbidden_modules =
     gpu_platform_runtime_k3s
     gpu_platform_metrics_host
     gpu_platform_notify_pushplus
+    gpu_platform_notify_inapp
     gpu_platform_gpu_nvidia_mps
     django
     requests
@@ -69,6 +71,7 @@ forbidden_modules =
     gpu_platform_runtime_k3s
     gpu_platform_metrics_host
     gpu_platform_notify_pushplus
+    gpu_platform_notify_inapp
     gpu_platform_gpu_nvidia_mps
     gpu_platform_gpu_ascend
 allow_indirect_imports = True
@@ -96,6 +99,7 @@ forbidden_modules =
     gpu_platform_runtime_k3s
     gpu_platform_metrics_host
     gpu_platform_notify_pushplus
+    gpu_platform_notify_inapp
     gpu_platform_gpu_nvidia_mps
     gpu_platform_gpu_ascend
 allow_indirect_imports = True
@@ -120,6 +124,7 @@ forbidden_modules =
     gpu_platform_runtime_k3s
     gpu_platform_metrics_host
     gpu_platform_notify_pushplus
+    gpu_platform_notify_inapp
     gpu_platform_gpu_nvidia_mps
     gpu_platform_gpu_ascend
 allow_indirect_imports = True
@@ -144,6 +149,7 @@ forbidden_modules =
     gpu_platform_runtime_k3s
     gpu_platform_metrics_host
     gpu_platform_notify_pushplus
+    gpu_platform_notify_inapp
     gpu_platform_gpu_nvidia_mps
     gpu_platform_gpu_ascend
 allow_indirect_imports = True
@@ -168,6 +174,7 @@ forbidden_modules =
     gpu_platform_runtime_k3s
     gpu_platform_metrics_host
     gpu_platform_notify_pushplus
+    gpu_platform_notify_inapp
     gpu_platform_gpu_nvidia_mps
     gpu_platform_gpu_ascend
 allow_indirect_imports = True
@@ -192,6 +199,7 @@ forbidden_modules =
     gpu_platform_runtime_k3s
     gpu_platform_metrics_host
     gpu_platform_notify_pushplus
+    gpu_platform_notify_inapp
     gpu_platform_gpu_nvidia_mps
     gpu_platform_gpu_ascend
 allow_indirect_imports = True
@@ -216,6 +224,7 @@ forbidden_modules =
     gpu_platform_runtime_k3s
     gpu_platform_metrics_host
     gpu_platform_notify_pushplus
+    gpu_platform_notify_inapp
     gpu_platform_gpu_nvidia_mps
     gpu_platform_gpu_ascend
 allow_indirect_imports = True
@@ -240,6 +249,7 @@ forbidden_modules =
     gpu_platform_runtime_k3s
     gpu_platform_metrics_host
     gpu_platform_notify_pushplus
+    gpu_platform_notify_inapp
     gpu_platform_gpu_nvidia_mps
     gpu_platform_gpu_ascend
 allow_indirect_imports = True
@@ -264,6 +274,7 @@ forbidden_modules =
     gpu_platform_runtime_k3s
     gpu_platform_metrics_host
     gpu_platform_notify_pushplus
+    gpu_platform_notify_inapp
     gpu_platform_gpu_nvidia_mps
     gpu_platform_gpu_ascend
 allow_indirect_imports = True
@@ -288,6 +299,7 @@ forbidden_modules =
     gpu_platform_runtime_k3s
     gpu_platform_metrics_host
     gpu_platform_notify_pushplus
+    gpu_platform_notify_inapp
     gpu_platform_gpu_nvidia_mps
     gpu_platform_gpu_ascend
 allow_indirect_imports = True
@@ -312,6 +324,7 @@ forbidden_modules =
     gpu_platform_runtime_k3s
     gpu_platform_metrics_host
     gpu_platform_notify_pushplus
+    gpu_platform_notify_inapp
     gpu_platform_gpu_nvidia_mps
     gpu_platform_gpu_ascend
 allow_indirect_imports = True
@@ -336,6 +349,7 @@ forbidden_modules =
     gpu_platform_runtime_k3s
     gpu_platform_metrics_host
     gpu_platform_notify_pushplus
+    gpu_platform_notify_inapp
     gpu_platform_gpu_nvidia_mps
     gpu_platform_gpu_ascend
 allow_indirect_imports = True
@@ -360,6 +374,7 @@ forbidden_modules =
     gpu_platform_build_buildkit
     gpu_platform_metrics_host
     gpu_platform_notify_pushplus
+    gpu_platform_notify_inapp
     gpu_platform_gpu_nvidia_mps
     gpu_platform_gpu_ascend
 allow_indirect_imports = True
@@ -384,6 +399,7 @@ forbidden_modules =
     gpu_platform_build_buildkit
     gpu_platform_runtime_k3s
     gpu_platform_notify_pushplus
+    gpu_platform_notify_inapp
     gpu_platform_gpu_nvidia_mps
     gpu_platform_gpu_ascend
 allow_indirect_imports = True
@@ -394,6 +410,32 @@ type = forbidden
 source_modules =
     gpu_platform_notify_pushplus
 forbidden_modules =
+    gpu_platform_notify_inapp
+    gpu_platform_control
+    gpu_platform_panel
+    gpu_platform_node
+    gpu_platform_installer
+    gpu_platform_storage_rawfile
+    gpu_platform_registry_zot
+    gpu_platform_auth_local
+    gpu_platform_transport_reverse_ssh
+    gpu_platform_transport_local
+    gpu_platform_entry_local
+    gpu_platform_entry_controller_forward
+    gpu_platform_build_buildkit
+    gpu_platform_runtime_k3s
+    gpu_platform_metrics_host
+    gpu_platform_gpu_nvidia_mps
+    gpu_platform_gpu_ascend
+allow_indirect_imports = True
+
+[importlinter:contract:gpu_platform_notify_inapp]
+name = gpu_platform_notify_inapp dependency boundary
+type = forbidden
+source_modules =
+    gpu_platform_notify_inapp
+forbidden_modules =
+    gpu_platform_notify_pushplus
     gpu_platform_control
     gpu_platform_panel
     gpu_platform_node
@@ -433,6 +475,7 @@ forbidden_modules =
     gpu_platform_runtime_k3s
     gpu_platform_metrics_host
     gpu_platform_notify_pushplus
+    gpu_platform_notify_inapp
     gpu_platform_gpu_ascend
 allow_indirect_imports = True
 
@@ -457,5 +500,6 @@ forbidden_modules =
     gpu_platform_runtime_k3s
     gpu_platform_metrics_host
     gpu_platform_notify_pushplus
+    gpu_platform_notify_inapp
     gpu_platform_gpu_nvidia_mps
 allow_indirect_imports = True

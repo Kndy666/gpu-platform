@@ -319,23 +319,34 @@
     setInterval(refresh,15000);document.addEventListener('visibilitychange',refresh);
   }
   $$('[data-copy]').forEach(button => {
-    const label = button.textContent, title = button.title, aria = button.getAttribute('aria-label');
-    const icon = button.querySelector('use'), href = icon?.getAttribute('href');
-    let reset;
+    const showNotice = (level, message) => document.dispatchEvent(
+      new CustomEvent('panel-notice', {detail: {level, message}})
+    );
     button.addEventListener('click', async () => {
-    const target = document.getElementById(button.dataset.copy);
-    const text = (target?.value ?? target?.textContent)?.trim(); if (!text) return;
-    if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(text);
-    else { const input = document.createElement('textarea'); input.value = text; input.style.position = 'fixed'; input.style.opacity = '0'; document.body.appendChild(input); input.select(); document.execCommand('copy'); input.remove(); }
-    clearTimeout(reset);
-    if (icon && button.hasAttribute('data-icon-action')) {
-      icon.setAttribute('href', '#i-check'); button.title = gettext('Copied'); button.setAttribute('aria-label', gettext('Copied'));
-    } else button.textContent = gettext('Copied');
-    reset = setTimeout(() => {
-      if (icon && button.hasAttribute('data-icon-action')) {
-        icon.setAttribute('href', href); button.title = title; button.setAttribute('aria-label', aria);
-      } else button.textContent = label;
-    }, 1600);
+      const target = document.getElementById(button.dataset.copy);
+      const text = (target?.value ?? target?.textContent)?.trim();
+      if (!text) return;
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          const input = document.createElement('textarea');
+          input.value = text;
+          input.style.position = 'fixed';
+          input.style.opacity = '0';
+          document.body.appendChild(input);
+          try {
+            input.select();
+            if (!document.execCommand('copy')) throw new Error();
+          } finally {
+            input.remove();
+          }
+        }
+      } catch {
+        showNotice('error', gettext('Could not copy to the clipboard.'));
+        return;
+      }
+      showNotice('success', gettext('Copied'));
     });
   });
   const watch = $('[data-task-watch]');
