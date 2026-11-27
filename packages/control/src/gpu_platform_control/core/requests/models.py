@@ -85,7 +85,12 @@ class ExtensionRequest(models.Model):
     previous_ends_at = models.DateTimeField()
     ends_at = models.DateTimeField(verbose_name=tr('Extend until'))
     reason = models.TextField(verbose_name=tr('Reason'))
-    status = models.CharField(max_length=12, default='pending', choices=[('pending', tr('Pending approval')), ('approved', tr('Approved')), ('rejected', tr('Rejected'))])
+    status = models.CharField(max_length=12, default='pending', choices=[
+        ('pending', tr('Pending approval')),
+        ('approved', tr('Approved')),
+        ('rejected', tr('Rejected')),
+        ('superseded', tr('Superseded by a time adjustment')),
+    ])
     review_reason = models.TextField(blank=True)
     reviewed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT)
     reviewed_at = models.DateTimeField(null=True, blank=True)

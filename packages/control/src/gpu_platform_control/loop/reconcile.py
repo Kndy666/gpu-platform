@@ -187,6 +187,9 @@ class Reconciler:
             with transaction.atomic():
                 if not reserve_dispatch(request, workspace):
                     return
+                if request.ends_at and request.ends_at <= self.clock():
+                    transaction.set_rollback(True)
+                    return
                 if self.gateway.module(self.node, "entry").requires_public_port:
                     allocate_port(workspace)
                 try:
@@ -255,9 +258,11 @@ class Reconciler:
                         self.gateway.request(
                             self.node, Operation.TASK_KEYS, task_id=str(request.pk), keys=keys
                         )
-                        if workspace.dispatch_payload:
-                            workspace.dispatch_payload["identity"]["ssh_keys"] = keys
-                            workspace.save(update_fields=["dispatch_payload"])
+                        with transaction.atomic():
+                            workspace = Workspace.objects.select_for_update().get(request=request)
+                            if workspace.dispatch_payload:
+                                workspace.dispatch_payload["identity"]["ssh_keys"] = keys
+                                workspace.save(update_fields=["dispatch_payload"])
                     continue
                 try:
                     self.dispatch(request)

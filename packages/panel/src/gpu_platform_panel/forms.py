@@ -73,11 +73,14 @@ class TokenIssueForm(InputForm):
         self.fields["expires_in"].choices = self.options.get("lifetimes", [])
 
 
-class ExtensionForm(InputForm):
+class EndTimeForm(InputForm):
     ends_at = forms.DateTimeField(
         label=tr("New end time"),
         widget=forms.DateTimeInput(format="%Y-%m-%dT%H:%M", attrs={"type": "datetime-local"}),
     )
+
+
+class ExtensionForm(EndTimeForm):
     reason = forms.CharField(label=tr("Reason"), max_length=2000)
 
 
@@ -87,12 +90,19 @@ class ReviewForm(InputForm):
             ("approve", tr("Approve")),
             ("reject", tr("Reject")),
             ("stop", tr("Stop")),
-            ("extend", tr("Extend")),
+            ("adjust_time", tr("Adjust time")),
         ]
     )
-    reason = forms.CharField(label=tr("Reason"), required=False, max_length=2000)
+    reason = forms.CharField(
+        label=tr("Reason"), required=False, max_length=2000,
+        widget=forms.TextInput(attrs={"required": True}),
+    )
     ends_at = forms.DateTimeField(
-        required=False, widget=forms.DateTimeInput(attrs={"type": "datetime-local"})
+        label=tr("New end time"),
+        required=False,
+        widget=forms.DateTimeInput(
+            format="%Y-%m-%dT%H:%M", attrs={"type": "datetime-local", "required": True}
+        ),
     )
     priority = forms.TypedChoiceField(
         coerce=int, required=False, choices=[(0, tr("Normal")), (100, tr("High priority"))]

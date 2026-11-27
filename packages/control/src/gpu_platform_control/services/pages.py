@@ -18,7 +18,7 @@ from gpu_platform_control.core.retention.models import (
     EnvironmentSnapshot,
 )
 from gpu_platform_control.core.nodes.models import SystemObservation
-from gpu_platform_control.core.services import audit, approve, reject, request_stop, extend
+from gpu_platform_control.core.services import audit, approve, can_adjust_time, reject, request_stop
 from gpu_platform_control.core.access import tasks_for
 from gpu_platform_control.services.queries import resource_overview, image_catalog
 
@@ -169,14 +169,10 @@ def task(actor, pk, *, values=None, query=None):
 
     limit = extension_limit(req.user)
     pending_extension = req.extensions.filter(status="pending").first()
+    can_change_time = can_adjust_time(req, ws, timezone.now())
     can_extend = bool(
         req.user_id == actor.pk
-        and req.mode == "interactive"
-        and req.can_stop
-        and ws
-        and (not ws.stop_requested)
-        and req.ends_at
-        and (req.ends_at > timezone.now())
+        and can_change_time
         and (req.extension_count < limit)
         and (not pending_extension)
     )
@@ -200,6 +196,8 @@ def task(actor, pk, *, values=None, query=None):
             "admin_connection": bool(actor.is_staff and req.user_id != actor.pk),
             "managed": managed,
             "can_extend": can_extend,
+            "can_adjust_time": actor.is_staff and can_change_time,
+            "can_shorten_time": not actor.is_staff and req.user_id == actor.pk and can_change_time,
             "extension_limit": limit,
             "extension_hours": None
             if policy_for(req.user).unlimited
@@ -229,6 +227,15 @@ def request_extension(actor, pk, *, values=None, query=None):
             )
         ],
     )
+
+
+@authenticated
+def shorten_time(actor, pk, *, values):
+    from gpu_platform_control.core.approvals import adjust_time
+
+    find(ResourceRequest, pk=pk, user=actor)
+    adjust_time(pk, actor, values.get("ends_at"), by_owner=True)
+    return result(complete=True, notices=[("success", tr("End time updated."))])
 
 
 @authenticated
@@ -269,6 +276,7 @@ def stop(actor, pk, *, values=None, query=None):
 
 @staff_only
 def review(actor, pk, *, values=None, query=None):
+    find(ResourceRequest, pk=pk)
     values = values or {}
     action = values.get("action")
     reason = values.get("reason", "")
@@ -278,8 +286,11 @@ def review(actor, pk, *, values=None, query=None):
         reject(pk, actor, reason)
     elif action == "stop":
         request_stop(pk, actor, reason)
-    elif action == "extend":
-        extend(pk, actor, values.get("ends_at"), reason)
+    elif action == "adjust_time":
+        from gpu_platform_control.core.approvals import adjust_time
+
+        adjust_time(pk, actor, values.get("ends_at"), reason)
+        return result(complete=True, notices=[("success", tr("End time updated."))])
     else:
         raise ValidationError(tr("Select a valid review action."))
     return result(complete=True, notices=[("success", tr("Action recorded."))])

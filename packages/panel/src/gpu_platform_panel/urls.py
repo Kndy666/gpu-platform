@@ -47,6 +47,7 @@ urlpatterns = [
     path("management/", views.management, name="management"),
     path("tasks/<uuid:pk>/save/", views.save_environment, name="save_environment"),
     path("tasks/<uuid:pk>/extend/", views.request_extension, name="request_extension"),
+    path("tasks/<uuid:pk>/shorten/", views.shorten_time, name="shorten_time"),
     path("tasks/<uuid:pk>/", views.task, name="task"),
     path("tasks/<uuid:pk>/stop/", views.stop, name="stop"),
     path("tasks/<uuid:pk>/review/", views.review, name="review"),

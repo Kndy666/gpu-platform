@@ -5,7 +5,7 @@ from django.db import transaction
 from django.utils import timezone
 from gpu_platform_control.core.requests.models import ExtensionRequest, ResourceRequest
 from .policies import approval_mode, extension_limit
-from .services import ACTIVE, approve, audit, extend, policy_for
+from .services import adjust_end_time, approve, audit, can_adjust_time, extend, policy_for
 
 
 def submit_request(req):
@@ -16,16 +16,7 @@ def submit_request(req):
 
 
 def validate_extension(req, ends_at):
-    ws = getattr(req, "workspace", None)
-    if (
-        req.mode != "interactive"
-        or req.status not in ACTIVE
-        or (not ws)
-        or ws.stop_requested
-        or ws.ended_at
-        or (not req.ends_at)
-        or (req.ends_at <= timezone.now())
-    ):
+    if not can_adjust_time(req, getattr(req, "workspace", None), timezone.now()):
         raise ValidationError(tr("Extensions require an active development environment."))
     if req.extension_count >= extension_limit(req.user):
         raise ValidationError(tr("This environment has used all its extensions."))
@@ -40,7 +31,9 @@ def validate_extension(req, ends_at):
 
 @transaction.atomic
 def request_extension(request_id, actor, ends_at, reason):
-    req = ResourceRequest.objects.select_for_update().select_related("user", "workspace").get(pk=request_id)
+    req = ResourceRequest.objects.select_for_update(of=("self",)).select_related("user", "workspace").get(
+        pk=request_id
+    )
     if req.user_id != actor.pk:
         raise ValidationError(tr("You can request extensions for your own environments."))
     validate_extension(req, ends_at)
@@ -65,13 +58,22 @@ def request_extension(request_id, actor, ends_at, reason):
 
 
 @transaction.atomic
+def adjust_time(request_id, actor, ends_at, reason="", *, by_owner=False):
+    req = adjust_end_time(request_id, actor, ends_at, reason, by_owner=by_owner)
+    pending = req.extensions.filter(status="pending").first()
+    if pending is not None:
+        record_extension_review(pending, actor, "superseded")
+
+
+@transaction.atomic
 def review_extension(identifier, actor, action, reason=""):
     if actor is not None and (not actor.is_staff):
         raise ValidationError(tr("Administrator permission is required."))
-    entry = ExtensionRequest.objects.select_for_update().select_related("request__user").get(pk=identifier)
+    request_id = ExtensionRequest.objects.values_list("request_id", flat=True).get(pk=identifier)
+    req = ResourceRequest.objects.select_for_update().get(pk=request_id)
+    entry = req.extensions.get(pk=identifier)
     if entry.status != "pending":
         raise ValidationError(tr("This extension request has already been reviewed."))
-    req = ResourceRequest.objects.select_for_update().get(pk=entry.request_id)
     if actor is None and approval_mode(req.user) != "automatic":
         raise ValidationError(tr("This member requires manual approval."))
     if action == "approve":
@@ -79,17 +81,22 @@ def review_extension(identifier, actor, action, reason=""):
         if entry.previous_ends_at != req.ends_at:
             raise ValidationError(tr("The end time changed. Submit a new extension request."))
         extend(req.pk, actor, entry.ends_at, entry.reason, automatic=actor is None)
-        entry.status = "approved"
+        status = "approved"
     elif action == "reject" and actor is not None and reason.strip():
-        entry.status = "rejected"
+        status = "rejected"
     else:
         raise ValidationError(tr("Select approve or reject, and provide a reason for rejection."))
+    return record_extension_review(entry, actor, status, reason)
+
+
+def record_extension_review(entry, actor, status, reason=""):
+    entry.status = status
     (entry.reviewed_by, entry.review_reason, entry.reviewed_at) = (actor, reason, timezone.now())
     entry.save(update_fields=["status", "reviewed_by", "review_reason", "reviewed_at"])
     audit(
         actor,
         "extension_" + entry.status,
-        req.pk,
+        entry.request_id,
         extension_id=str(entry.pk),
         ends_at=entry.ends_at.isoformat(),
         reason=reason,

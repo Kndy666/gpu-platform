@@ -6,7 +6,7 @@ from datetime import timedelta
 from pathlib import PurePosixPath
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 from cryptography.hazmat.primitives.serialization import load_ssh_public_key
-from django.core.exceptions import ValidationError, ObjectDoesNotExist
+from django.core.exceptions import ObjectDoesNotExist, PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import F, Sum
 from django.utils import timezone
@@ -350,7 +350,7 @@ def reject(request_id, actor, reason):
 
 @transaction.atomic
 def request_stop(request_id, actor, reason="user_requested"):
-    req = ResourceRequest.objects.get(pk=request_id)
+    req = ResourceRequest.objects.select_for_update().get(pk=request_id)
     if actor.pk != req.user_id and (not actor.is_staff):
         raise ValidationError(tr("Permission denied."))
     if req.status in TERMINAL:
@@ -363,40 +363,87 @@ def request_stop(request_id, actor, reason="user_requested"):
     audit(actor, "stop_requested", req.pk, reason=reason)
 
 
+def can_adjust_time(req, ws, now):
+    return bool(
+        req.mode == "interactive"
+        and req.status in ACTIVE
+        and ws
+        and not ws.stop_requested
+        and not ws.ended_at
+        and req.ends_at
+        and req.ends_at > now
+    )
+
+
 @transaction.atomic
 def extend(request_id, actor, ends_at, reason, *, automatic=False):
+    if (actor is None and not automatic) or (actor is not None and not actor.is_staff):
+        raise ValidationError(tr("Administrator permission is required."))
     req = ResourceRequest.objects.select_for_update().get(pk=request_id)
-    if (
-        actor is None
-        and (not automatic)
-        or (actor is not None and (not actor.is_staff))
-        or req.mode != "interactive"
-        or (req.status not in ACTIVE)
-        or (not ends_at)
-        or (ends_at <= req.ends_at)
-        or (not reason.strip())
-    ):
+    ws, _ = _lock_adjustable_workspace(req)
+    if not ends_at or ends_at <= req.ends_at or not (reason or "").strip():
         raise ValidationError(tr("Choose a later end time and provide a reason."))
-    ws = Workspace.objects.get(request=req)
+    _save_end_time(req, ws, actor, ends_at, reason, action="extend")
+
+
+@transaction.atomic
+def adjust_end_time(request_id, actor, ends_at, reason="", *, by_owner=False):
+    req = ResourceRequest.objects.select_for_update().get(pk=request_id)
+    if not actor or not actor.is_active:
+        raise PermissionDenied
+    authorized = req.user_id == actor.pk if by_owner else actor.is_staff
+    if not authorized:
+        raise PermissionDenied
+    ws, now = _lock_adjustable_workspace(req)
+    if by_owner and (not ends_at or ends_at >= req.ends_at):
+        raise ValidationError({"ends_at": tr("Choose an end time earlier than the current end time.")})
+    if not ends_at or ends_at <= max(req.starts_at, now) or ends_at == req.ends_at:
+        raise ValidationError(
+            {"ends_at": tr("Choose a different end time after the start time and the current time.")}
+        )
+    if not by_owner and not (reason or "").strip():
+        raise ValidationError({"reason": tr("Enter a reason for the time adjustment.")})
+    _save_end_time(req, ws, actor, ends_at, reason, action="adjust_time")
+    return req
+
+
+def _lock_adjustable_workspace(req):
+    ws = Workspace.objects.select_for_update().filter(request=req).first()
+    now = timezone.now()
+    if not can_adjust_time(req, ws, now):
+        raise ValidationError(tr("Time adjustments require an active development environment."))
+    return ws, now
+
+
+def _save_end_time(req, ws, actor, ends_at, reason, *, action):
+    expiry = ends_at.isoformat()
+    previous_ends_at = req.ends_at
+    workspace_fields = []
     if ws.dispatch_started_at:
         from gpu_platform_contracts.messages import Operation
         from gpu_platform_control.slots.gateway import Gateway
 
         try:
-            Gateway().request(
-                req.node, Operation.TASK_EXTEND, task_id=str(req.pk), expires_at=ends_at.isoformat()
-            )
+            Gateway().request(req.node, Operation.TASK_EXTEND, task_id=str(req.pk), expires_at=expiry)
         except Exception as exc:
             raise ValidationError(
                 tr("The node could not confirm the new expiry."), code="extension_unconfirmed"
             ) from exc
         if ws.dispatch_payload:
-            ws.dispatch_payload["expires_at"] = ends_at.isoformat()
-            ws.save(update_fields=["dispatch_payload"])
+            ws.dispatch_payload["expires_at"] = expiry
+            workspace_fields.append("dispatch_payload")
     if ws.expire_at:
         ws.expire_at = ends_at
-        ws.save(update_fields=["expire_at"])
+        workspace_fields.append("expire_at")
+    if workspace_fields:
+        ws.save(update_fields=workspace_fields)
     req.ends_at = ends_at
-    req.extension_count += 1
-    req.save(update_fields=["ends_at", "extension_count"])
-    audit(actor, "extend", req.pk, ends_at=ends_at.isoformat(), reason=reason)
+    fields = ["ends_at"]
+    if ends_at > previous_ends_at:
+        req.extension_count += 1
+        fields.append("extension_count")
+    req.save(update_fields=fields)
+    detail = {"ends_at": expiry, "reason": reason}
+    if action == "adjust_time":
+        detail["previous_ends_at"] = previous_ends_at.isoformat()
+    audit(actor, action, req.pk, **detail)

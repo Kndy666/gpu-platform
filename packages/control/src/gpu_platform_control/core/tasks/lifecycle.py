@@ -13,8 +13,11 @@ def reserve_dispatch(req, ws):
     from ..services import policy_for
 
     UserProfile.objects.select_for_update().get(user=req.user)
+    req.refresh_from_db(fields=["ends_at"], from_queryset=ResourceRequest.objects.select_for_update())
     policy = policy_for(req.user)
     ws.refresh_from_db()
+    if ws.stop_requested or ws.ended_at:
+        return False
     if ws.dispatch_started_at:
         return True
     if not policy.unlimited:
@@ -54,6 +57,7 @@ def allocate_port(ws, occupied=()):
 
 @transaction.atomic
 def mark_finished(req, status, code=None, error="", ended_at=None):
+    current_request = ResourceRequest.objects.select_for_update().only("ends_at").get(pk=req.pk)
     ws = Workspace.objects.select_for_update().get(request=req)
     if ws.ended_at:
         return True
@@ -61,7 +65,7 @@ def mark_finished(req, status, code=None, error="", ended_at=None):
     if status == "expired":
         # Recheck under the write transaction: an extension may have committed
         # after this reconciler read the previous deadline.
-        current_end = ResourceRequest.objects.only("ends_at").get(pk=req.pk).ends_at
+        current_end = current_request.ends_at
         if current_end and current_end > now and current_end > req.ends_at:
             return False
     ws.ended_at, ws.exit_code, ws.error = now, code, error

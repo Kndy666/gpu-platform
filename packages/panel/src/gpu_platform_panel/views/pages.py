@@ -1,12 +1,13 @@
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.http import JsonResponse
 from django.shortcuts import redirect
+from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST, require_GET
 import gpu_platform_control.services.pages as service
 from .adapter import service_arguments, errors_as_http, render_result, notify, edit, receivers, parameters
 from django.core.exceptions import ValidationError
-from ..forms import SSHKeyForm, ImageBuildForm, TokenIssueForm, RequestForm, ExtensionForm, ReviewForm
+from ..forms import EndTimeForm, ExtensionForm, ImageBuildForm, RequestForm, ReviewForm, SSHKeyForm, TokenIssueForm
 
 staff_required = user_passes_test(lambda user: user.is_active and user.is_staff)
 
@@ -28,9 +29,16 @@ def tasks(request):
 @login_required
 @errors_as_http
 def task(request, pk):
+    return _render_task(request, pk)
+
+
+def _render_task(request, pk, *, extension_form=None, review_form=None, shorten_form=None):
     result = service.task(request.user, pk, query=parameters(request.GET))
     return render_result(
-        request, "portal/task.html", result, extension_form=ExtensionForm(), review_form=ReviewForm()
+        request, "portal/task.html", result,
+        extension_form=extension_form or ExtensionForm(),
+        review_form=review_form or ReviewForm(auto_id="review_%s"),
+        shorten_form=shorten_form or EndTimeForm(auto_id="shorten_%s"),
     )
 
 
@@ -138,8 +146,23 @@ def request_extension(request, pk):
         else:
             notify(request, saved)
             return redirect("task", pk=pk)
-    result = service.task(request.user, pk)
-    return render_result(request, "portal/task.html", result, extension_form=form, review_form=ReviewForm())
+    return _render_task(request, pk, extension_form=form)
+
+
+@login_required
+@require_POST
+@errors_as_http
+def shorten_time(request, pk):
+    form = EndTimeForm(request.POST, auto_id="shorten_%s")
+    if form.is_valid():
+        try:
+            saved = service.shorten_time(request.user, pk, values=form.payload())
+        except ValidationError as error:
+            form.application_error(error)
+        else:
+            notify(request, saved)
+            return redirect("task", pk=pk)
+    return _render_task(request, pk, shorten_form=form)
 
 
 @login_required
@@ -160,7 +183,8 @@ def stop(request, pk):
 @require_POST
 @errors_as_http
 def review(request, pk):
-    form = ReviewForm(request.POST)
+    query = parameters(request.GET)
+    form = ReviewForm(request.POST, auto_id="review_%s")
     if form.is_valid():
         try:
             saved = service.review(request.user, pk, values=form.payload())
@@ -168,11 +192,9 @@ def review(request, pk):
             form.application_error(error)
         else:
             notify(request, saved)
-            return redirect("task", pk=pk)
-    result = service.task(request.user, pk)
-    return render_result(
-        request, "portal/task.html", result, extension_form=ExtensionForm(), review_form=form
-    )
+            origin = {"from": "management"} if query.get("from") == "management" else None
+            return redirect(reverse("task", kwargs={"pk": pk}, query=origin))
+    return _render_task(request, pk, review_form=form)
 
 
 @login_required

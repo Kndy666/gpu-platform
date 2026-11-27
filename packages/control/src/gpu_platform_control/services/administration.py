@@ -73,6 +73,8 @@ def approvals(actor, *, values=None, query=None):
         elif action == "request":
             from .pages import review
 
+            if values.get("decision") not in {"approve", "reject"}:
+                raise ValidationError(tr("Select a valid review action."))
             review(actor, values.get("id"), values={**values, "action": values.get("decision")})
         else:
             raise ValidationError(tr("Select a valid review action."))

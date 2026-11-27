@@ -1555,3 +1555,30 @@ msgstr "容器间 SSH 已连接"
 
 msgid "Workspace SSH connection rejected"
 msgstr "容器间 SSH 连接被拒绝"
+
+msgid "Adjust environment time"
+msgstr "调整环境时间"
+
+msgid "Choose a different end time after the start time and the current time."
+msgstr "新的结束时间须晚于开始时间和当前时间，并与原结束时间不同。"
+
+msgid "End time updated."
+msgstr "结束时间已更新。"
+
+msgid "Enter a reason for the time adjustment."
+msgstr "请填写调整时间的原因。"
+
+msgid "Extension superseded"
+msgstr "延期申请已失效"
+
+msgid "Previous end time"
+msgstr "原结束时间"
+
+msgid "Superseded by a time adjustment"
+msgstr "因时间调整已失效"
+
+msgid "Time adjustments require an active development environment."
+msgstr "仅可调整尚未结束的开发环境的时间。"
+
+msgid "Choose an end time earlier than the current end time."
+msgstr "请选择早于原结束时间的新结束时间。"

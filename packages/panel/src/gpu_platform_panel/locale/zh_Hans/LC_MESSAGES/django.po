@@ -1420,3 +1420,15 @@ msgstr "容器间 SSH"
 
 msgid "Connection"
 msgstr "连接"
+
+msgid "Adjust time"
+msgstr "调整时间"
+
+msgid "Requested end time"
+msgstr "申请结束时间"
+
+msgid "Shorten time"
+msgstr "缩短时间"
+
+msgid "Shortening will close your pending extension request."
+msgstr "缩短时间后，当前待审批的延期申请将失效。"
