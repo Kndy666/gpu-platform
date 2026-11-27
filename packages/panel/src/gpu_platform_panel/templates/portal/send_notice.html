@@ -8,15 +8,34 @@
     <div class="notice-composer-message">
       {% include 'portal/field.html' with field=form.title %}
       {% include 'portal/field.html' with field=form.content %}
-      {% include 'portal/field.html' with field=form.link %}
     </div>
     <div class="notice-composer-settings">
       {% include 'portal/field.html' with field=form.audience %}
       {% include 'portal/field.html' with field=form.member %}
       {% include 'portal/field.html' with field=form.group %}
       {% include 'portal/field.html' with field=form.presentation %}
-      <div>{% include 'portal/field.html' with field=form.seconds %}<small class="muted">{{ form.seconds.help_text }}</small></div>
-      {% include 'portal/field.html' with field=form.expires_at %}
+      <div class="field{% if form.seconds.errors %} invalid{% endif %}" data-notice-duration>
+        <div class="field-label-with-help">
+          <label for="{{ form.seconds.id_for_label }}">{{ form.seconds.label }}</label>
+          <span class="field-hint">
+            <button type="button" class="field-hint-trigger" data-notice-duration-hint
+                    aria-label="{% translate 'Display duration help' %}" aria-describedby="{{ form.seconds.auto_id }}_helptext">?</button>
+            <span class="field-tooltip" id="{{ form.seconds.auto_id }}_helptext" role="tooltip">{{ form.seconds.help_text }}</span>
+          </span>
+        </div>
+        {{ form.seconds }}{{ form.seconds.errors }}
+      </div>
+      <details class="notice-options"{% if form.link.value or form.expires_at.value or form.link.errors or form.expires_at.errors %} open{% endif %}>
+        <summary>{% translate 'More options' %}</summary>
+        <div data-notice-expiry>
+          {% include 'portal/field.html' with field=form.expires_at %}
+          <small class="muted">{{ form.expires_at.help_text }}</small>
+        </div>
+        <div>
+          {% include 'portal/field.html' with field=form.link %}
+          <small class="muted">{{ form.link.help_text }}</small>
+        </div>
+      </details>
     </div>
   </div>
   {% if preview %}

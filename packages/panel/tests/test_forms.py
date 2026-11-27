@@ -189,12 +189,12 @@ def test_invalid_notification_settings_remain_bound_without_mutation():
     initial = NotificationSettings.load()
     client = Client()
     client.force_login(admin)
-    response = client.post('/management/approvals/?tab=push', {"action": "push", "enabled": "on", "reminder_minutes": "0"})
+    response = client.post('/management/approvals/?tab=push', {"action": "push", "reminder_minutes": "0"})
     assert response.status_code == 200
     assert response.context['push_form'].errors
     initial.refresh_from_db()
     assert not initial.enabled
-    response = client.post('/management/approvals/?tab=push', {"action": "push", "enabled": "on", "reminder_minutes": "45"})
+    response = client.post('/management/approvals/?tab=push', {"action": "push", "reminder_minutes": "45"})
     assert response.status_code == 302
     initial.refresh_from_db()
-    assert initial.enabled and initial.reminder_minutes == 45
+    assert not initial.enabled and initial.reminder_minutes == 45

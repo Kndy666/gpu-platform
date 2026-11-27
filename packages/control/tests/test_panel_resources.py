@@ -131,23 +131,27 @@ def test_combined_notification_form_retains_secret_and_allows_disabling_without_
     client.force_login(user)
     url = "/management/approvals/?tab=push"
     assert client.post(url, {"action": "push", "reminder_minutes": 30}).status_code == 302
-    response = client.post(url, {"action": "push", "enabled": "on", "reminder_minutes": 30})
+    response = client.post(url, {"action": "push", "events": ["ending_soon"], "reminder_minutes": 30})
     assert response.status_code == 200 and not NotificationSettings.load().enabled
-    response = client.post(url, {"action": "push", "enabled": "on", "reminder_minutes": 30,
+    response = client.post(url, {"action": "push", "events": ["ending_soon"], "reminder_minutes": 30,
                                  "receiver:pushplus:token": "invalid"})
     assert response.status_code == 200 and not NotificationSettings.load().enabled
     token = "0123456789abcdef" * 2
-    response = client.post(url, {"action": "push", "enabled": "on", "reminder_minutes": 30,
+    response = client.post(url, {"action": "push", "events": ["ending_soon"], "reminder_minutes": 30,
                                  "receiver:pushplus:token": token})
     assert response.status_code == 302
     configuration = NotificationSettings.load()
     ciphertext = configuration.receivers["pushplus"]["token"]
     assert configuration.enabled and token not in ciphertext
-    response = client.post(url, {"action": "push", "enabled": "on", "reminder_minutes": 45,
+    response = client.post(url, {"action": "push", "events": ["ending_soon"], "reminder_minutes": 45,
                                  "receiver:pushplus:token": ""})
     assert response.status_code == 302
     configuration = NotificationSettings.load()
     assert configuration.receivers["pushplus"]["token"] == ciphertext and configuration.reminder_minutes == 45
+    assert client.post(url, {"action": "push", "reminder_minutes": 45}).status_code == 302
+    configuration.refresh_from_db()
+    assert not configuration.enabled and configuration.events == []
+    assert configuration.receivers["pushplus"]["token"] == ciphertext
 
 
 def test_timeline_keeps_device_rows_and_maps_task_to_its_allocated_device():

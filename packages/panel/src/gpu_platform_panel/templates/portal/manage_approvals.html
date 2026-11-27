@@ -17,13 +17,16 @@
   {% if push_form.options.wechat_available or receiver_fields %}
   <fieldset class="notification-settings-group">
     <legend>{% translate 'WeChat notifications' %}</legend>
-    {% include 'portal/field.html' with field=push_form.enabled %}
+    <p class="notification-help">{% translate 'The PushPlus token determines which WeChat account receives the selected reminders.' %}</p>
     {% for field in receiver_fields %}{% include 'portal/field.html' %}{% endfor %}
     {% if token_configured %}<p class="push-token-status">{% translate 'Token configured. Leave blank to keep it.' %}</p>{% endif %}
     <div class="push-events">{{ push_form.events }}{{ push_form.events.errors }}</div>
   </fieldset>
   {% endif %}
-  {% include 'portal/field.html' with field=push_form.reminder_minutes %}
+  <div class="reminder-lead-time">
+    {% include 'portal/field.html' with field=push_form.reminder_minutes %}
+    <small class="muted">{{ push_form.reminder_minutes.help_text }}</small>
+  </div>
   <button class="button">{% translate 'Save notification settings' %}</button>
 </form>
 {% endif %}

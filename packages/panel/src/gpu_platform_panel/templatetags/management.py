@@ -48,7 +48,7 @@ def management_navigation(context):
             "i-bell",
             [
                 ("notifications-send", _("Send notification"), reverse("send_notice")),
-                ("notifications-automatic", _("Automatic notifications"), approval_url + "?tab=push"),
+                ("notifications-automatic", _("Reminder settings"), approval_url + "?tab=push"),
                 ("notifications-history", _("Sending history"), approval_url + "?tab=history"),
             ],
         ),

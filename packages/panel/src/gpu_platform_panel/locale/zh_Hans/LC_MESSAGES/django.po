@@ -1451,6 +1451,9 @@ msgstr "已送达"
 msgid "Display as"
 msgstr "显示方式"
 
+msgid "Display duration help"
+msgstr "显示时长说明"
+
 msgid "Events sent to administrators in WeChat"
 msgstr "通过微信发送的通知"
 
@@ -1472,14 +1475,17 @@ msgstr "暂无通知"
 msgid "Notification"
 msgstr "通知"
 
-msgid "Open notification"
-msgstr "查看通知"
-
 msgid "Open related page"
 msgstr "打开相关页面"
 
-msgid "Panel link"
-msgstr "面板内链接"
+msgid "Related page link"
+msgstr "相关页面链接"
+
+msgid "Recipients can open this page from the notification."
+msgstr "接收人打开通知后，可以点击链接前往该页面。"
+
+msgid "More options"
+msgstr "更多选项"
 
 msgid "Read"
 msgstr "已读"
@@ -1496,8 +1502,11 @@ msgstr "接收人数"
 msgid "Seconds before fading"
 msgstr "显示时长（秒）"
 
-msgid "Send WeChat notifications to administrators"
-msgstr "给管理员发送微信通知"
+msgid "The PushPlus token determines which WeChat account receives the selected reminders."
+msgstr "勾选的提醒会发给 PushPlus 令牌对应的微信账号。"
+
+msgid "Applies to container expiry and work volume cleanup. Enter 30 to get a reminder 30 minutes beforehand."
+msgstr "用于容器到期和工作卷回收提醒。填 30 就会提前 30 分钟提醒。"
 
 msgid "Send now"
 msgstr "立即发送"
@@ -1505,8 +1514,11 @@ msgstr "立即发送"
 msgid "Sent by administrators"
 msgstr "管理员发送"
 
-msgid "Stop showing after"
-msgstr "提示有效期"
+msgid "Popup cutoff time"
+msgstr "停止弹出时间"
+
+msgid "The notification is sent immediately. After this time, it stays in the inbox and stops popping up."
+msgstr "点击「立即发送」后开始发送。到了这个时间，通知停止弹出，仍可在通知中心查看。"
 
 msgid "Title"
 msgstr "标题"

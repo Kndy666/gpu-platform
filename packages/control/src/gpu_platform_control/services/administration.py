@@ -56,7 +56,7 @@ def approvals(actor, *, values=None, query=None):
             minutes = int(values.get("reminder_minutes", 30))
             if not 1 <= minutes <= 1440:
                 raise ValidationError({"reminder_minutes": tr("Enter 1–1440 minutes.")})
-            settings.enabled = bool(values.get("enabled", False))
+            settings.enabled = bool(events)
             settings.events, settings.reminder_minutes = events, minutes
             if inapp_events is not None and channel_configured(IN_APP_CHANNEL):
                 settings.receivers[IN_APP_CHANNEL] = {"events": inapp_events}
@@ -87,7 +87,7 @@ def approvals(actor, *, values=None, query=None):
         return result(complete=True, notices=[("success", tr("Settings saved."))])
     title = {
         "pending": tr("Pending approval"),
-        "push": tr("Automatic notifications"),
+        "push": tr("Reminder settings"),
     }[tab]
     return result(
         {
@@ -535,7 +535,7 @@ def notification_settings_options(actor):
     from .read_models import materialize
 
     settings = NotificationSettings.load()
-    initial = {key: getattr(settings, key) for key in ("enabled", "events", "reminder_minutes")}
+    initial = {"events": list(automatic_events("pushplus", settings)), "reminder_minutes": settings.reminder_minutes}
     initial["inapp_events"] = list(automatic_events(IN_APP_CHANNEL, settings))
     return materialize(
         {

@@ -1,7 +1,7 @@
 {% load i18n %}
 <div class="notice-banners" data-notice-banners aria-live="polite"></div>
 <div class="notice-toasts" data-notice-toasts aria-live="polite"
-     data-close-label="{% translate 'Close' %}" data-open-label="{% translate 'Open notification' %}">
+     data-close-label="{% translate 'Close' %}">
   {% for message in messages %}
   <div class="notice-popup {{ message.tags }}" data-flash
        data-seconds="{% if message.level_tag == 'error' %}0{% else %}5{% endif %}">
@@ -11,7 +11,7 @@
 </div>
 {% if platform_features.notifications %}
 <form hidden data-notice-session data-reminders="{% url 'inbox_reminders' %}"
-      data-notice-url="{% url 'notice' 0 %}" data-dismiss-url="{% url 'dismiss_banner' 0 %}">
+      data-dismiss-url="{% url 'dismiss_banner' 0 %}">
   {% csrf_token %}
 </form>
 {% endif %}

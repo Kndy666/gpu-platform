@@ -436,9 +436,9 @@ class RecycleSettingsForm(InputForm):
 
 
 class PushSettingsForm(InputForm):
-    enabled = forms.BooleanField(label=tr("Send WeChat notifications to administrators"), required=False)
     reminder_minutes = forms.IntegerField(
-        label=tr("Reminder before expiry (minutes)"), min_value=1, max_value=1440
+        label=tr("Reminder lead time (minutes)"), min_value=1, max_value=1440,
+        help_text=tr("Applies to container expiry and work volume cleanup. Enter 30 to get a reminder 30 minutes beforehand."),
     )
     events = forms.MultipleChoiceField(
         label=tr("Events sent to administrators in WeChat"), required=False, widget=forms.CheckboxSelectMultiple
@@ -460,14 +460,19 @@ class SendNoticeForm(InputForm):
     group = forms.TypedChoiceField(label=tr("User group"), required=False, coerce=int)
     title = forms.CharField(label=tr("Title"), max_length=100)
     content = forms.CharField(label=tr("Message"), max_length=4000, widget=forms.Textarea(attrs={"rows": 5}))
-    link = forms.CharField(label=tr("Panel link"), required=False, max_length=500)
+    link = forms.CharField(
+        label=tr("Related page link"), required=False, max_length=500,
+        help_text=tr("Recipients can open this page from the notification."),
+        widget=forms.TextInput(attrs={"placeholder": "/tasks/"}),
+    )
     presentation = forms.ChoiceField(label=tr("Display as"), initial="toast")
     seconds = forms.IntegerField(
         label=tr("Seconds before fading"), required=False, min_value=3, max_value=60,
         help_text=tr("Leave blank for a 5-second reminder or a banner that stays until closed."),
     )
     expires_at = forms.DateTimeField(
-        label=tr("Stop showing after"), required=False,
+        label=tr("Popup cutoff time"), required=False,
+        help_text=tr("The notification is sent immediately. After this time, it stays in the inbox and stops popping up."),
         widget=forms.DateTimeInput(format="%Y-%m-%dT%H:%M", attrs={"type": "datetime-local"}),
     )
 

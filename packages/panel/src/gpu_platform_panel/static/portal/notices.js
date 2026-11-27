@@ -37,7 +37,7 @@
     }
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'notice-close text-button';
+    button.className = 'notice-close';
     button.setAttribute('aria-label', toasts.dataset.closeLabel);
     button.textContent = '×';
     button.addEventListener('click', close);
@@ -58,6 +58,7 @@
     const popup = document.createElement('div');
     popup.className = 'notice-popup';
     const text = document.createElement('div');
+    text.className = 'notice-popup-content';
     const title = document.createElement('strong');
     title.textContent = item.title;
     text.append(title);
@@ -66,16 +67,6 @@
       preview.textContent = item.content;
       text.append(preview);
     }
-    const form = document.createElement('form');
-    form.method = 'post';
-    form.action = session.dataset.noticeUrl.replace('/0/', `/${item.id}/`);
-    form.append(session.elements.csrfmiddlewaretoken.cloneNode());
-    const open = document.createElement('button');
-    open.type = 'submit';
-    open.className = 'text-button notice-open';
-    open.textContent = toasts.dataset.openLabel;
-    form.append(open);
-    text.append(form);
     popup.append(text);
     destination.append(popup);
     return controls(popup, item.seconds, dismiss);
@@ -152,11 +143,13 @@
     const confirmation = composer.querySelector('[data-notice-confirmation]');
     const send = composer.querySelector('[data-notice-send]');
     const preview = composer.querySelector('[data-notice-preview]');
+    const durationHint = composer.querySelector('[data-notice-duration-hint]');
+    durationHint.addEventListener('click', () => durationHint.focus());
     function showFields() {
       member.closest('.field').hidden = audience.value !== 'member';
       group.closest('.field').hidden = audience.value !== 'group';
-      seconds.closest('.field').parentElement.hidden = presentation.value === 'inbox';
-      expires_at.closest('.field').hidden = presentation.value === 'inbox';
+      seconds.closest('[data-notice-duration]').hidden = presentation.value === 'inbox';
+      expires_at.closest('[data-notice-expiry]').hidden = presentation.value === 'inbox';
       seconds.disabled = expires_at.disabled = presentation.value === 'inbox';
     }
     composer.addEventListener('input', () => {

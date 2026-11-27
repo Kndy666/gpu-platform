@@ -791,8 +791,8 @@ msgstr "已拒绝"
 msgid "Rejection requires an administrator and a reason."
 msgstr "拒绝需要管理员及明确原因。"
 
-msgid "Reminder before expiry (minutes)"
-msgstr "到期前提醒（分钟）"
+msgid "Reminder lead time (minutes)"
+msgstr "提前提醒（分钟）"
 
 msgid "Request approved"
 msgstr "申请已通过"
@@ -1589,8 +1589,8 @@ msgstr "管理员"
 msgid "All active users"
 msgstr "全体活跃用户"
 
-msgid "Automatic notifications"
-msgstr "自动通知"
+msgid "Reminder settings"
+msgstr "提醒设置"
 
 msgid "Bottom-right reminder"
 msgstr "右下角提醒"

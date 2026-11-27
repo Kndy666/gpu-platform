@@ -9,7 +9,7 @@ class NotificationSettings(models.Model):
     singleton = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
     enabled = models.BooleanField(default=False, verbose_name=tr('Enable notifications'))
     events = models.JSONField(default=list, blank=True)
-    reminder_minutes = models.PositiveIntegerField(default=30, verbose_name=tr('Reminder before expiry (minutes)'))
+    reminder_minutes = models.PositiveIntegerField(default=30, verbose_name=tr('Reminder lead time (minutes)'))
 
     @classmethod
     def load(cls):
