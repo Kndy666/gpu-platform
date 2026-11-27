@@ -385,7 +385,7 @@ class NodeForm(InputForm):
     address = forms.CharField(label=tr("Endpoint"), required=False, initial="127.0.0.1")
     transport = forms.ChoiceField(label=tr("Connection module"))
     enabled = forms.BooleanField(label=tr("Enable reporting"), required=False, initial=True)
-    maintenance = forms.BooleanField(label=tr("Pause admission"), required=False)
+    maintenance = forms.BooleanField(label=tr("Maintenance mode"), required=False)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

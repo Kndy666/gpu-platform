@@ -701,8 +701,8 @@ msgstr "只能拒绝待审核申请。"
 msgid "Owner"
 msgstr "所属用户"
 
-msgid "Pause admission"
-msgstr "暂停接单"
+msgid "Maintenance mode"
+msgstr "维护模式"
 
 msgid "Pending approval"
 msgstr "待审批"

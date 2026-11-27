@@ -16,7 +16,7 @@ class ComputeNode(models.Model):
     name = models.SlugField(max_length=63, unique=True, verbose_name=tr('Node name'))
     architecture = models.CharField(max_length=20, choices=[('arm64', 'ARM64'), ('amd64', 'AMD64')], default='amd64')
     enabled = models.BooleanField(default=True, verbose_name=tr('Enable reporting'))
-    maintenance = models.BooleanField(default=False, verbose_name=tr('Pause admission'))
+    maintenance = models.BooleanField(default=False, verbose_name=tr('Maintenance mode'))
     state = models.CharField(max_length=16, default='unknown', choices=[('unknown', tr('Disconnected')), ('online', tr('Online')), ('offline', tr('Offline'))])
     last_seen = models.DateTimeField(null=True, blank=True)
     error = models.TextField(blank=True)
