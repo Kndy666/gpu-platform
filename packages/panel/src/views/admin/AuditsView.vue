@@ -34,7 +34,6 @@ const AUDIT_ACTION_KEYS = [
   "image_build_submit",
   "image_build_succeeded",
   "image_build_failed",
-  "image_kept",
   "image_delete_requested",
   "image_recycle_requested",
   "image_recycled",
@@ -185,7 +184,10 @@ useAutoRefresh(() => load(page.value, true), 20000);
                   <dl class="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2 lg:grid-cols-3">
                     <div v-for="(d, idx) in entry.details" :key="idx" class="rounded-md border border-border-subtle bg-card px-2.5 py-1.5">
                       <dt class="text-muted">{{ d.label }}</dt>
-                      <dd class="mt-0.5 font-mono text-ink break-all">{{ d.value }}</dd>
+                      <dd
+                        class="mt-0.5 text-ink"
+                        :class="d.structured ? 'font-mono whitespace-pre-wrap break-all' : 'break-words'"
+                      >{{ d.value }}</dd>
                     </div>
                   </dl>
                 </td>

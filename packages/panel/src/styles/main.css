@@ -48,17 +48,15 @@
   accent-color: var(--accent);
   scrollbar-color: light-dark(#b9b3a5, #57544d) transparent;
 
-  /* Fonts (optimized for crisp CJK + Latin rendering, self-hosted for offline deployments) */
+  /* Fonts (Plus Jakarta Sans first so Latin/digits match English UI; CJK falls back to system HeiTi) */
   --font-serif: "Newsreader Variable", "Newsreader", Georgia, serif;
   --font-sans: "Plus Jakarta Sans Variable", "PingFang SC", "Hiragino Sans GB", "HarmonyOS Sans SC", "MiSans", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  --font-sans-zh: "PingFang SC", "Hiragino Sans GB", "HarmonyOS Sans SC", "MiSans", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", "Plus Jakarta Sans Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "PingFang SC", "Microsoft YaHei", monospace;
 }
 
-/* Override --font-serif in Chinese mode at root token level so .font-serif utility never falls back to SimSun */
+/* Override --font-serif in Chinese mode so headings use Plus Jakarta Sans for Latin/digits and HeiTi for CJK */
 :root:lang(zh) {
-  --font-sans: var(--font-sans-zh);
-  --font-serif: var(--font-sans-zh);
+  --font-serif: var(--font-sans);
 }
 
 @theme {
@@ -119,6 +117,91 @@
     min-block-size: 100dvh;
     background-color: var(--surface-canvas);
     color: var(--ink-body);
+    caret-color: transparent;
+  }
+
+  ::selection {
+    background-color: color-mix(in oklab, var(--accent) 24%, transparent);
+    color: var(--ink-primary);
+  }
+
+  input,
+  textarea,
+  [contenteditable]:not([contenteditable="false"]) {
+    caret-color: auto;
+    user-select: text;
+  }
+
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="button"], [type="submit"], [type="reset"]),
+  textarea,
+  [contenteditable]:not([contenteditable="false"]) {
+    cursor: text;
+  }
+
+  /* UI chrome: prevent accidental text selection and cursor flicker on headings, navigation, labels, and controls */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  header,
+  nav,
+  aside,
+  button,
+  summary,
+  label,
+  legend,
+  dt,
+  thead th,
+  [role="tab"],
+  [role="tablist"],
+  [role="progressbar"] {
+    user-select: none;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  header,
+  aside,
+  legend,
+  dt,
+  thead th,
+  [role="progressbar"] {
+    cursor: default;
+  }
+
+  a,
+  button,
+  select,
+  summary,
+  [role="tab"],
+  label[for],
+  label:has(input[type="checkbox"], input[type="radio"]) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  select:disabled {
+    cursor: not-allowed;
+  }
+
+  :is(a, button, summary, [role="button"], [role="tab"]) :is(h1, h2, h3, h4, h5, h6, dt, span, p) {
+    cursor: inherit;
+  }
+
+  /* Keep copyable content, data cells, and code blocks selectable */
+  code,
+  pre,
+  kbd,
+  .code-block,
+  td,
+  dd {
+    user-select: text;
   }
 
   h1 {
@@ -158,6 +241,18 @@
 
   code, pre, kbd {
     font-family: var(--font-mono);
+  }
+
+  :not(pre) > code,
+  kbd {
+    font-size-adjust: from-font;
+  }
+
+  @supports not (font-size-adjust: from-font) {
+    :not(pre) > code,
+    kbd {
+      font-size: 0.92em;
+    }
   }
 
   time, .tabular-nums {

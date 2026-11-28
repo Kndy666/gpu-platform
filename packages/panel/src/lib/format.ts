@@ -76,16 +76,7 @@ export function unitSuffix(unit: string, coresLabel = "cores"): string {
 export function formatGpuMemory(gib: number | null | undefined): string {
   if (gib === null || gib === undefined || !Number.isFinite(gib)) return "—";
   if (gib <= 0) return "0 GiB";
-  if (gib >= 1) {
-    const whole = Math.floor(gib);
-    const remMib = Math.round((gib - whole) * 1024);
-    if (remMib >= 1024) return `${whole + 1} GiB`;
-    return remMib > 0 ? `${whole} GiB ${remMib} MiB` : `${whole} GiB`;
-  }
-  const mib = Math.round(gib * 1024);
-  if (mib >= 1024) return "1 GiB";
-  if (mib >= 1) return `${mib} MiB`;
-  return formatBytes(gib * 1024 ** 3);
+  return `${compactNumber(gib, 2)} GiB`;
 }
 
 export function formatDateTime(

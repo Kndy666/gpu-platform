@@ -70,7 +70,7 @@ function remainingTone(percent: number, defaultTone: "ok" | "accent" | "info" = 
       </div>
     </summary>
 
-    <div class="space-y-4 border-t border-border-subtle px-5 py-4">
+    <div class="cursor-default select-none space-y-4 border-t border-border-subtle px-5 py-4">
       <!-- Host resource remaining bars (0% available = empty, 100% available = full) -->
       <div v-if="hostResources.length" class="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div

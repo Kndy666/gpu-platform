@@ -84,7 +84,7 @@ async function handleSubmit() {
     </header>
 
     <main class="relative z-10 mx-auto my-auto w-full max-w-md px-4 py-8">
-      <div class="mb-7 text-center">
+      <div class="mb-7 cursor-default select-none text-center">
         <div class="mb-4 flex justify-center">
           <BrandMark size="lg" />
         </div>

@@ -126,7 +126,32 @@ DETAIL_LABELS = {
     "snapshot_hours": tr("Retention after success or cancellation (hours)"),
     "failed_snapshot_hours": tr("Retention after failure (hours)"),
     "workspace_retention_days": tr("Work volume retention (days)"),
-    "kind": tr("Volume type"),
+    "kind": tr("Type"),
+    "approval_mode": tr("Approval policy"),
+    "extension_limit": tr("Extension limit"),
+    "location": tr("Volume location"),
+    "maintenance": tr("Maintenance mode"),
+    "previous_owner_id": tr("Previous owner"),
+    "retain_until": tr("Retain until"),
+    "shared": tr("Shared"),
+    "source": tr("Source task"),
+    "started_at": tr("Started at"),
+    "title": tr("Title"),
+}
+REASON_LABELS = {
+    "user_requested": tr("Requested by user"),
+    "policy_automatic": tr("Approved automatically by policy"),
+    "environment_saved": tr("Stopped after saving environment"),
+}
+APPROVAL_MODE_LABELS = {
+    "automatic": tr("Automatic approval"),
+    "manual": tr("Manual approval"),
+}
+KIND_LABELS = {
+    "work": tr("Work volume"),
+    "home": tr("Home volume"),
+    "image": tr("Image"),
+    "datasets": tr("Shared datasets"),
 }
 
 
@@ -149,12 +174,20 @@ def detail_items(detail):
             value = {"temporary": tr("Temporary members"), "longterm": tr("Long-term members")}.get(
                 value, value
             )
+        if key == "reason" and isinstance(value, str):
+            value = REASON_LABELS.get(value, value)
+        if key in {"approval_mode", "mode"} and isinstance(value, str):
+            value = APPROVAL_MODE_LABELS.get(value, value)
+        if key == "kind" and isinstance(value, str):
+            value = KIND_LABELS.get(value, value)
+        if key in {"events", "inapp_events"} and isinstance(value, list):
+            value = ", ".join(str(ACTION_LABELS.get(item, item)) for item in value) if value else "—"
         structured = isinstance(value, (dict, list))
         if structured:
             value = json.dumps(value, ensure_ascii=False, indent=2)
         elif isinstance(value, bool):
             value = tr("Yes") if value else tr("No")
-        elif value is None:
+        elif value is None or value == "":
             value = "—"
         items.append(
             {"label": DETAIL_LABELS.get(key, key.replace("_", " ")), "value": value, "structured": structured}

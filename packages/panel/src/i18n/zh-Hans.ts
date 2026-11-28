@@ -511,7 +511,6 @@ export default {
     image_build_submit: "提交镜像构建",
     image_build_succeeded: "镜像构建完成",
     image_build_failed: "镜像构建失败",
-    image_kept: "镜像设为长期保留",
     image_delete_requested: "请求删除镜像",
     image_recycle_requested: "安排镜像回收",
     image_recycled: "镜像已删除",

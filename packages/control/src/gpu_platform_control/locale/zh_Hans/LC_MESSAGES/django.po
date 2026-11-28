@@ -1872,3 +1872,27 @@ msgstr "设置已保存。"
 
 msgid "Synchronization"
 msgstr "同步"
+
+msgid "Requested by user"
+msgstr "用户主动停止"
+
+msgid "Approved automatically by policy"
+msgstr "按审批方式自动通过"
+
+msgid "Stopped after saving environment"
+msgstr "保存环境后停止"
+
+msgid "Extension limit"
+msgstr "延期次数上限"
+
+msgid "Volume location"
+msgstr "存储位置"
+
+msgid "Previous owner"
+msgstr "原所属用户"
+
+msgid "Source task"
+msgstr "源任务"
+
+msgid "Title"
+msgstr "标题"

@@ -55,7 +55,7 @@ const classes = computed(() => {
 
 <template>
   <span
-    class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium leading-5 whitespace-nowrap"
+    class="inline-flex cursor-default select-none items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium leading-5 whitespace-nowrap"
     :class="classes"
   >
     <component :is="icon" class="size-3.5 shrink-0" aria-hidden="true" />

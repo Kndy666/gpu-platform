@@ -511,7 +511,6 @@ export default {
     image_build_submit: "Submit image build",
     image_build_succeeded: "Image build completed",
     image_build_failed: "Image build failed",
-    image_kept: "Keep image permanently",
     image_delete_requested: "Request image deletion",
     image_recycle_requested: "Schedule image deletion",
     image_recycled: "Image deleted",
